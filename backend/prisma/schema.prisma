@@ -1,0 +1,216 @@
+// Refined database configuration for Meal Coupon Management System (MCMS)
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// Revised Clearances Enums
+enum Role {
+  ADMIN
+  HR
+  FINANCE
+  CAFE_STAFF
+  EMPLOYEE
+}
+
+// QR Card Status Enum
+enum QRCardStatus {
+  ACTIVE
+  BLOCKED
+  LOST
+}
+
+// Coupon Status Enum (Revised)
+enum CouponStatus {
+  ALLOCATED
+  CLAIMED
+  EXPIRED
+  VOID
+}
+
+// Base User Model (Covers corporate accounts)
+model User {
+  id            String      @id @default(uuid())
+  email         String      @unique
+  passwordHash  String
+  name          String
+  role          Role        @default(EMPLOYEE)
+  isActive      Boolean     @default(true)
+  
+  // Relations
+  employeeProfile EmployeeProfile? @relation("UserEmployeeProfile")
+  qrCards QRCard[] @relation("UserQRCards")
+  issuedCoupons Coupon[] @relation("AllocatedByCoupons")
+  claimedCoupons Coupon[] @relation("ClaimedByCoupons")
+  coupons Coupon[] @relation("EmployeeCoupons")
+  configsCreated CouponConfig[] @relation("FinanceCreatedConfigs")
+  auditLogs AuditLog[] @relation("ActorAuditLogs")
+  couponClaimsIssued CouponClaim[] @relation("IssuedByClaims")
+  couponClaimsReceived CouponClaim[] @relation("EmployeeClaims")
+  cafeScansAsStaff CafeScanSession[] @relation("StaffScanSessions")
+  cafeScansAsEmployee CafeScanSession[] @relation("EmployeeScanSessions")
+  
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+
+  @@index([role])
+  @@index([isActive])
+}
+
+// Employee Profile containing HR metadata
+model EmployeeProfile {
+  id               String   @id @default(uuid())
+  userId           String   @unique
+  user             User     @relation("UserEmployeeProfile", fields: [userId], references: [id], onDelete: Cascade)
+  department       String
+  position         String
+  employeeIdNumber String   @unique // HR identification ID (e.g. EMP-10024)
+  staffType        String   @default("Standard")
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+}
+
+// QR Card model mapped to employee identification
+model QRCard {
+  id          String       @id @default(uuid())
+  cardCode    String       @unique // Extracted QR payload text scanned at canteens
+  status      QRCardStatus @default(ACTIVE)
+  
+  // Owner Relation
+  employeeId  String
+  employee    User         @relation("UserQRCards", fields: [employeeId], references: [id], onDelete: Cascade)
+  
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+
+  @@index([status])
+  @@index([cardCode])
+}
+
+// Configurable Coupon values designed by Finance
+model CouponConfig {
+  id                 String   @id @default(uuid())
+  name               String   @unique
+  value              Decimal  @db.Decimal(10, 2)
+  expiryWorkingDays  Int      // How many working days are allowed before ticket expires
+  
+  // Author
+  createdById        String
+  createdBy          User     @relation("FinanceCreatedConfigs", fields: [createdById], references: [id], onDelete: Restrict)
+  
+  // Relations
+  coupons            Coupon[]
+
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+}
+
+// Calendar Holidays (excluding working days expiry)
+model Holiday {
+  id          String   @id @default(uuid())
+  date        DateTime @unique // Clean date (Y-M-D) indicating public holiday
+  description String
+  createdAt   DateTime @default(now())
+}
+
+// Core Coupon Allocation Voucher ledger
+model Coupon {
+  id                  String       @id @default(uuid())
+  code                String       @unique // Scannable coupon ticket voucher number
+  status              CouponStatus @default(ALLOCATED)
+  value               Decimal      @db.Decimal(10, 2)
+  
+  // Custom pricing blueprint
+  configId            String
+  config              CouponConfig @relation(fields: [configId], references: [id], onDelete: Restrict)
+  
+  // Assigned Employee (User)
+  employeeId          String
+  employee            User         @relation("EmployeeCoupons", fields: [employeeId], references: [id], onDelete: Cascade)
+  
+  // Allocation Actor (HR or ADMIN)
+  allocatedById       String
+  allocatedBy         User         @relation("AllocatedByCoupons", fields: [allocatedById], references: [id], onDelete: Restrict)
+  
+  // Redemption validation details
+  claimedById         String?
+  claimedBy           User?        @relation("ClaimedByCoupons", fields: [claimedById], references: [id], onDelete: SetNull)
+  
+  // Dates
+  expiresAt           DateTime
+  claimedAt           DateTime?
+  
+  // COMPOSITE SAFEGUARD TO PREVENT DUPLICATE CLAIMS PER DAY:
+  // When a coupon is claimed, we set claimedDateString to the date text (e.g. "2026-05-21").
+  // By enforcing a unique index on (employeeId, claimedDateString), the database automatically
+  // blocks an employee from double-claiming ANY coupon on the same calendar date!
+  claimedDateString   String?      
+  
+  claims              CouponClaim[]
+
+  createdAt           DateTime     @default(now())
+  updatedAt           DateTime     @updatedAt
+
+  @@unique([employeeId, claimedDateString]) // Unbeatable database-level duplicate claim defense
+  @@index([status])
+  @@index([employeeId])
+  @@index([code])
+}
+
+// Logging compliance tracer
+model AuditLog {
+  id          String   @id @default(uuid())
+  action      String   
+  entityType  String   
+  entityId    String?  
+  
+  actorId     String?
+  actor       User?    @relation("ActorAuditLogs", fields: [actorId], references: [id], onDelete: SetNull)
+  
+  oldState    Json?    
+  newState    Json?    
+  ipAddress   String?
+  userAgent   String?
+  
+  createdAt   DateTime @default(now())
+
+  @@index([action])
+  @@index([actorId])
+}
+
+// Cafe desk: staff must scan QR before issuing (short-lived session)
+model CafeScanSession {
+  id         String   @id @default(uuid())
+  employeeId String
+  employee   User     @relation("EmployeeScanSessions", fields: [employeeId], references: [id], onDelete: Cascade)
+  staffId    String
+  staff      User     @relation("StaffScanSessions", fields: [staffId], references: [id], onDelete: Cascade)
+  deviceInfo String?
+  expiresAt  DateTime
+  createdAt  DateTime @default(now())
+
+  @@unique([staffId, employeeId])
+  @@index([expiresAt])
+}
+
+// Immutable record each time a coupon is issued at the cafe
+model CouponClaim {
+  id         String   @id @default(uuid())
+  employeeId String
+  employee   User     @relation("EmployeeClaims", fields: [employeeId], references: [id], onDelete: Cascade)
+  couponId   String
+  coupon     Coupon   @relation(fields: [couponId], references: [id], onDelete: Cascade)
+  issuedById String
+  issuedBy   User     @relation("IssuedByClaims", fields: [issuedById], references: [id], onDelete: Restrict)
+  issuedAt   DateTime @default(now())
+  deviceInfo String?
+
+  @@index([employeeId])
+  @@index([couponId])
+  @@index([issuedAt])
+}

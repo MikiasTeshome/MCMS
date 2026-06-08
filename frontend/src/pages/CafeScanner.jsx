@@ -1,0 +1,196 @@
+import React, { useState, useRef, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
+import { Search, Coffee, CheckCircle } from 'lucide-react';
+import QRScanner from '../components/cafe/QRScanner.jsx';
+import EmployeeInfoCard from '../components/cafe/EmployeeInfoCard.jsx';
+import CouponIssuePanel from '../components/cafe/CouponIssuePanel.jsx';
+import ScanNotification from '../components/cafe/ScanNotification.jsx';
+import { scanEmployeeQr, issueCoupons } from '../services/couponScan.service.js';
+
+const CafeScanner = () => {
+  const { t } = useTranslation();
+  const [manualCode, setManualCode] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [employee, setEmployee] = useState(null);
+  const [apiError, setApiError] = useState('');
+  const [successMsg, setSuccessMsg] = useState('');
+  const [overrideReason, setOverrideReason] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+
+  const issueSectionRef = useRef(null);
+
+  useEffect(() => {
+    if (!employee || loading) return;
+
+    const frame = requestAnimationFrame(() => {
+      issueSectionRef.current?.scrollIntoView({
+        behavior: 'smooth',
+        block: 'start',
+      });
+    });
+
+    return () => cancelAnimationFrame(frame);
+  }, [employee?.employeeId, loading]);
+
+  const handleScanPayload = async (payload) => {
+    setLoading(true);
+    setApiError('');
+    setSuccessMsg('');
+    setOverrideReason('');
+
+    try {
+      const res = await scanEmployeeQr(payload);
+      if (res.success) {
+        setEmployee(res.data);
+      } else {
+        setApiError(res.message || t('cafe.scanFailed'));
+        setEmployee(null);
+      }
+    } catch (err) {
+      setApiError(err.response?.data?.message || t('cafe.verifyFailed'));
+      setEmployee(null);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleManualSearch = (e) => {
+    e.preventDefault();
+    if (!manualCode.trim()) return;
+    handleScanPayload(manualCode.trim());
+  };
+
+  const handleIssue = async (quantity) => {
+    if (!employee?.employeeId) return;
+
+    setSubmitting(true);
+    setApiError('');
+    setSuccessMsg('');
+
+    try {
+      const res = await issueCoupons({
+        employeeId: employee.employeeId,
+        quantity,
+        overrideReason: employee.claimedToday ? overrideReason : undefined,
+      });
+      if (res.success) {
+        setSuccessMsg(
+          t('cafe.issueSuccess', { count: res.data.issuedCount })
+        );
+        await handleScanPayload(employee.employeeId);
+      }
+    } catch (err) {
+      setApiError(err.response?.data?.message || t('cafe.issueFailed'));
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handleRescan = () => {
+    setEmployee(null);
+    setApiError('');
+    setSuccessMsg('');
+    setOverrideReason('');
+    setManualCode('');
+  };
+
+  const eligible =
+    employee &&
+    employee.availableCoupons > 0 &&
+    !employee.claimedToday;
+
+  return (
+    <div className="space-y-8 max-w-6xl mx-auto">
+      <div>
+        <h1 className="text-3xl font-extrabold text-white Outfit tracking-tight">
+          {t('cafe.title')}
+        </h1>
+        <p className="text-slate-400 text-sm font-medium">{t('cafe.subtitle')}</p>
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
+        <div className="lg:col-span-5 space-y-6">
+          <QRScanner onScan={handleScanPayload} scanPaused={loading || submitting} />
+
+          <div className="glass-card p-6">
+            <h3 className="text-sm font-bold uppercase tracking-wider text-slate-400 mb-4 flex items-center gap-2">
+              <Search className="w-4 h-4 text-brand-500" />
+              <span>{t('cafe.manualLookup')}</span>
+            </h3>
+            <form onSubmit={handleManualSearch} className="flex gap-2">
+              <input
+                type="text"
+                value={manualCode}
+                onChange={(e) => setManualCode(e.target.value)}
+                placeholder={t('cafe.uuidPlaceholder')}
+                className="glass-input flex-1 font-mono text-xs"
+              />
+              <button
+                type="submit"
+                disabled={loading}
+                className="bg-brand-500 hover:bg-brand-600 text-white font-semibold px-5 py-3 rounded-xl transition cursor-pointer"
+              >
+                {loading ? '…' : t('common.search')}
+              </button>
+            </form>
+          </div>
+        </div>
+
+        <div className="lg:col-span-7 space-y-6">
+          {apiError && (
+            <ScanNotification type="error" message={apiError} onDismiss={() => setApiError('')} />
+          )}
+          {successMsg && (
+            <ScanNotification
+              type="success"
+              message={successMsg}
+              onDismiss={() => setSuccessMsg('')}
+            />
+          )}
+
+          {successMsg && (
+            <div className="flex items-center gap-2 text-emerald-400 text-sm">
+              <CheckCircle className="w-5 h-5" />
+              <span>{t('cafe.auditRecorded')}</span>
+            </div>
+          )}
+
+          {employee ? (
+            <>
+              <EmployeeInfoCard employee={employee} eligible={eligible} />
+              <div
+                ref={issueSectionRef}
+                id="cafe-issue-panel"
+                className="scroll-mt-20"
+              >
+                <CouponIssuePanel
+                  employee={employee}
+                  submitting={submitting}
+                  overrideReason={overrideReason}
+                  onOverrideReasonChange={setOverrideReason}
+                  onIssueOne={() => handleIssue(1)}
+                  onIssueAll={() => handleIssue(0)}
+                  onRescan={handleRescan}
+                />
+              </div>
+            </>
+          ) : (
+            <div className="glass-card py-20 px-6 flex flex-col items-center justify-center text-center gap-4 border-dashed border-2 border-slate-800">
+              <div className="w-16 h-16 bg-slate-900 rounded-full flex items-center justify-center text-slate-500 border border-slate-800">
+                <Coffee className="w-8 h-8" />
+              </div>
+              <div>
+                <h4 className="text-lg font-bold text-white Outfit">{t('cafe.readyTitle')}</h4>
+                <p className="text-sm text-slate-500 max-w-sm mt-1 mx-auto">
+                  {t('cafe.readyBody')}
+                </p>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+};
+
+export default CafeScanner;
