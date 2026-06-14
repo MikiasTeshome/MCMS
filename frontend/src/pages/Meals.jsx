@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext.jsx';
 import { useTranslation } from 'react-i18next';
 import { getMeals, createMeal, updateMeal } from '../services/meal.service.js';
+import { PageHeader, PageSkeleton } from '../components/ui/Page.jsx';
 import { Utensils, Plus, CheckCircle, ShieldAlert, BadgeDollarSign } from 'lucide-react';
 
 const Meals = () => {
@@ -89,21 +90,15 @@ const Meals = () => {
     setShowAddModal(true);
   };
 
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center py-20 text-brand-500">
-        <div className="animate-spin rounded-full h-10 w-10 border-t-2 border-b-2 border-brand-500"></div>
-      </div>
-    );
-  }
+  if (loading) return <PageSkeleton cards={0} />;
 
   return (
     <div className="space-y-8">
       {/* Page header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-extrabold text-white Outfit tracking-tight">{t('meals.title')}</h1>
-          <p className="text-slate-400 text-sm font-medium">{t('meals.subtitle')}</p>
+          <h1 className="text-2xl font-semibold text-app-primary  tracking-tight">{t('meals.title')}</h1>
+          <p className="text-app-secondary text-sm font-medium">{t('meals.subtitle')}</p>
         </div>
 
         {['ADMIN', 'FINANCE'].includes(user?.role) && (
@@ -113,7 +108,7 @@ const Meals = () => {
               setMealForm({ nameEn: '', nameAm: '', descriptionEn: '', descriptionAm: '', price: '', status: 'ACTIVE' });
               setShowAddModal(true);
             }}
-            className="flex items-center justify-center gap-2 bg-brand-500 hover:bg-brand-600 active:scale-95 text-white font-semibold px-5 py-3 rounded-xl shadow-premium hover:shadow-premium-hover transition-all duration-200 cursor-pointer"
+            className="btn-primary w-full py-3"
           >
             <Plus className="w-5 h-5" />
             <span>{t('meals.addButton')}</span>
@@ -125,13 +120,13 @@ const Meals = () => {
       {(actionError || actionSuccess) && (
         <div className="max-w-2xl">
           {actionError && (
-            <div className="bg-red-500/10 border border-red-500/20 text-red-400 text-sm px-4 py-3 rounded-xl flex items-center gap-2">
+            <div className="alert-error">
               <ShieldAlert className="w-5 h-5 flex-shrink-0" />
               <span>{actionError}</span>
             </div>
           )}
           {actionSuccess && (
-            <div className="bg-brand-500/10 border border-brand-500/20 text-brand-400 text-sm px-4 py-3 rounded-xl flex items-center gap-2">
+            <div className="alert-success">
               <CheckCircle className="w-5 h-5 flex-shrink-0" />
               <span>{actionSuccess}</span>
             </div>
@@ -142,21 +137,21 @@ const Meals = () => {
       {/* Catalog Grid items */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
         {meals.length === 0 ? (
-          <div className="col-span-full text-center py-12 text-slate-500">{t('meals.noMeals')}</div>
+          <div className="col-span-full text-center py-12 text-app-muted">{t('meals.noMeals')}</div>
         ) : (
           meals.map((meal) => (
-            <div key={meal.id} className="glass-card flex flex-col justify-between p-6 bg-slate-900/40 relative overflow-hidden group">
+            <div key={meal.id} className="glass-card flex flex-col justify-between p-6 bg-app-surface/40 relative overflow-hidden group">
               <div className="space-y-4">
                 {/* Header status badge & Price tags */}
                 <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-1.5 text-slate-400 text-sm font-bold font-mono">
-                    <BadgeDollarSign className="w-4 h-4 text-brand-500" />
+                  <div className="flex items-center gap-1.5 text-app-secondary text-sm font-bold font-mono">
+                    <BadgeDollarSign className="w-4 h-4 icon-accent" />
                     <span>${parseFloat(meal.price).toFixed(2)}</span>
                   </div>
                   <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${
                     meal.status === 'ACTIVE'
-                      ? 'bg-brand-500/10 text-brand-400 border-brand-500/20'
-                      : 'bg-red-500/10 text-red-400 border-red-500/20'
+                      ? 'badge-active'
+                      : 'badge-error'
                   }`}>
                     {meal.status}
                   </span>
@@ -164,17 +159,17 @@ const Meals = () => {
 
                 {/* Localized titles */}
                 <div className="space-y-1">
-                  <h3 className="text-xl font-extrabold text-white Outfit tracking-tight">{meal.name}</h3>
-                  <p className="text-slate-400 text-xs leading-relaxed font-medium line-clamp-3">{meal.description}</p>
+                  <h3 className="text-xl font-semibold text-app-primary  tracking-tight">{meal.name}</h3>
+                  <p className="text-app-secondary text-xs leading-relaxed font-medium line-clamp-3">{meal.description}</p>
                 </div>
               </div>
 
               {/* Operations edit shortcuts for managers */}
               {['ADMIN', 'FINANCE'].includes(user?.role) && (
-                <div className="mt-6 pt-4 border-t border-slate-800 flex justify-end">
+                <div className="mt-6 pt-4 border-t border-app-border flex justify-end">
                   <button
                     onClick={() => handleEditClick(meal)}
-                    className="text-xs font-bold text-brand-400 hover:text-brand-300 transition-colors uppercase tracking-widest cursor-pointer"
+                    className="text-xs font-medium text-app-secondary hover:text-app-primary transition-colors uppercase tracking-widest cursor-pointer"
                   >
                     {t('meals.editButton')}
                   </button>
@@ -188,9 +183,9 @@ const Meals = () => {
       {/* Add / Edit Dish dialog */}
       {showAddModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
-          <div className="w-full max-w-lg glass-card p-8 bg-slate-900 border border-slate-800 max-h-[90vh] overflow-y-auto">
-            <h3 className="text-xl font-bold text-white Outfit mb-6 flex items-center gap-2">
-              <Utensils className="w-6 h-6 text-brand-500" />
+          <div className="w-full max-w-lg glass-card p-8 bg-app-surface border border-app-border max-h-[90vh] overflow-y-auto">
+            <h3 className="text-xl font-bold text-white  mb-6 flex items-center gap-2">
+              <Utensils className="w-5 h-5 icon-accent" />
               <span>{editingMeal ? 'Modify Meal Dish' : 'Add New Meal Option'}</span>
             </h3>
 
@@ -199,7 +194,7 @@ const Meals = () => {
               {/* English Fields */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <label className="text-xs font-bold text-slate-400 uppercase tracking-wider block">
+                  <label className="text-xs font-bold text-app-secondary uppercase tracking-wider block">
                     {t('meals.nameEn')}
                   </label>
                   <input
@@ -212,7 +207,7 @@ const Meals = () => {
                   />
                 </div>
                 <div className="space-y-2">
-                  <label className="text-xs font-bold text-slate-400 uppercase tracking-wider block">
+                  <label className="text-xs font-bold text-app-secondary uppercase tracking-wider block">
                     {t('meals.nameAm')}
                   </label>
                   <input
@@ -228,7 +223,7 @@ const Meals = () => {
 
               {/* Description Fields */}
               <div className="space-y-2">
-                <label className="text-xs font-bold text-slate-400 uppercase tracking-wider block">
+                <label className="text-xs font-bold text-app-secondary uppercase tracking-wider block">
                   {t('meals.descEn')}
                 </label>
                 <textarea
@@ -242,7 +237,7 @@ const Meals = () => {
               </div>
 
               <div className="space-y-2">
-                <label className="text-xs font-bold text-slate-400 uppercase tracking-wider block">
+                <label className="text-xs font-bold text-app-secondary uppercase tracking-wider block">
                   {t('meals.descAm')}
                 </label>
                 <textarea
@@ -258,7 +253,7 @@ const Meals = () => {
               {/* Price & status */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <label className="text-xs font-bold text-slate-400 uppercase tracking-wider block">
+                  <label className="text-xs font-bold text-app-secondary uppercase tracking-wider block">
                     Price (USD)
                   </label>
                   <input
@@ -272,7 +267,7 @@ const Meals = () => {
                   />
                 </div>
                 <div className="space-y-2">
-                  <label className="text-xs font-bold text-slate-400 uppercase tracking-wider block">
+                  <label className="text-xs font-bold text-app-secondary uppercase tracking-wider block">
                     Display Status
                   </label>
                   <select
@@ -280,8 +275,8 @@ const Meals = () => {
                     onChange={(e) => setMealForm({ ...mealForm, status: e.target.value })}
                     className="glass-input cursor-pointer"
                   >
-                    <option value="ACTIVE" className="bg-dark-900">ACTIVE</option>
-                    <option value="INACTIVE" className="bg-dark-900">INACTIVE</option>
+                    <option value="ACTIVE" className="bg-app-surface">ACTIVE</option>
+                    <option value="INACTIVE" className="bg-app-surface">INACTIVE</option>
                   </select>
                 </div>
               </div>
@@ -291,14 +286,14 @@ const Meals = () => {
                 <button
                   type="button"
                   onClick={() => setShowAddModal(false)}
-                  className="flex-1 bg-slate-800 hover:bg-slate-700 font-semibold py-3 px-4 rounded-xl transition-all duration-200 cursor-pointer"
+                  className="flex-1 bg-app-surface-2 hover:bg-app-surface-2 font-semibold py-3 px-4 rounded-xl transition-all duration-200 cursor-pointer"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
                   disabled={processing}
-                  className="flex-1 bg-brand-500 hover:bg-brand-600 active:scale-95 text-white font-semibold py-3 px-4 rounded-xl shadow-premium transition-all duration-200 flex items-center justify-center gap-2 cursor-pointer"
+                  className="flex-1 btn-primary"
                 >
                   {processing ? (
                     <div className="animate-spin rounded-full h-5 w-5 border-t-2 border-b-2 border-white"></div>

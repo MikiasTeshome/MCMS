@@ -29,7 +29,7 @@ const CouponIssuePanel = ({
 
   return (
     <div className="glass-card p-6 space-y-4">
-      <h3 className="text-sm font-bold uppercase tracking-wider text-slate-400">
+      <h3 className="text-sm font-bold uppercase tracking-wider text-app-secondary">
         {t('cafe.issueCoupons')}
       </h3>
 
@@ -43,7 +43,7 @@ const CouponIssuePanel = ({
             value={overrideReason}
             onChange={(e) => onOverrideReasonChange(e.target.value)}
             placeholder={t('cafe.overridePlaceholder')}
-            className="glass-input h-20 text-xs text-white w-full"
+            className="glass-input h-20 text-xs w-full"
           />
         </div>
       )}
@@ -52,7 +52,7 @@ const CouponIssuePanel = ({
         <button
           type="button"
           onClick={onRescan}
-          className="flex-1 bg-slate-800 hover:bg-slate-700 text-white font-bold py-3 px-4 rounded-xl transition cursor-pointer flex items-center justify-center gap-2"
+          className="flex-1 btn-secondary py-3"
         >
           <RotateCcw className="w-4 h-4" />
           {t('cafe.scanNext')}
@@ -61,7 +61,7 @@ const CouponIssuePanel = ({
           type="button"
           disabled={disabled}
           onClick={onIssueOne}
-          className="flex-1 flex items-center justify-center gap-2 bg-brand-500 hover:bg-brand-600 disabled:bg-slate-800 disabled:text-slate-500 disabled:cursor-not-allowed text-white font-bold py-3 px-4 rounded-xl transition cursor-pointer"
+          className="flex-1 btn-primary"
         >
           <Coffee className="w-5 h-5" />
           {submitting ? t('cafe.issuing') : t('cafe.issueOne')}
@@ -70,7 +70,7 @@ const CouponIssuePanel = ({
           type="button"
           disabled={disabled || employee.availableCoupons < 2}
           onClick={onIssueAll}
-          className="flex-1 flex items-center justify-center gap-2 bg-emerald-600 hover:bg-emerald-500 disabled:bg-slate-800 disabled:text-slate-500 disabled:cursor-not-allowed text-white font-bold py-3 px-4 rounded-xl transition cursor-pointer"
+          className="flex-1 btn-success"
         >
           <Coffee className="w-5 h-5" />
           {submitting
@@ -80,7 +80,7 @@ const CouponIssuePanel = ({
       </div>
 
       {!canIssue && employee?.availableCoupons === 0 && (
-        <p className="text-xs text-slate-500 text-center">{t('cafe.noCouponsToIssue')}</p>
+        <p className="text-xs text-app-muted text-center">{t('cafe.noCouponsToIssue')}</p>
       )}
       {employee?.claimedToday && !isAdmin && (
         <p className="text-xs text-amber-400/90 text-center">

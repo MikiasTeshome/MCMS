@@ -1,0 +1,97 @@
+/* MCMS Design Tokens — Premium black & white (ChatGPT-inspired) */
+
+:root {
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 16px;
+  --transition-fast: 150ms;
+  --transition-base: 200ms;
+  --transition-smooth: 180ms;
+  --layout-max-width: 1400px;
+  --sidebar-width: 260px;
+  --sidebar-collapsed: 72px;
+  --header-height: 64px;
+  --font-page-title: 28px;
+  --font-section-title: 20px;
+  --font-body: 15px;
+  --font-body-sm: 14px;
+
+  /* Brand — use sparingly (<10% of UI) */
+  --color-brand: #6e2b1b;
+  --color-brand-subtle: rgba(110, 43, 27, 0.12);
+  --color-brand-border: rgba(110, 43, 27, 0.28);
+}
+
+/* Dark mode (default) */
+.dark,
+:root {
+  --color-bg: #0f0f0f;
+  --color-bg-secondary: #171717;
+  --color-surface: #171717;
+  --color-surface-elevated: #1a1a1a;
+  --color-surface-2: #1a1a1a;
+  --color-border: #2a2a2a;
+  --color-text-primary: #ffffff;
+  --color-text-secondary: #a1a1aa;
+  --color-text-muted: #71717a;
+  --color-hover: #222222;
+  --color-active: #262626;
+  --color-sidebar-bg: #0f0f0f;
+  --color-sidebar-active: #1f1f1f;
+  --color-input-bg: #171717;
+  --color-overlay: rgba(0, 0, 0, 0.6);
+  --color-header-bg: rgba(15, 15, 15, 0.85);
+  --color-row-hover: rgba(255, 255, 255, 0.03);
+  --color-focus-ring: 0 0 0 3px rgba(255, 255, 255, 0.08);
+  --color-btn-primary-bg: #ffffff;
+  --color-btn-primary-text: #111111;
+  --color-btn-primary-hover: #f4f4f5;
+  --color-btn-secondary-bg: #171717;
+  --color-btn-secondary-border: #2a2a2a;
+  --color-btn-secondary-text: #ffffff;
+  --color-btn-secondary-hover: #1f1f1f;
+  --color-error: #b45454;
+  --color-error-subtle: rgba(180, 84, 84, 0.12);
+  --color-error-border: rgba(180, 84, 84, 0.25);
+  --color-warning: #a1a1aa;
+  --color-warning-subtle: rgba(161, 161, 170, 0.1);
+  --color-warning-border: rgba(161, 161, 170, 0.2);
+  --color-success: #d4d4d8;
+  --color-success-subtle: rgba(255, 255, 255, 0.06);
+  --color-success-border: rgba(255, 255, 255, 0.12);
+  --shadow-card: 0 1px 3px rgba(0, 0, 0, 0.2);
+  --shadow-toast: 0 4px 20px rgba(0, 0, 0, 0.35);
+}
+
+.light {
+  --color-bg: #ffffff;
+  --color-bg-secondary: #f7f7f8;
+  --color-surface: #fafafa;
+  --color-surface-elevated: #ffffff;
+  --color-surface-2: #f7f7f8;
+  --color-border: #e5e5e5;
+  --color-text-primary: #111111;
+  --color-text-secondary: #52525b;
+  --color-text-muted: #71717a;
+  --color-hover: #f4f4f5;
+  --color-active: #ececee;
+  --color-sidebar-bg: #111111;
+  --color-sidebar-active: #1f1f1f;
+  --color-input-bg: #ffffff;
+  --color-overlay: rgba(0, 0, 0, 0.4);
+  --color-header-bg: rgba(255, 255, 255, 0.88);
+  --color-row-hover: rgba(0, 0, 0, 0.03);
+  --color-focus-ring: 0 0 0 3px rgba(0, 0, 0, 0.06);
+  --color-btn-primary-bg: #111111;
+  --color-btn-primary-text: #ffffff;
+  --color-btn-primary-hover: #27272a;
+  --color-btn-secondary-bg: #fafafa;
+  --color-btn-secondary-border: #e5e5e5;
+  --color-btn-secondary-text: #111111;
+  --color-btn-secondary-hover: #f4f4f5;
+  --color-error: #b45454;
+  --color-error-subtle: rgba(180, 84, 84, 0.08);
+  --color-error-border: rgba(180, 84, 84, 0.2);
+  --shadow-card: 0 1px 3px rgba(0, 0, 0, 0.06);
+  --shadow-toast: 0 4px 20px rgba(0, 0, 0, 0.1);
+}

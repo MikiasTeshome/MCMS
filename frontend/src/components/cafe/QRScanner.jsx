@@ -222,45 +222,45 @@ const QRScanner = ({ onScan, scanPaused = false }) => {
 
   return (
     <div className="glass-card p-6 flex flex-col gap-4">
-      <h3 className="text-sm font-bold uppercase tracking-wider text-slate-400 flex items-center gap-2">
-        <Camera className="w-4 h-4 text-brand-500" />
+      <h3 className="text-sm font-bold uppercase tracking-wider text-app-secondary flex items-center gap-2">
+        <Camera className="w-4 h-4 text-app-secondary" />
         <span>{t('cafe.cameraTerminal')}</span>
       </h3>
 
-      <div className="relative aspect-square w-full overflow-hidden rounded-2xl bg-slate-950 border border-slate-800/80">
+      <div className="relative aspect-square w-full overflow-hidden rounded-2xl bg-app-surface-2 border border-app-border/80">
         <div id={scannerId} className="w-full h-full" style={{ minHeight: 280 }} />
 
         {scannerState === 'SCANNING' && (
           <div className="absolute inset-0 pointer-events-none">
-            <div className="absolute top-4 left-4 w-8 h-8 border-t-[3px] border-l-[3px] border-brand-500 rounded-tl-lg" />
-            <div className="absolute top-4 right-4 w-8 h-8 border-t-[3px] border-r-[3px] border-brand-500 rounded-tr-lg" />
-            <div className="absolute bottom-4 left-4 w-8 h-8 border-b-[3px] border-l-[3px] border-brand-500 rounded-bl-lg" />
-            <div className="absolute bottom-4 right-4 w-8 h-8 border-b-[3px] border-r-[3px] border-brand-500 rounded-br-lg" />
-            <div className="absolute left-6 right-6 h-0.5 bg-gradient-to-r from-transparent via-emerald-400 to-transparent shadow-[0_0_12px_#34d399] animate-scan" />
-            <div className="absolute bottom-5 left-1/2 -translate-x-1/2 bg-slate-900/90 backdrop-blur border border-slate-800 px-3 py-1 rounded-full text-[10px] font-bold text-brand-400 tracking-widest uppercase flex items-center gap-2">
-              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+            <div className="absolute top-4 left-4 w-8 h-8 border-t-[3px] border-l-[3px] border-white/60 rounded-tl-lg" />
+            <div className="absolute top-4 right-4 w-8 h-8 border-t-[3px] border-r-[3px] border-white/60 rounded-tr-lg" />
+            <div className="absolute bottom-4 left-4 w-8 h-8 border-b-[3px] border-l-[3px] border-white/60 rounded-bl-lg" />
+            <div className="absolute bottom-4 right-4 w-8 h-8 border-b-[3px] border-r-[3px] border-white/60 rounded-br-lg" />
+            <div className="absolute left-6 right-6 h-px bg-white/40 animate-scan" />
+            <div className="absolute bottom-5 left-1/2 -translate-x-1/2 bg-app-surface/90 backdrop-blur border border-app-border px-3 py-1 rounded-full text-[10px] font-medium text-app-secondary tracking-widest uppercase flex items-center gap-2">
+              <span className="w-2 h-2 rounded-full bg-white/80 animate-pulse" />
               <span>{t('cafe.scanning')}</span>
             </div>
           </div>
         )}
 
         {scannerState === 'STARTING' && (
-          <div className="absolute inset-0 bg-slate-950/90 flex flex-col items-center justify-center gap-3">
-            <Loader2 className="w-8 h-8 text-brand-500 animate-spin" />
-            <span className="text-xs font-bold text-brand-400 uppercase tracking-widest">
+          <div className="absolute inset-0 bg-app-surface-2/90 flex flex-col items-center justify-center gap-3">
+            <Loader2 className="w-8 h-8 spinner" />
+            <span className="text-xs font-medium text-app-secondary uppercase tracking-widest">
               {t('cafe.initializingCamera')}
             </span>
           </div>
         )}
 
         {scannerState === 'ERROR' && (
-          <div className="absolute inset-0 bg-slate-950/95 flex flex-col items-center justify-center text-center p-6 gap-4">
-            <div className="w-14 h-14 bg-red-500/10 border border-red-500/20 rounded-full flex items-center justify-center text-red-400">
+          <div className="absolute inset-0 bg-app-surface-2/95 flex flex-col items-center justify-center text-center p-6 gap-4">
+            <div className="w-14 h-14 alert-error rounded-full flex items-center justify-center !py-0">
               <AlertTriangle className="w-6 h-6" />
             </div>
             <div>
-              <h4 className="text-sm font-bold text-red-400">{t('cafe.scannerOffline')}</h4>
-              <p className="text-xs text-slate-400 max-w-[240px] mt-1 mx-auto">
+              <h4 className="text-sm font-semibold text-status-error">{t('cafe.scannerOffline')}</h4>
+              <p className="text-xs text-app-secondary max-w-[240px] mt-1 mx-auto">
                 {scannerError}
               </p>
             </div>
@@ -268,7 +268,7 @@ const QRScanner = ({ onScan, scanPaused = false }) => {
               type="button"
               onClick={handleRetryConnection}
               disabled={scannerState === 'STARTING'}
-              className="bg-slate-800 hover:bg-slate-700 text-white text-xs font-semibold px-4 py-2.5 rounded-xl transition cursor-pointer"
+              className="btn-secondary text-xs"
             >
               {t('common.retry')}
             </button>
@@ -276,8 +276,8 @@ const QRScanner = ({ onScan, scanPaused = false }) => {
         )}
 
         {scanPaused && scannerState !== 'ERROR' && (
-          <div className="absolute inset-0 bg-slate-950/80 flex items-center justify-center">
-            <Loader2 className="w-8 h-8 text-brand-500 animate-spin" />
+          <div className="absolute inset-0 bg-app-surface-2/80 flex items-center justify-center">
+            <Loader2 className="w-8 h-8 spinner" />
           </div>
         )}
       </div>
@@ -292,7 +292,7 @@ const QRScanner = ({ onScan, scanPaused = false }) => {
           className="glass-input text-xs py-2 cursor-pointer"
         >
           {cameras.map((cam) => (
-            <option key={cam.id} value={cam.id} className="bg-slate-900">
+            <option key={cam.id} value={cam.id} className="bg-app-surface">
               {cam.label || `Camera ${cam.id.substring(0, 8)}`}
             </option>
           ))}

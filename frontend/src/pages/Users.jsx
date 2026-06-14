@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext.jsx';
 import { useTranslation } from 'react-i18next';
 import { getUsers, provisionUser } from '../services/user.service.js';
+import { PageHeader, PageSkeleton, getRoleBadgeClass } from '../components/ui/Page.jsx';
 import { Users as UsersIcon, Plus, CheckCircle, ShieldAlert, Key } from 'lucide-react';
 
 const Users = () => {
@@ -55,36 +56,20 @@ const Users = () => {
     }
   };
 
-  const getRoleBadgeClass = (role) => {
-    switch (role) {
-      case 'ADMIN': return 'bg-red-500/10 text-red-400 border border-red-500/30';
-      case 'HR': return 'bg-purple-500/10 text-purple-400 border border-purple-500/30';
-      case 'FINANCE': return 'bg-pink-500/10 text-pink-400 border border-pink-500/30';
-      case 'CAFE_STAFF': return 'bg-blue-500/10 text-blue-400 border border-blue-500/30';
-      case 'EMPLOYEE': default: return 'bg-brand-500/10 text-brand-400 border border-brand-500/30';
-    }
-  };
-
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center py-20 text-brand-500">
-        <div className="animate-spin rounded-full h-10 w-10 border-t-2 border-b-2 border-brand-500"></div>
-      </div>
-    );
-  }
+  if (loading) return <PageSkeleton cards={0} />;
 
   return (
     <div className="space-y-8">
       {/* View Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-extrabold text-white Outfit tracking-tight">{t('users.title')}</h1>
-          <p className="text-slate-400 text-sm font-medium">{t('users.subtitle')}</p>
+          <h1 className="text-2xl font-semibold text-app-primary  tracking-tight">{t('users.title')}</h1>
+          <p className="text-app-secondary text-sm font-medium">{t('users.subtitle')}</p>
         </div>
 
         <button
           onClick={() => setShowAddModal(true)}
-          className="flex items-center justify-center gap-2 bg-brand-500 hover:bg-brand-600 active:scale-95 text-white font-semibold px-5 py-3 rounded-xl shadow-premium hover:shadow-premium-hover transition-all duration-200 cursor-pointer"
+          className="flex items-center justify-center gap-2 btn-primary px-5 py-3"
         >
           <Plus className="w-5 h-5" />
           <span>{t('users.provision')}</span>
@@ -95,13 +80,13 @@ const Users = () => {
       {(actionError || actionSuccess) && (
         <div className="max-w-2xl">
           {actionError && (
-            <div className="bg-red-500/10 border border-red-500/20 text-red-400 text-sm px-4 py-3 rounded-xl flex items-center gap-2">
+            <div className="alert-error">
               <ShieldAlert className="w-5 h-5 flex-shrink-0" />
               <span>{actionError}</span>
             </div>
           )}
           {actionSuccess && (
-            <div className="bg-brand-500/10 border border-brand-500/20 text-brand-400 text-sm px-4 py-3 rounded-xl flex items-center gap-2">
+            <div className="alert-success">
               <CheckCircle className="w-5 h-5 flex-shrink-0" />
               <span>{actionSuccess}</span>
             </div>
@@ -110,17 +95,17 @@ const Users = () => {
       )}
 
       {/* Directory Filter controls */}
-      <div className="flex items-center gap-4 bg-slate-900/40 p-4 rounded-xl border border-slate-800/80">
-        <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">{t('users.roleFilter')}:</span>
+      <div className="flex items-center gap-4 surface-card flex-wrap">
+        <span className="text-xs font-bold text-app-secondary uppercase tracking-wider">{t('users.roleFilter')}:</span>
         <div className="flex gap-2">
           {['', 'ADMIN', 'HR', 'FINANCE', 'CAFE_STAFF', 'EMPLOYEE'].map((role) => (
             <button
               key={role}
               onClick={() => setRoleFilter(role)}
-              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+              className={`px-3 py-1.5 rounded-card text-xs font-medium transition-all cursor-pointer ${
                 roleFilter === role
-                  ? 'bg-brand-500 text-white shadow-premium'
-                  : 'bg-slate-800 text-slate-400 hover:bg-slate-700/50'
+                  ? 'btn-primary py-1.5 min-h-0'
+                  : 'btn-secondary py-1.5 min-h-0'
               }`}
             >
               {role === '' ? 'ALL' : role}
@@ -130,25 +115,25 @@ const Users = () => {
       </div>
 
       {/* Users table */}
-      <div className="glass-card p-6">
-        <div className="overflow-x-auto">
-          <table className="w-full text-left text-sm border-collapse">
+      <div className="table-wrap">
+        <div className="table-scroll">
+          <table className="table-modern">
             <thead>
-              <tr className="border-b border-slate-800 text-slate-400 font-bold">
+              <tr className="border-b border-app-border text-app-secondary font-bold">
                 <th className="pb-3">{t('users.name')}</th>
                 <th className="pb-3">{t('users.email')}</th>
                 <th className="pb-3">{t('common.role')}</th>
                 <th className="pb-3">Clearance Date</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-800/60">
+            <tbody className="divide-y divide-app-border/60">
               {usersList.length === 0 ? (
                 <tr>
-                  <td colSpan="4" className="py-6 text-center text-slate-500">No accounts match selected parameters</td>
+                  <td colSpan="4" className="py-6 text-center text-app-muted">No accounts match selected parameters</td>
                 </tr>
               ) : (
                 usersList.map((usr) => (
-                  <tr key={usr.id} className="text-slate-300 hover:bg-slate-800/10">
+                  <tr key={usr.id} className="text-app-secondary hover:bg-app-surface-2/10">
                     <td className="py-3 font-semibold text-white">{usr.name}</td>
                     <td className="py-3">{usr.email}</td>
                     <td className="py-3">
@@ -156,7 +141,7 @@ const Users = () => {
                         {usr.role}
                       </span>
                     </td>
-                    <td className="py-3 text-slate-400">{new Date(usr.createdAt).toLocaleDateString()}</td>
+                    <td className="py-3 text-app-secondary">{new Date(usr.createdAt).toLocaleDateString()}</td>
                   </tr>
                 ))
               )}
@@ -168,8 +153,8 @@ const Users = () => {
       {/* Provision modal */}
       {showAddModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
-          <div className="w-full max-w-md glass-card p-8 bg-slate-900 border border-slate-800">
-            <h3 className="text-xl font-bold text-white Outfit mb-6 flex items-center gap-2">
+          <div className="w-full max-w-md glass-card p-8 bg-app-surface border border-app-border">
+            <h3 className="text-xl font-bold text-white  mb-6 flex items-center gap-2">
               <UsersIcon className="w-6 h-6 text-brand-500" />
               <span>Provision User Profile</span>
             </h3>
@@ -178,7 +163,7 @@ const Users = () => {
               
               {/* Name */}
               <div className="space-y-2">
-                <label className="text-xs font-bold text-slate-400 uppercase tracking-wider block">
+                <label className="text-xs font-bold text-app-secondary uppercase tracking-wider block">
                   Full Account Name
                 </label>
                 <input
@@ -193,7 +178,7 @@ const Users = () => {
 
               {/* Email */}
               <div className="space-y-2">
-                <label className="text-xs font-bold text-slate-400 uppercase tracking-wider block">
+                <label className="text-xs font-bold text-app-secondary uppercase tracking-wider block">
                   Corporate Email Address
                 </label>
                 <input
@@ -208,7 +193,7 @@ const Users = () => {
 
               {/* Password */}
               <div className="space-y-2">
-                <label className="text-xs font-bold text-slate-400 uppercase tracking-wider block">
+                <label className="text-xs font-bold text-app-secondary uppercase tracking-wider block">
                   Security Passcode
                 </label>
                 <input
@@ -223,7 +208,7 @@ const Users = () => {
 
               {/* Privilege Role */}
               <div className="space-y-2">
-                <label className="text-xs font-bold text-slate-400 uppercase tracking-wider block">
+                <label className="text-xs font-bold text-app-secondary uppercase tracking-wider block">
                   Clearance Level Role
                 </label>
                 <select
@@ -231,11 +216,11 @@ const Users = () => {
                   onChange={(e) => setUserForm({ ...userForm, role: e.target.value })}
                   className="glass-input cursor-pointer"
                 >
-                  <option value="EMPLOYEE" className="bg-dark-900">EMPLOYEE (Student/Staff)</option>
-                  <option value="CAFE_STAFF" className="bg-dark-900">CAFE_STAFF (Canteen Operator)</option>
-                  <option value="HR" className="bg-dark-900">HR (Operations Planner)</option>
-                  <option value="FINANCE" className="bg-dark-900">FINANCE (Finance Planner)</option>
-                  <option value="ADMIN" className="bg-dark-900">ADMIN (Full Governance)</option>
+                  <option value="EMPLOYEE" className="bg-app-surface">EMPLOYEE (Student/Staff)</option>
+                  <option value="CAFE_STAFF" className="bg-app-surface">CAFE_STAFF (Canteen Operator)</option>
+                  <option value="HR" className="bg-app-surface">HR (Operations Planner)</option>
+                  <option value="FINANCE" className="bg-app-surface">FINANCE (Finance Planner)</option>
+                  <option value="ADMIN" className="bg-app-surface">ADMIN (Full Governance)</option>
                 </select>
               </div>
 
@@ -244,14 +229,14 @@ const Users = () => {
                 <button
                   type="button"
                   onClick={() => setShowAddModal(false)}
-                  className="flex-1 bg-slate-800 hover:bg-slate-700 font-semibold py-3 px-4 rounded-xl transition-all duration-200 cursor-pointer"
+                  className="flex-1 bg-app-surface-2 hover:bg-app-surface-2 font-semibold py-3 px-4 rounded-xl transition-all duration-200 cursor-pointer"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
                   disabled={processing}
-                  className="flex-1 bg-brand-500 hover:bg-brand-600 active:scale-95 text-white font-semibold py-3 px-4 rounded-xl shadow-premium transition-all duration-200 flex items-center justify-center gap-2 cursor-pointer"
+                  className="flex-1 btn-primary"
                 >
                   {processing ? (
                     <div className="animate-spin rounded-full h-5 w-5 border-t-2 border-b-2 border-white"></div>

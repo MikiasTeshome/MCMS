@@ -39,6 +39,25 @@ export const updateEmployee = async (req, res, next) => {
   }
 };
 
+export const bulkImportEmployees = async (req, res, next) => {
+  try {
+    const { rows } = req.body;
+
+    if (!Array.isArray(rows) || rows.length === 0) {
+      return errorResponse(res, 400, 'Please provide a non-empty array of employee rows');
+    }
+
+    if (rows.length > 500) {
+      return errorResponse(res, 400, 'Maximum 500 employees per import batch');
+    }
+
+    const results = await employeesService.bulkImportEmployees(rows, req.user.id, req);
+    return successResponse(res, 200, 'Bulk import completed', results);
+  } catch (error) {
+    next(error);
+  }
+};
+
 export const deleteEmployee = async (req, res, next) => {
   try {
     const { id } = req.params;

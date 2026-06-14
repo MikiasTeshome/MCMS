@@ -5,28 +5,31 @@ import Header from './Header.jsx';
 
 const DashboardLayout = () => {
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
 
   return (
-    <div className="flex h-screen w-screen overflow-hidden bg-dark-950 text-slate-200 relative">
-      {/* Mobile Sidebar Overlay Backdrop */}
+    <div className="flex h-screen w-screen overflow-hidden bg-app-bg text-app-primary">
       {sidebarOpen && (
-        <div 
-          className="fixed inset-0 z-40 bg-black/60 backdrop-blur-sm lg:hidden transition-opacity duration-300"
+        <div
+          className="fixed inset-0 z-40 lg:hidden transition-opacity duration-base"
+          style={{ backgroundColor: 'var(--color-overlay)' }}
           onClick={() => setSidebarOpen(false)}
+          aria-hidden="true"
         />
       )}
 
-      {/* Dynamic left sidebar navigation */}
-      <Sidebar isOpen={sidebarOpen} setIsOpen={setSidebarOpen} />
+      <Sidebar
+        isOpen={sidebarOpen}
+        setIsOpen={setSidebarOpen}
+        collapsed={sidebarCollapsed}
+        onToggleCollapse={() => setSidebarCollapsed((c) => !c)}
+      />
 
-      {/* Main content pane context */}
-      <div className="flex-1 flex flex-col overflow-hidden w-full">
-        {/* Universal Top Bar */}
+      <div className="flex-1 flex flex-col overflow-hidden w-full min-w-0">
         <Header onMenuToggle={() => setSidebarOpen(true)} />
 
-        {/* Dynamic Nested View Routing Canvas */}
-        <main className="flex-1 overflow-x-hidden overflow-y-auto p-4 sm:p-8 bg-dark-950">
-          <div className="max-w-7xl mx-auto space-y-6 sm:space-y-8 animate-fade-in">
+        <main className="flex-1 overflow-x-hidden overflow-y-auto p-6 bg-app-bg">
+          <div className="content-container page-shell">
             <Outlet />
           </div>
         </main>

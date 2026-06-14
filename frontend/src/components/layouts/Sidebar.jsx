@@ -2,92 +2,67 @@ import React from 'react';
 import { NavLink } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext.jsx';
 import { useTranslation } from 'react-i18next';
-import { 
-  LayoutDashboard, 
-  Ticket, 
-  Utensils, 
-  Users as UsersIcon, 
-  ShieldAlert, 
+import {
+  LayoutDashboard,
+  Ticket,
+  Utensils,
+  Users as UsersIcon,
+  ShieldAlert,
   LogOut,
   QrCode,
   UserCheck,
-  X
+  X,
+  PanelLeftClose,
+  PanelLeft,
 } from 'lucide-react';
 
-const Sidebar = ({ isOpen, setIsOpen }) => {
+const Sidebar = ({ isOpen, setIsOpen, collapsed, onToggleCollapse }) => {
   const { user, logout } = useAuth();
   const { t } = useTranslation();
 
-  // Define full dashboard routes schema
   const menuItems = [
-    {
-      path: '/dashboard',
-      label: t('common.dashboard') || 'Dashboard',
-      icon: LayoutDashboard,
-      roles: ['ADMIN', 'HR', 'FINANCE', 'CAFE_STAFF', 'EMPLOYEE'],
-    },
-    {
-      path: '/coupons',
-      label: t('common.coupons') || 'Coupons',
-      icon: Ticket,
-      roles: ['ADMIN', 'HR', 'FINANCE', 'CAFE_STAFF', 'EMPLOYEE'],
-    },
-    {
-      path: '/meals',
-      label: t('common.meals') || 'Meals',
-      icon: Utensils,
-      roles: ['ADMIN', 'FINANCE'],
-    },
-    {
-      path: '/employees',
-      label: t('common.employees'),
-      icon: UserCheck,
-      roles: ['ADMIN', 'HR'],
-    },
-    {
-      path: '/cafe-scanner',
-      label: t('common.cafeScanner'),
-      icon: QrCode,
-      roles: ['ADMIN', 'CAFE_STAFF'],
-    },
-    {
-      path: '/users',
-      label: t('common.users') || 'Users',
-      icon: UsersIcon,
-      roles: ['ADMIN', 'HR'],
-    },
-    {
-      path: '/audit-logs',
-      label: t('common.auditLogs') || 'Audit Logs',
-      icon: ShieldAlert,
-      roles: ['ADMIN'],
-    },
+    { path: '/dashboard', label: t('common.dashboard'), icon: LayoutDashboard, roles: ['ADMIN', 'HR', 'FINANCE', 'CAFE_STAFF', 'EMPLOYEE'] },
+    { path: '/coupons', label: t('common.coupons'), icon: Ticket, roles: ['ADMIN', 'HR', 'FINANCE', 'CAFE_STAFF', 'EMPLOYEE'] },
+    { path: '/meals', label: t('common.meals'), icon: Utensils, roles: ['ADMIN', 'FINANCE'] },
+    { path: '/employees', label: t('common.employees'), icon: UserCheck, roles: ['ADMIN', 'HR'] },
+    { path: '/cafe-scanner', label: t('common.cafeScanner'), icon: QrCode, roles: ['ADMIN', 'CAFE_STAFF'] },
+    { path: '/users', label: t('common.users'), icon: UsersIcon, roles: ['ADMIN', 'HR'] },
+    { path: '/audit-logs', label: t('common.auditLogs'), icon: ShieldAlert, roles: ['ADMIN'] },
   ];
 
-  // Filter links according to active user role
-  const activeMenu = menuItems.filter(item => item.roles.includes(user?.role));
+  const activeMenu = menuItems.filter((item) => item.roles.includes(user?.role));
 
   return (
-    <aside className={`w-64 bg-dark-900 border-r border-slate-800 flex flex-col h-full fixed inset-y-0 left-0 z-50 transform lg:static lg:translate-x-0 transition-transform duration-300 ease-in-out ${
-      isOpen ? 'translate-x-0' : '-translate-x-full'
-    }`}>
-      {/* Brand Header */}
-      <div className="h-16 flex items-center justify-between px-6 border-b border-slate-800">
-        <span className="text-xl font-bold tracking-wider text-white flex items-center gap-2 font-display">
-          <Ticket className="text-brand-500 w-6 h-6 animate-pulse-slow" />
-          <span>MCMS</span>
-        </span>
-        {/* Mobile close button */}
-        <button
-          onClick={() => setIsOpen(false)}
-          className="lg:hidden text-slate-400 hover:text-white p-1 rounded-lg hover:bg-slate-800 transition-colors cursor-pointer"
-        >
+    <aside
+      aria-label="Main navigation"
+      className={`app-sidebar flex flex-col h-full fixed inset-y-0 left-0 z-50
+        transform lg:static lg:translate-x-0 ease-out
+        ${collapsed ? 'w-sidebar-collapsed' : 'w-sidebar'}
+        ${isOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}`}
+      style={{ transition: 'width 200ms ease, transform 200ms ease' }}
+    >
+      <div
+        className={`flex items-center border-b border-app-border shrink-0 ${collapsed ? 'justify-center px-2' : 'justify-between px-5'}`}
+        style={{ height: 'var(--header-height)', borderColor: 'var(--color-border)' }}
+      >
+        {!collapsed ? (
+          <span className="text-base font-semibold text-white flex items-center gap-2.5">
+            <div className="w-8 h-8 rounded-card logo-mark flex items-center justify-center">
+              <Ticket className="w-4 h-4" aria-hidden="true" />
+            </div>
+            <span>MCMS</span>
+          </span>
+        ) : (
+          <div className="w-8 h-8 rounded-card logo-mark flex items-center justify-center">
+            <Ticket className="w-4 h-4" aria-hidden="true" />
+          </div>
+        )}
+        <button onClick={() => setIsOpen(false)} className="lg:hidden btn-icon text-white/70 hover:text-white hover:bg-white/5" aria-label="Close navigation">
           <X className="w-5 h-5" />
         </button>
       </div>
 
-      {/* Navigation Links */}
-      <nav className="flex-1 px-4 py-6 space-y-2 overflow-y-auto">
+      <nav className="flex-1 px-3 py-5 space-y-0.5 overflow-y-auto" aria-label="Sidebar menu">
         {activeMenu.map((item) => {
           const Icon = item.icon;
           return (
@@ -95,29 +70,35 @@ const Sidebar = ({ isOpen, setIsOpen }) => {
               key={item.path}
               to={item.path}
               onClick={() => setIsOpen(false)}
+              title={collapsed ? item.label : undefined}
+              aria-label={item.label}
               className={({ isActive }) =>
-                `flex items-center gap-3 px-4 py-3 rounded-xl font-medium transition-all duration-200 group ${
-                  isActive
-                    ? 'bg-brand-500 text-white shadow-premium'
-                    : 'text-slate-400 hover:bg-slate-800/50 hover:text-white'
-                }`
+                `${isActive ? 'nav-link-active' : 'nav-link'} ${collapsed ? 'justify-center px-2.5' : ''}`
               }
             >
-              <Icon className="w-5 h-5" />
-              <span>{item.label}</span>
+              <Icon className="w-[18px] h-[18px] flex-shrink-0" aria-hidden="true" />
+              {!collapsed && <span>{item.label}</span>}
             </NavLink>
           );
         })}
       </nav>
 
-      {/* User Info & Logout */}
-      <div className="p-4 border-t border-slate-800 bg-slate-950/20">
+      <div className="p-3 border-t shrink-0" style={{ borderColor: 'var(--color-border)' }}>
+        <button
+          onClick={onToggleCollapse}
+          className={`hidden lg:flex nav-link w-full text-white/70 hover:text-white ${collapsed ? 'justify-center px-2.5' : ''}`}
+          aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+        >
+          {collapsed ? <PanelLeft className="w-[18px] h-[18px]" /> : <PanelLeftClose className="w-[18px] h-[18px]" />}
+          {!collapsed && <span>{t('common.collapse')}</span>}
+        </button>
         <button
           onClick={logout}
-          className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-red-500/10 hover:bg-red-500/20 text-red-400 rounded-xl font-semibold border border-red-500/20 hover:border-red-500/40 transition-all duration-200"
+          className={`nav-link w-full text-white/70 hover:text-white mt-1 ${collapsed ? 'justify-center px-2.5' : ''}`}
+          aria-label={t('common.logout')}
         >
-          <LogOut className="w-4 h-4" />
-          <span>{t('common.logout')}</span>
+          <LogOut className="w-4 h-4" aria-hidden="true" />
+          {!collapsed && <span>{t('common.logout')}</span>}
         </button>
       </div>
     </aside>

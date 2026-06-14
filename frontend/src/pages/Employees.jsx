@@ -1,43 +1,61 @@
-import React, { useState, useEffect } from 'react';
-import { useAuth } from '../context/AuthContext.jsx';
+import React, { useState, useEffect, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
-// Removed unused employee service imports
 import { generateQR } from '../services/hr.service.js';
 import QRPrintCard from '../components/QRPrintCard.jsx';
-import { 
-  Users as UsersIcon, 
-  Plus, 
-  CheckCircle, 
-  ShieldAlert, 
-  QrCode, 
-  Printer, 
-  ChevronRight,
+import {
+  Users as UsersIcon,
+  Plus,
+  CheckCircle,
+  ShieldAlert,
+  QrCode,
+  Printer,
   Loader,
-  UserCheck
+  UserCheck,
+  Download,
+  Upload,
+  FileSpreadsheet,
+  X,
+  Eye,
+  Copy,
+  Check,
 } from 'lucide-react';
-import axios from 'axios';
+import { PageHeader, PageSkeleton, ProgressBar, EmptyState } from '../components/ui/Page.jsx';
 import api from '../services/api.js';
+import {
+  exportEmployeesToExcel,
+  downloadEmployeeTemplate,
+  parseEmployeeExcelFile,
+} from '../utils/employeeExcel.js';
+
+const truncateCode = (code) => (code ? `${code.slice(0, 8)}...` : '—');
+
+const getInitials = (name) =>
+  name
+    .split(' ')
+    .map((n) => n[0])
+    .join('')
+    .slice(0, 2)
+    .toUpperCase();
 
 const Employees = () => {
-  const { user } = useAuth();
   const { t } = useTranslation();
 
   const [employeesList, setEmployeesList] = useState([]);
   const [loading, setLoading] = useState(true);
-  
-  // Modal & Printing States
+
   const [showAddModal, setShowAddModal] = useState(false);
   const [showPrintModal, setShowPrintModal] = useState(false);
+  const [showDetailsModal, setShowDetailsModal] = useState(false);
   const [selectedEmployee, setSelectedEmployee] = useState(null);
   const [selectedCardCode, setSelectedCardCode] = useState('');
+  const [copiedField, setCopiedField] = useState(null);
 
-  // Form states
-  const [employeeForm, setEmployeeForm] = useState({ 
-    email: '', 
-    password: '', 
-    name: '', 
-    department: '', 
-    position: '', 
+  const [employeeForm, setEmployeeForm] = useState({
+    email: '',
+    password: '',
+    name: '',
+    department: '',
+    position: '',
     employeeIdNumber: '',
     staffType: 'Standard',
   });
@@ -45,10 +63,15 @@ const Employees = () => {
   const [actionSuccess, setActionSuccess] = useState('');
   const [processing, setProcessing] = useState(false);
 
+  const [showImportModal, setShowImportModal] = useState(false);
+  const [importFile, setImportFile] = useState(null);
+  const [importResults, setImportResults] = useState(null);
+  const [importing, setImporting] = useState(false);
+  const fileInputRef = useRef(null);
+
   const fetchEmployees = async () => {
     try {
       setLoading(true);
-      // Fetch employees from /employees endpoint (calls getEmployees)
       const res = await api.get('/employees');
       setEmployeesList(res.data.data || []);
     } catch (err) {
@@ -62,6 +85,17 @@ const Employees = () => {
     fetchEmployees();
   }, []);
 
+  const copyText = async (text, fieldKey) => {
+    if (!text) return;
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopiedField(fieldKey);
+      setTimeout(() => setCopiedField(null), 2000);
+    } catch {
+      /* clipboard unavailable */
+    }
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     setActionError('');
@@ -73,12 +107,12 @@ const Employees = () => {
       if (res.data.success) {
         setActionSuccess(t('employees.provisionSuccess', { name: res.data.data.user.name }));
         setShowAddModal(false);
-        setEmployeeForm({ 
-          email: '', 
-          password: '', 
-          name: '', 
-          department: '', 
-          position: '', 
+        setEmployeeForm({
+          email: '',
+          password: '',
+          name: '',
+          department: '',
+          position: '',
           employeeIdNumber: '',
           staffType: 'Standard',
         });
@@ -94,7 +128,7 @@ const Employees = () => {
   const handleGenerateQR = async (emp) => {
     setActionError('');
     setActionSuccess('');
-    
+
     try {
       const res = await generateQR(emp.id);
       if (res.success) {
@@ -110,8 +144,7 @@ const Employees = () => {
   };
 
   const handlePrintCard = (emp) => {
-    const activeCard = emp.qrCards?.[0];
-    if (!activeCard) {
+    if (!emp.qrCards?.[0]) {
       setActionError(t('employees.noQr'));
       return;
     }
@@ -120,43 +153,121 @@ const Employees = () => {
     setShowPrintModal(true);
   };
 
+  const openDetails = (emp) => {
+    setSelectedEmployee(emp);
+    setShowDetailsModal(true);
+    setCopiedField(null);
+  };
+
+  const closeDetails = () => {
+    setShowDetailsModal(false);
+    setSelectedEmployee(null);
+    setCopiedField(null);
+  };
+
+  const handleExport = () => {
+    exportEmployeesToExcel(employeesList);
+    setActionSuccess(t('employees.exportSuccess'));
+    setActionError('');
+  };
+
+  const handleDownloadTemplate = () => {
+    downloadEmployeeTemplate();
+  };
+
+  const handleFileSelect = (e) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      setImportFile(file);
+      setImportResults(null);
+    }
+  };
+
+  const handleImport = async () => {
+    if (!importFile) return;
+
+    setImporting(true);
+    setActionError('');
+    setActionSuccess('');
+
+    try {
+      const rows = await parseEmployeeExcelFile(importFile);
+      if (rows.length === 0) {
+        setActionError(t('employees.importEmpty'));
+        return;
+      }
+
+      const res = await api.post('/employees/import', { rows });
+      const results = res.data.data;
+      setImportResults(results);
+
+      if (results.created > 0) {
+        fetchEmployees();
+        setActionSuccess(
+          t('employees.importSuccess', { created: results.created, failed: results.failed })
+        );
+      } else {
+        setActionError(t('employees.importAllFailed'));
+      }
+    } catch (err) {
+      setActionError(err.response?.data?.message || err.message || t('employees.importFailed'));
+    } finally {
+      setImporting(false);
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    }
+  };
+
+  const closeImportModal = () => {
+    setShowImportModal(false);
+    setImportFile(null);
+    setImportResults(null);
+    if (fileInputRef.current) fileInputRef.current.value = '';
+  };
+
   if (loading && employeesList.length === 0) {
-    return (
-      <div className="flex items-center justify-center py-20 text-brand-500">
-        <Loader className="animate-spin h-10 w-10 text-brand-500" />
-      </div>
-    );
+    return <PageSkeleton cards={0} />;
   }
 
+  const detailsCard = selectedEmployee?.qrCards?.[0];
+  const detailsUuid = detailsCard?.cardCode || selectedEmployee?.id || '';
+
   return (
-    <div className="space-y-8">
-      {/* View Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <div>
-          <h1 className="text-3xl font-extrabold text-white Outfit tracking-tight">{t('employees.title')}</h1>
-          <p className="text-slate-400 text-sm font-medium">{t('employees.subtitle')}</p>
-        </div>
+    <div className="page-shell-compact">
+      <PageHeader
+        title={t('employees.title')}
+        subtitle={t('employees.subtitle')}
+        actions={
+          <>
+            <button
+              onClick={handleExport}
+              disabled={employeesList.length === 0}
+              className="btn-secondary"
+            >
+              <Download className="w-4 h-4" />
+              <span>{t('employees.export')}</span>
+            </button>
+            <button onClick={() => setShowImportModal(true)} className="btn-secondary">
+              <Upload className="w-4 h-4" />
+              <span>{t('employees.import')}</span>
+            </button>
+            <button onClick={() => setShowAddModal(true)} className="btn-primary">
+              <Plus className="w-4 h-4" />
+              <span>{t('employees.provision')}</span>
+            </button>
+          </>
+        }
+      />
 
-        <button
-          onClick={() => setShowAddModal(true)}
-          className="flex items-center justify-center gap-2 bg-brand-500 hover:bg-brand-600 active:scale-95 text-white font-semibold px-5 py-3 rounded-xl shadow-premium hover:shadow-premium-hover transition-all duration-200 cursor-pointer"
-        >
-          <Plus className="w-5 h-5" />
-          <span>{t('employees.provision')}</span>
-        </button>
-      </div>
-
-      {/* Action Alerts */}
       {(actionError || actionSuccess) && (
         <div className="max-w-2xl">
           {actionError && (
-            <div className="bg-red-500/10 border border-red-500/20 text-red-400 text-sm px-4 py-3 rounded-xl flex items-center gap-2">
+            <div className="alert alert-error">
               <ShieldAlert className="w-5 h-5 flex-shrink-0" />
               <span>{actionError}</span>
             </div>
           )}
           {actionSuccess && (
-            <div className="bg-brand-500/10 border border-brand-500/20 text-brand-400 text-sm px-4 py-3 rounded-xl flex items-center gap-2">
+            <div className="alert alert-success">
               <CheckCircle className="w-5 h-5 flex-shrink-0" />
               <span>{actionSuccess}</span>
             </div>
@@ -164,107 +275,205 @@ const Employees = () => {
         </div>
       )}
 
-      {/* Employees Directory Table */}
-      <div className="glass-card p-6">
-        <div className="overflow-x-auto">
-          <table className="w-full text-left text-sm border-collapse">
+      <div className="table-wrap surface-card-hover">
+        <div className="table-scroll">
+          <table className="table-modern table-directory">
             <thead>
-              <tr className="border-b border-slate-800 text-slate-400 font-bold uppercase tracking-wider text-xs">
-                <th className="pb-3">{t('employees.tableName')}</th>
-                <th className="pb-3">{t('employees.tableIdEmail')}</th>
-                <th className="pb-3">{t('employees.tableDept')}</th>
-                <th className="pb-3">{t('employees.tableQr')}</th>
-                <th className="pb-3 text-right">{t('employees.tableActions')}</th>
+              <tr>
+                <th className="w-16">{t('employees.tableAvatar')}</th>
+                <th>{t('employees.tableName')}</th>
+                <th>{t('employees.tableDepartment')}</th>
+                <th>{t('employees.tablePosition')}</th>
+                <th>{t('employees.tableStatus')}</th>
+                <th className="text-right">{t('employees.tableActions')}</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-800/60">
+            <tbody>
               {employeesList.length === 0 ? (
                 <tr>
-                  <td colSpan="5" className="py-6 text-center text-slate-500">{t('employees.noEmployees')}</td>
+                  <td colSpan="6">
+                    <EmptyState
+                      icon={UsersIcon}
+                      title={t('employees.noEmployees')}
+                      description={t('employees.subtitle')}
+                      action={
+                        <button onClick={() => setShowAddModal(true)} className="btn-primary">
+                          <Plus className="w-4 h-4" />
+                          {t('employees.provision')}
+                        </button>
+                      }
+                    />
+                  </td>
                 </tr>
               ) : (
-                employeesList.map((emp) => (
-                  <tr key={emp.id} className="text-slate-300 hover:bg-slate-800/10">
-                    <td className="py-4">
-                      <div className="flex items-center gap-3">
-                        <div className="w-9 h-9 bg-brand-500/10 border border-brand-500/20 text-brand-400 rounded-lg flex items-center justify-center font-bold text-sm uppercase">
-                          {emp.name.split(' ').map(n=>n[0]).join('').substr(0,2)}
+                employeesList.map((emp) => {
+                  const cardCode = emp.qrCards?.[0]?.cardCode;
+                  const isActive = emp.isActive !== false;
+                  const copyKey = `row-${emp.id}`;
+
+                  return (
+                    <tr key={emp.id}>
+                      <td>
+                        <div className="avatar w-10 h-10">{getInitials(emp.name)}</div>
+                      </td>
+                      <td>
+                        <div className="cell-name">{emp.name}</div>
+                      </td>
+                      <td>
+                        <div className="cell-secondary">
+                          {emp.employeeProfile?.department || '—'}
                         </div>
-                        <div>
-                          <div className="font-semibold text-white">{emp.name}</div>
-                          <div className="text-[10px] text-slate-500">{t('employees.joined')} {new Date(emp.createdAt).toLocaleDateString()}</div>
+                      </td>
+                      <td>
+                        <div className="cell-secondary">
+                          {emp.employeeProfile?.position || '—'}
                         </div>
-                      </div>
-                    </td>
-                    <td className="py-4">
-                      <div className="font-mono text-xs text-brand-400">{emp.employeeProfile?.employeeIdNumber || 'N/A'}</div>
-                      <div className="text-slate-400 text-xs">{emp.email}</div>
-                    </td>
-                    <td className="py-4">
-                      <div className="text-slate-200 font-medium text-xs">{emp.employeeProfile?.department || 'N/A'}</div>
-                      <div className="text-slate-500 text-[11px]">{emp.employeeProfile?.position || 'N/A'}</div>
-                    </td>
-                    <td className="py-4">
-                      {emp.qrCards?.[0] ? (
-                        <div className="flex items-center gap-1.5 text-xs text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-2 py-0.5 rounded-full w-max font-mono">
-                          <CheckCircle className="w-3.5 h-3.5" />
-                          <span className="truncate max-w-[120px]">{emp.qrCards[0].cardCode}</span>
+                      </td>
+                      <td>
+                        <div className="flex flex-col gap-1.5">
+                          <span className={isActive ? 'badge-active' : 'badge'}>
+                            {isActive ? t('common.active') : t('common.no')}
+                          </span>
+                          {cardCode ? (
+                            <div className="copy-row">
+                              <span className="copy-code">{truncateCode(cardCode)}</span>
+                              <button
+                                type="button"
+                                onClick={() => copyText(cardCode, copyKey)}
+                                className="btn-icon-action !w-8 !h-8 !min-w-8"
+                                title={t('employees.copyCardCode')}
+                              >
+                                {copiedField === copyKey ? (
+                                  <Check className="w-3.5 h-3.5" />
+                                ) : (
+                                  <Copy className="w-3.5 h-3.5" />
+                                )}
+                              </button>
+                            </div>
+                          ) : (
+                            <span className="cell-secondary">{t('employees.noActiveCard')}</span>
+                          )}
                         </div>
-                      ) : (
-                        <div className="text-xs text-slate-500 bg-slate-850 px-2 py-0.5 rounded-full w-max border border-slate-800">
-                          {t('employees.noActiveCard')}
+                      </td>
+                      <td>
+                        <div className="flex justify-end items-center gap-2">
+                          <button
+                            type="button"
+                            onClick={() => openDetails(emp)}
+                            className="btn-icon-action"
+                            title={t('employees.viewDetails')}
+                          >
+                            <Eye className="w-4 h-4" />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handlePrintCard(emp)}
+                            disabled={!emp.qrCards?.[0]}
+                            className="btn-icon-action"
+                            title={t('employees.printTooltip')}
+                          >
+                            <Printer className="w-4 h-4" />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleGenerateQR(emp)}
+                            className="btn-icon-action"
+                            title={t('employees.generateQrTooltip')}
+                          >
+                            <QrCode className="w-4 h-4" />
+                          </button>
                         </div>
-                      )}
-                    </td>
-                    <td className="py-4 text-right">
-                      <div className="flex justify-end gap-2">
-                        {/* Print Card button (if active card exists) */}
-                        <button
-                          onClick={() => handlePrintCard(emp)}
-                          disabled={!emp.qrCards?.[0]}
-                          className="flex items-center gap-1 px-3 py-1.5 text-xs bg-slate-800 hover:bg-slate-700 disabled:bg-slate-900 disabled:text-slate-600 disabled:border-slate-850 disabled:cursor-not-allowed border border-slate-700/60 rounded-xl font-bold text-white transition cursor-pointer"
-                          title="Print Current Active Card"
-                        >
-                          <Printer className="w-3.5 h-3.5" />
-                          <span>{t('employees.print')}</span>
-                        </button>
-                        
-                        {/* Generate QR / Reprint Card button */}
-                        <button
-                          onClick={() => handleGenerateQR(emp)}
-                          className="flex items-center gap-1 px-3 py-1.5 text-xs bg-brand-500/10 hover:bg-brand-500/20 border border-brand-500/20 hover:border-brand-500/40 rounded-xl font-bold text-brand-400 transition cursor-pointer"
-                          title="Reprint Card & Invalidate Old Ones"
-                        >
-                          <QrCode className="w-3.5 h-3.5" />
-                          <span>{t('employees.generateQrLabel')}</span>
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))
+                      </td>
+                    </tr>
+                  );
+                })
               )}
             </tbody>
           </table>
         </div>
       </div>
 
+      {/* Details modal */}
+      {showDetailsModal && selectedEmployee && (
+        <div className="modal-overlay" onClick={closeDetails}>
+          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between mb-6">
+              <div className="flex items-center gap-3 min-w-0">
+                <div className="avatar w-11 h-11">{getInitials(selectedEmployee.name)}</div>
+                <div className="min-w-0">
+                  <h3 className="modal-title !text-base">{selectedEmployee.name}</h3>
+                  <p className="text-sm text-app-secondary mt-0.5">
+                    {selectedEmployee.employeeProfile?.employeeIdNumber || '—'}
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={closeDetails}
+                className="btn-icon shrink-0"
+                title={t('common.close')}
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="detail-row">
+              <span className="detail-label">{t('employees.emailAddress')}</span>
+              <span className="detail-value">{selectedEmployee.email}</span>
+            </div>
+
+            <div className="detail-row">
+              <span className="detail-label">{t('employees.joinDate')}</span>
+              <span className="detail-value">
+                {new Date(selectedEmployee.createdAt).toLocaleDateString()}
+              </span>
+            </div>
+
+            <div className="detail-row">
+              <span className="detail-label">{t('employees.fullQrUuid')}</span>
+              <div className="copy-row">
+                <span className="detail-value font-mono text-sm break-all">
+                  {detailsUuid || '—'}
+                </span>
+                {detailsUuid && (
+                  <button
+                    type="button"
+                    onClick={() => copyText(detailsUuid, 'details-uuid')}
+                    className="btn-icon-action shrink-0"
+                    title={t('employees.copyCardCode')}
+                  >
+                    {copiedField === 'details-uuid' ? (
+                      <Check className="w-4 h-4" />
+                    ) : (
+                      <Copy className="w-4 h-4" />
+                    )}
+                  </button>
+                )}
+              </div>
+            </div>
+
+            <div className="pt-4">
+              <button type="button" onClick={closeDetails} className="btn-secondary w-full">
+                {t('common.close')}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Provision modal */}
       {showAddModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
-          <div className="w-full max-w-lg glass-card p-8 bg-slate-900 border border-slate-800 overflow-y-auto max-h-[90vh]">
-            <h3 className="text-xl font-bold text-white Outfit mb-6 flex items-center gap-2">
-              <UserCheck className="w-6 h-6 text-brand-500" />
+        <div className="modal-overlay">
+          <div className="modal-content">
+            <h3 className="modal-title mb-6">
+              <UserCheck className="w-5 h-5 icon-accent" />
               <span>{t('employees.addModalTitle')}</span>
             </h3>
 
-            <form onSubmit={handleSubmit} className="space-y-4">
-              
+            <form onSubmit={handleSubmit} className="form-stack">
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                {/* Name */}
-                <div className="space-y-1">
-                  <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
-                    {t('employees.fullName')}
-                  </label>
+                <div className="form-group">
+                  <label className="input-label">{t('employees.fullName')}</label>
                   <input
                     type="text"
                     required
@@ -275,26 +484,22 @@ const Employees = () => {
                   />
                 </div>
 
-                {/* Employee ID Number */}
-                <div className="space-y-1">
-                  <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
-                    {t('employees.employeeId')}
-                  </label>
+                <div className="form-group">
+                  <label className="input-label">{t('employees.employeeId')}</label>
                   <input
                     type="text"
                     required
                     value={employeeForm.employeeIdNumber}
-                    onChange={(e) => setEmployeeForm({ ...employeeForm, employeeIdNumber: e.target.value })}
+                    onChange={(e) =>
+                      setEmployeeForm({ ...employeeForm, employeeIdNumber: e.target.value })
+                    }
                     placeholder="E.g., EMP-10024"
                     className="glass-input text-xs"
                   />
                 </div>
 
-                {/* Email */}
-                <div className="space-y-1">
-                  <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
-                    {t('employees.emailAddress')}
-                  </label>
+                <div className="form-group">
+                  <label className="input-label">{t('employees.emailAddress')}</label>
                   <input
                     type="email"
                     required
@@ -305,11 +510,8 @@ const Employees = () => {
                   />
                 </div>
 
-                {/* Password */}
-                <div className="space-y-1">
-                  <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
-                    {t('employees.password')}
-                  </label>
+                <div className="form-group">
+                  <label className="input-label">{t('employees.password')}</label>
                   <input
                     type="password"
                     required
@@ -320,26 +522,22 @@ const Employees = () => {
                   />
                 </div>
 
-                {/* Department */}
-                <div className="space-y-1">
-                  <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
-                    {t('employees.department')}
-                  </label>
+                <div className="form-group">
+                  <label className="input-label">{t('employees.department')}</label>
                   <input
                     type="text"
                     required
                     value={employeeForm.department}
-                    onChange={(e) => setEmployeeForm({ ...employeeForm, department: e.target.value })}
+                    onChange={(e) =>
+                      setEmployeeForm({ ...employeeForm, department: e.target.value })
+                    }
                     placeholder="E.g., Engineering"
                     className="glass-input text-xs"
                   />
                 </div>
 
-                {/* Position */}
-                <div className="space-y-1">
-                  <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
-                    {t('employees.position')}
-                  </label>
+                <div className="form-group">
+                  <label className="input-label">{t('employees.position')}</label>
                   <input
                     type="text"
                     required
@@ -351,10 +549,8 @@ const Employees = () => {
                 </div>
               </div>
 
-              <div className="space-y-1 pt-2">
-                <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
-                  {t('employees.staffType')}
-                </label>
+              <div className="form-group pt-2">
+                <label className="input-label">{t('employees.staffType')}</label>
                 <input
                   type="text"
                   value={employeeForm.staffType}
@@ -366,38 +562,123 @@ const Employees = () => {
                 />
               </div>
 
-              <p className="text-[11px] text-slate-500 pt-1">
-                {t('employees.qrAutoNote')}
-              </p>
+              <p className="text-[11px] text-app-muted pt-1">{t('employees.qrAutoNote')}</p>
 
-              {/* Buttons */}
-              <div className="flex gap-4 pt-4">
+              <div className="flex gap-3 pt-4">
                 <button
                   type="button"
                   onClick={() => setShowAddModal(false)}
-                  className="flex-1 bg-slate-800 hover:bg-slate-700 font-semibold py-3 px-4 rounded-xl transition-all duration-200 cursor-pointer text-white"
+                  className="flex-1 btn-secondary"
                 >
                   {t('common.cancel')}
                 </button>
-                <button
-                  type="submit"
-                  disabled={processing}
-                  className="flex-1 bg-brand-500 hover:bg-brand-600 active:scale-95 text-white font-semibold py-3 px-4 rounded-xl shadow-premium transition-all duration-200 flex items-center justify-center gap-2 cursor-pointer"
-                >
+                <button type="submit" disabled={processing} className="flex-1 btn-primary">
                   {processing ? (
-                    <Loader className="animate-spin h-5 w-5 text-white" />
+                    <Loader className="animate-spin h-5 w-5" />
                   ) : (
                     <span>{t('employees.createProfile')}</span>
                   )}
                 </button>
               </div>
-
             </form>
           </div>
         </div>
       )}
 
-      {/* Print modal */}
+      {/* Import modal */}
+      {showImportModal && (
+        <div className="modal-overlay">
+          <div className="modal-content">
+            <div className="flex items-center justify-between mb-6">
+              <h3 className="modal-title">
+                <FileSpreadsheet className="w-5 h-5 icon-accent" />
+                <span>{t('employees.importModalTitle')}</span>
+              </h3>
+              <button
+                onClick={closeImportModal}
+                className="btn-icon"
+                title={t('common.close')}
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <p className="text-sm text-app-secondary mb-4">{t('employees.importDescription')}</p>
+
+            <button
+              onClick={handleDownloadTemplate}
+              className="flex items-center gap-2 text-app-secondary hover:text-app-primary text-sm font-medium mb-6 cursor-pointer"
+            >
+              <Download className="w-4 h-4" />
+              <span>{t('employees.downloadTemplate')}</span>
+            </button>
+
+            <div className="border-2 border-dashed border-app-border rounded-xl p-6 text-center mb-4">
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept=".xlsx,.csv"
+                onChange={handleFileSelect}
+                className="hidden"
+                id="employee-import-file"
+              />
+              <label
+                htmlFor="employee-import-file"
+                className="cursor-pointer flex flex-col items-center gap-2"
+              >
+                <Upload className="w-8 h-8 text-app-muted" />
+                <span className="text-sm text-app-secondary font-medium">
+                  {importFile ? importFile.name : t('employees.selectFile')}
+                </span>
+                <span className="text-xs text-app-muted">{t('employees.fileTypes')}</span>
+              </label>
+            </div>
+
+            {importing && (
+              <div className="mb-4">
+                <ProgressBar value={50} label={t('common.loading')} />
+              </div>
+            )}
+
+            {importResults?.errors?.length > 0 && (
+              <div className="mb-4 max-h-40 overflow-y-auto alert alert-error flex-col items-start">
+                <p className="text-xs font-semibold uppercase tracking-wider mb-2 w-full">
+                  {t('employees.importErrors')}
+                </p>
+                <ul className="space-y-1 text-xs w-full">
+                  {importResults.errors.map((err, idx) => (
+                    <li key={idx}>
+                      {t('employees.importErrorRow', {
+                        row: err.row,
+                        name: err.name || err.employeeIdNumber || err.email || '—',
+                        message: err.message,
+                      })}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+
+            <div className="flex gap-3 pt-2">
+              <button type="button" onClick={closeImportModal} className="flex-1 btn-secondary">
+                {t('common.close')}
+              </button>
+              <button
+                onClick={handleImport}
+                disabled={!importFile || importing}
+                className="flex-1 btn-primary"
+              >
+                {importing ? (
+                  <div className="spinner h-5 w-5" />
+                ) : (
+                  <span>{t('employees.importButton')}</span>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {showPrintModal && selectedEmployee && (
         <QRPrintCard
           employee={selectedEmployee}
@@ -409,7 +690,6 @@ const Employees = () => {
           }}
         />
       )}
-
     </div>
   );
 };

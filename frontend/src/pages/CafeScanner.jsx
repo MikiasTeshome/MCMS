@@ -102,10 +102,10 @@ const CafeScanner = () => {
   return (
     <div className="space-y-8 max-w-6xl mx-auto">
       <div>
-        <h1 className="text-3xl font-extrabold text-white Outfit tracking-tight">
+        <h1 className="text-2xl font-semibold text-app-primary  tracking-tight">
           {t('cafe.title')}
         </h1>
-        <p className="text-slate-400 text-sm font-medium">{t('cafe.subtitle')}</p>
+        <p className="text-app-secondary text-sm font-medium">{t('cafe.subtitle')}</p>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
@@ -113,8 +113,8 @@ const CafeScanner = () => {
           <QRScanner onScan={handleScanPayload} scanPaused={loading || submitting} />
 
           <div className="glass-card p-6">
-            <h3 className="text-sm font-bold uppercase tracking-wider text-slate-400 mb-4 flex items-center gap-2">
-              <Search className="w-4 h-4 text-brand-500" />
+            <h3 className="text-sm font-bold uppercase tracking-wider text-app-secondary mb-4 flex items-center gap-2">
+              <Search className="w-4 h-4 text-app-secondary" />
               <span>{t('cafe.manualLookup')}</span>
             </h3>
             <form onSubmit={handleManualSearch} className="flex gap-2">
@@ -128,7 +128,7 @@ const CafeScanner = () => {
               <button
                 type="submit"
                 disabled={loading}
-                className="bg-brand-500 hover:bg-brand-600 text-white font-semibold px-5 py-3 rounded-xl transition cursor-pointer"
+                className="btn-primary"
               >
                 {loading ? '…' : t('common.search')}
               </button>
@@ -149,7 +149,7 @@ const CafeScanner = () => {
           )}
 
           {successMsg && (
-            <div className="flex items-center gap-2 text-emerald-400 text-sm">
+            <div className="flex items-center gap-2 text-app-secondary text-sm">
               <CheckCircle className="w-5 h-5" />
               <span>{t('cafe.auditRecorded')}</span>
             </div>
@@ -175,13 +175,13 @@ const CafeScanner = () => {
               </div>
             </>
           ) : (
-            <div className="glass-card py-20 px-6 flex flex-col items-center justify-center text-center gap-4 border-dashed border-2 border-slate-800">
-              <div className="w-16 h-16 bg-slate-900 rounded-full flex items-center justify-center text-slate-500 border border-slate-800">
+            <div className="glass-card py-20 px-6 flex flex-col items-center justify-center text-center gap-4 border-dashed border-2 border-app-border">
+              <div className="w-16 h-16 bg-app-surface rounded-full flex items-center justify-center text-app-muted border border-app-border">
                 <Coffee className="w-8 h-8" />
               </div>
               <div>
-                <h4 className="text-lg font-bold text-white Outfit">{t('cafe.readyTitle')}</h4>
-                <p className="text-sm text-slate-500 max-w-sm mt-1 mx-auto">
+                <h4 className="text-lg font-bold text-white ">{t('cafe.readyTitle')}</h4>
+                <p className="text-sm text-app-muted max-w-sm mt-1 mx-auto">
                   {t('cafe.readyBody')}
                 </p>
               </div>

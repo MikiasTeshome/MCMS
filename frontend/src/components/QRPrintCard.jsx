@@ -50,21 +50,21 @@ const QRPrintCard = ({ employee, cardCode, onClose }) => {
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
-      <div className="w-full max-w-md bg-slate-900 border border-slate-800 rounded-2xl shadow-2xl p-6 flex flex-col gap-6">
+      <div className="w-full max-w-md bg-app-surface border border-app-border rounded-2xl shadow-2xl p-6 flex flex-col gap-6">
         
         {/* Modal Header */}
-        <div className="flex items-center justify-between border-b border-slate-800 pb-3">
-          <h3 className="text-lg font-bold text-white Outfit">{t('qrCard.title')}</h3>
+        <div className="flex items-center justify-between border-b border-app-border pb-3">
+          <h3 className="text-lg font-bold text-white ">{t('qrCard.title')}</h3>
           <button 
             onClick={onClose}
-            className="text-slate-400 hover:text-white hover:bg-slate-800/60 p-1.5 rounded-xl transition cursor-pointer"
+            className="text-app-secondary hover:text-app-primary hover:bg-app-surface-2/60 p-1.5 rounded-xl transition cursor-pointer"
           >
             <X className="w-5 h-5" />
           </button>
         </div>
 
         {/* Printable Card Area */}
-        <div className="flex justify-center py-4 bg-slate-950/40 rounded-xl border border-slate-800/50">
+        <div className="flex justify-center py-4 bg-app-surface-2/40 rounded-xl border border-app-border/50">
           <div 
             ref={printRef}
             id="print-area-root"
@@ -104,23 +104,23 @@ const QRPrintCard = ({ employee, cardCode, onClose }) => {
 
               {/* Employee Metadata */}
               <div className="flex flex-col text-left overflow-hidden gap-0.5 justify-center">
-                <div className="text-[8px] font-bold text-slate-400 uppercase tracking-wide leading-none">{t('qrCard.employeeName')}</div>
+                <div className="text-[8px] font-bold text-app-secondary uppercase tracking-wide leading-none">{t('qrCard.employeeName')}</div>
                 <div className="text-xs font-black text-slate-800 truncate leading-tight">{employee?.name}</div>
 
-                <div className="text-[8px] font-bold text-slate-400 uppercase tracking-wide leading-none mt-1">{t('qrCard.idNumber')}</div>
+                <div className="text-[8px] font-bold text-app-secondary uppercase tracking-wide leading-none mt-1">{t('qrCard.idNumber')}</div>
                 <div className="text-[10px] font-extrabold text-blue-700 leading-none">{employee?.employeeProfile?.employeeIdNumber || employee?.employeeIdNumber || 'N/A'}</div>
 
-                <div className="text-[9px] text-slate-500 truncate mt-1">
+                <div className="text-[9px] text-app-muted truncate mt-1">
                   <span className="font-bold text-slate-600">{t('qrCard.dept')}: </span>{employee?.employeeProfile?.department || employee?.department || 'N/A'}
                 </div>
-                <div className="text-[9px] text-slate-500 truncate">
+                <div className="text-[9px] text-app-muted truncate">
                   <span className="font-bold text-slate-600">{t('qrCard.pos')}: </span>{employee?.employeeProfile?.position || employee?.position || 'N/A'}
                 </div>
               </div>
             </div>
 
             {/* Bottom bar */}
-            <div className="flex justify-between items-center text-[7.5px] text-slate-400 border-t border-slate-100 pt-1.5 leading-none">
+            <div className="flex justify-between items-center text-[7.5px] text-app-secondary border-t border-slate-100 pt-1.5 leading-none">
               <span>{t('qrCard.footer')}</span>
               <span className="font-bold text-blue-600">{t('qrCard.official')}</span>
             </div>
@@ -134,7 +134,7 @@ const QRPrintCard = ({ employee, cardCode, onClose }) => {
         <div className="flex gap-4">
           <button
             onClick={onClose}
-            className="flex-1 bg-slate-800 hover:bg-slate-700 font-semibold py-3 px-4 rounded-xl transition cursor-pointer text-white text-center"
+            className="flex-1 bg-app-surface-2 hover:bg-app-surface-2 font-semibold py-3 px-4 rounded-xl transition cursor-pointer text-white text-center"
           >
             {t('common.close')}
           </button>

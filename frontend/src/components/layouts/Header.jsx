@@ -1,79 +1,96 @@
-import React from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { useAuth } from '../../context/AuthContext.jsx';
 import { useI18n } from '../../i18n/I18nProvider.jsx';
 import { useTranslation } from 'react-i18next';
-import { Languages, User as UserIcon, Menu } from 'lucide-react';
+import { useTheme } from '../../context/ThemeContext.jsx';
+import { Languages, User as UserIcon, Menu, Search, Sun, Moon, ChevronDown } from 'lucide-react';
 
 const Header = ({ onMenuToggle }) => {
   const { user } = useAuth();
   const { t } = useTranslation();
   const { language, changeLanguage } = useI18n();
+  const { isDark, toggleTheme } = useTheme();
+  const [profileOpen, setProfileOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const profileRef = useRef(null);
 
-  // Color mappings for role badges
-  const getRoleBadgeClass = (role) => {
-    switch (role) {
-      case 'ADMIN':
-        return 'bg-red-500/10 text-red-400 border border-red-500/30';
-      case 'HR':
-        return 'bg-purple-500/10 text-purple-400 border border-purple-500/30';
-      case 'FINANCE':
-        return 'bg-pink-500/10 text-pink-400 border border-pink-500/30';
-      case 'CAFE_STAFF':
-        return 'bg-blue-500/10 text-blue-400 border border-blue-500/30';
-      case 'EMPLOYEE':
-      default:
-        return 'bg-brand-500/10 text-brand-400 border border-brand-500/30';
-    }
-  };
+  useEffect(() => {
+    const handleClick = (e) => {
+      if (profileRef.current && !profileRef.current.contains(e.target)) {
+        setProfileOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClick);
+    return () => document.removeEventListener('mousedown', handleClick);
+  }, []);
 
   return (
-    <header className="h-16 bg-dark-900 border-b border-slate-800 flex items-center justify-between px-4 sm:px-8 shadow-sm">
-      {/* Search / Section indicator */}
-      <div className="flex items-center gap-3">
-        {/* Hamburger Menu Toggle for Mobile */}
-        <button
-          onClick={onMenuToggle}
-          className="lg:hidden text-slate-400 hover:text-white p-2 rounded-xl hover:bg-slate-800/50 transition-colors cursor-pointer"
-        >
+    <header className="app-header">
+      <div className="flex items-center gap-4 flex-1 min-w-0">
+        <button onClick={onMenuToggle} className="lg:hidden btn-icon" aria-label="Open navigation menu">
           <Menu className="w-5 h-5" />
         </button>
-        <h2 className="text-sm sm:text-lg font-semibold text-slate-300 Outfit truncate max-w-[150px] sm:max-w-none">
-          {t('common.appTitle')}
-        </h2>
+
+        <div className="hidden sm:flex flex-1">
+          <div className="relative w-full max-w-md">
+            <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-app-muted pointer-events-none" aria-hidden="true" />
+            <input
+              type="search"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder={t('common.search')}
+              aria-label={t('common.search')}
+              className="search-field w-full"
+            />
+          </div>
+        </div>
       </div>
 
-      {/* Control Actions (Bilingual and Profile Details) */}
-      <div className="flex items-center gap-6">
-        {/* Bilingual Language Selector */}
-        <div className="flex items-center gap-2 bg-slate-950/40 rounded-xl px-3 py-1.5 border border-slate-800">
-          <Languages className="w-4 h-4 text-slate-400" />
+      <div className="flex items-center gap-1 sm:gap-2">
+        <button onClick={toggleTheme} className="btn-icon" aria-label={isDark ? t('common.lightMode') : t('common.darkMode')}>
+          {isDark ? <Sun className="w-[18px] h-[18px]" /> : <Moon className="w-[18px] h-[18px]" />}
+        </button>
+
+        <div className="flex items-center gap-1.5 rounded-full px-3 py-1.5 border border-app-border bg-app-surface">
+          <Languages className="w-3.5 h-3.5 text-app-muted" aria-hidden="true" />
           <select
             value={language}
             onChange={(e) => changeLanguage(e.target.value)}
-            className="bg-transparent text-sm text-slate-300 font-medium focus:outline-none cursor-pointer pr-1"
+            aria-label="Language"
+            className="bg-transparent text-xs text-app-secondary font-medium focus:outline-none cursor-pointer"
           >
-            <option value="en" className="bg-dark-900 text-slate-300">{t('common.langEn')}</option>
-            <option value="am" className="bg-dark-900 text-slate-300">{t('common.langAm')}</option>
+            <option value="en">EN</option>
+            <option value="am">AM</option>
           </select>
         </div>
 
-        {/* User context card */}
-        <div className="flex items-center gap-3 pl-4 border-l border-slate-800">
-          <div className="text-right hidden sm:block">
-            <div className="text-sm font-semibold text-white">{user?.name}</div>
-            <div className="text-xs text-slate-400 font-medium">{user?.email}</div>
-          </div>
+        <div className="relative" ref={profileRef}>
+          <button
+            onClick={() => setProfileOpen((o) => !o)}
+            className="flex items-center gap-2 pl-3 border-l border-app-border cursor-pointer rounded-card py-1"
+            aria-expanded={profileOpen}
+            aria-haspopup="true"
+            aria-label="User menu"
+          >
+            <div className="hidden sm:block text-right">
+              <div className="text-sm font-medium text-app-primary leading-tight">{user?.name}</div>
+              <div className="text-[11px] text-app-muted">{user?.email}</div>
+            </div>
+            <div className="avatar w-9 h-9">
+              <UserIcon className="w-4 h-4" aria-hidden="true" />
+            </div>
+            <ChevronDown className={`w-3.5 h-3.5 text-app-muted hidden sm:block transition-transform duration-fast ${profileOpen ? 'rotate-180' : ''}`} aria-hidden="true" />
+          </button>
 
-          <div className="flex flex-col gap-1 items-center">
-            {/* Styled clearance role badge */}
-            <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider ${getRoleBadgeClass(user?.role)}`}>
-              {t(`roles.${user?.role}`, { defaultValue: user?.role })}
-            </span>
-          </div>
-
-          <div className="w-10 h-10 rounded-xl bg-slate-800 border border-slate-700 flex items-center justify-center text-slate-300">
-            <UserIcon className="w-5 h-5" />
-          </div>
+          {profileOpen && (
+            <div className="absolute right-0 top-full mt-2 w-56 surface-card p-2 animate-slide-up !p-2" role="menu">
+              <div className="px-3 py-2.5 border-b border-app-border mb-1">
+                <p className="text-sm font-medium text-app-primary">{user?.name}</p>
+                <p className="text-xs text-app-muted truncate">{user?.email}</p>
+              </div>
+              <span className="badge mx-3 my-2">{t(`roles.${user?.role}`, { defaultValue: user?.role })}</span>
+            </div>
+          )}
         </div>
       </div>
     </header>
