@@ -4,7 +4,7 @@ import { useTranslation } from 'react-i18next';
 import { Html5Qrcode } from 'html5-qrcode';
 import { selfCheckEmployee } from '../services/couponScan.service.js';
 import ScanNotification from '../components/cafe/ScanNotification.jsx';
-import { User, Calendar, Ticket, Loader2 } from 'lucide-react';
+import { User, Calendar, Ticket, Loader2, RefreshCw } from 'lucide-react';
 
 const SelfCheck = () => {
   const { t } = useTranslation();
@@ -110,6 +110,11 @@ const SelfCheck = () => {
 
             <div className="grid grid-cols-2 gap-4">
               <Stat label={t('selfCheck.available')} value={data.availableCoupons} icon={Ticket} />
+              <Stat
+                label={t('selfCheck.redeemableToday')}
+                value={data.couponsRedeemableNow ?? data.availableCoupons}
+                icon={RefreshCw}
+              />
               <Stat label={t('selfCheck.expires')} value={data.expiryDate || '—'} icon={Calendar} />
               <Stat label={t('cafe.staffType')} value={data.staffType} />
               <Stat
@@ -117,6 +122,14 @@ const SelfCheck = () => {
                 value={data.claimedToday ? t('common.yes') : t('common.no')}
               />
             </div>
+
+            {/* Weekly tracker */}
+            {(data.dailyCap != null) && (
+              <WeekProgressBar
+                dailyCap={data.dailyCap}
+                weekBalance={data.weekBalance ?? 0}
+              />
+            )}
 
             {data.recentClaimHistory?.length > 0 && (
               <div>
@@ -154,6 +167,45 @@ const SelfCheck = () => {
           </div>
         )}
       </div>
+    </div>
+  );
+};
+
+const DAY_LABELS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri'];
+
+const WeekProgressBar = ({ dailyCap = 0, weekBalance = 0 }) => {
+  const { t } = useTranslation();
+  return (
+    <div className="space-y-2">
+      <div className="text-[10px] font-bold text-app-muted uppercase tracking-wider">
+        {t('selfCheck.weekProgress')}
+      </div>
+      <div className="flex gap-2">
+        {DAY_LABELS.map((label, i) => {
+          const dayNum = i + 1;
+          const isUnlocked = dayNum <= dailyCap;
+          const wasClaimed = dayNum <= weekBalance && dayNum < dailyCap;
+          return (
+            <div key={i} className="flex-1 flex flex-col items-center gap-1">
+              <div
+                className={`w-full h-2 rounded-full ${
+                  wasClaimed
+                    ? 'bg-green-500'
+                    : isUnlocked
+                    ? 'bg-blue-500'
+                    : 'bg-app-surface-2 border border-app-border'
+                }`}
+              />
+              <span className={`text-[9px] font-bold ${ isUnlocked ? 'text-app-primary' : 'text-app-muted' }`}>
+                {label}
+              </span>
+            </div>
+          );
+        })}
+      </div>
+      <p className="text-[10px] text-app-muted">
+        Day {dailyCap} of 5 — {Math.min(dailyCap, weekBalance + 0)} coupon(s) used this week
+      </p>
     </div>
   );
 };

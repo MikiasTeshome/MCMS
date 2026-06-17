@@ -145,10 +145,15 @@ model Coupon {
   expiresAt           DateTime
   claimedAt           DateTime?
   
-  // COMPOSITE SAFEGUARD TO PREVENT DUPLICATE CLAIMS PER DAY:
-  // When a coupon is claimed, we set claimedDateString to the date text (e.g. "2026-05-21").
-  // By enforcing a unique index on (employeeId, claimedDateString), the database automatically
-  // blocks an employee from double-claiming ANY coupon on the same calendar date!
+  // VISIT-ONCE-PER-DAY GUARD:
+  // When coupons are issued, the first coupon of the session gets claimedDateString = "YYYY-MM-DD"
+  // and subsequent coupons in the same visit get "YYYY-MM-DD-1", "YYYY-MM-DD-2", etc.
+  // The application checks for claimedDateString STARTING WITH today's date to detect
+  // whether the employee has already visited today. This supports redeeming multiple
+  // accumulated coupons in a single visit while still preventing double-visits.
+  // NOTE: The database-level unique index on (employeeId, claimedDateString) has been
+  // intentionally removed — the multi-coupon accumulation business rule means multiple
+  // rows can share the same base date prefix.
   claimedDateString   String?      
   
   claims              CouponClaim[]
@@ -156,7 +161,6 @@ model Coupon {
   createdAt           DateTime     @default(now())
   updatedAt           DateTime     @updatedAt
 
-  @@unique([employeeId, claimedDateString]) // Unbeatable database-level duplicate claim defense
   @@index([status])
   @@index([employeeId])
   @@index([code])

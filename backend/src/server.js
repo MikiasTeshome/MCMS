@@ -1,12 +1,16 @@
 import app from './app.js';
 import { config } from './config/index.js';
 import logger from './utils/logger.js';
+import { registerCouponScheduler } from './modules/coupons/coupons.scheduler.js';
 
 const PORT = config.port;
 
 const server = app.listen(PORT, () => {
   logger.info(`🚀 API Server successfully started in [${config.nodeEnv}] mode`);
   logger.info(`📡 Listening on http://localhost:${PORT}`);
+
+  // Register the daily coupon allocation job (Mon–Fri 06:00)
+  registerCouponScheduler();
 });
 
 // Gracefully handle port-in-use errors instead of crashing

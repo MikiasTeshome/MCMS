@@ -20,6 +20,10 @@ class AuthService {
       throw new Error('Invalid credentials');
     }
 
+    if (!user.isActive) {
+      throw new Error('Account inactive');
+    }
+
     // 2. Validate password
     const isMatch = await bcrypt.compare(password, user.passwordHash);
     if (!isMatch) {
@@ -38,6 +42,7 @@ class AuthService {
       email: user.email,
       name: user.name,
       role: user.role,
+      isActive: user.isActive,
     };
 
     // 4. Log the audit event for compliance
@@ -68,11 +73,12 @@ class AuthService {
         email: true,
         name: true,
         role: true,
+        isActive: true,
         createdAt: true,
       },
     });
 
-    if (!user) {
+    if (!user || !user.isActive) {
       throw new Error('User session not found');
     }
 

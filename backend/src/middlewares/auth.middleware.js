@@ -26,10 +26,11 @@ export const protect = async (req, res, next) => {
         email: true,
         name: true,
         role: true,
+        isActive: true,
       },
     });
 
-    if (!user) {
+    if (!user || !user.isActive) {
       return errorResponse(res, 401, 'Unauthorized - Invalid or expired user session');
     }
 

@@ -19,7 +19,14 @@ const AppRoutes = () => {
     <Routes>
       {/* Public Routes */}
       <Route path="/login" element={<Login />} />
-      <Route path="/self-check/:employeeId?" element={<SelfCheck />} />
+      <Route
+        path="/self-check/:employeeId?"
+        element={
+          <ProtectedRoute>
+            <SelfCheck />
+          </ProtectedRoute>
+        }
+      />
 
       {/* Protected Routes Panel Wrapper */}
       <Route

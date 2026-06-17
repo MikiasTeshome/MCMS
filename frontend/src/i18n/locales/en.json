@@ -212,16 +212,28 @@
     "scanNext": "Scan Next",
     "issueOne": "Issue One Coupon",
     "issueAll": "Issue All ({{count}})",
+    "issueN": "Issue {{count}} Coupon(s)",
     "issuing": "Issuing…",
     "noCouponsToIssue": "No available coupons to issue.",
     "claimedContactAdmin": "Employee already claimed today. Contact an admin for override.",
+    "redeemableToday": "Redeemable Today",
+    "dailyCapLabel": "Day {{day}} of 5 — up to {{cap}} coupon(s) accessible",
+    "weekAccumulation": "This Week's Accumulation",
+    "weekResetNotice": "Weekly reset — unused coupons from last week were voided",
+    "capReached": "Today's daily cap: {{cap}}",
     "scanning": "Scanning",
     "initializingCamera": "Initializing Camera…",
     "scannerOffline": "Scanner Offline",
     "noCamera": "No camera devices found.",
     "cameraDenied": "Camera permission denied.",
     "cameraStartFailed": "Failed to start camera. Is it in use by another app?",
-    "httpsRequired": "Camera is blocked on HTTP. On your phone open https://{{host}}:{{port}} (not http), allow camera access, and accept the security warning for the dev certificate."
+    "httpsRequired": "Camera is blocked on HTTP. On your phone open https://{{host}}:{{port}} (not http), allow camera access, and accept the security warning for the dev certificate.",
+    "issueSuccessTitle": "Issuance Confirmed",
+    "issuedTo": "Issued To",
+    "couponsIssued": "Coupons Issued",
+    "remainingCoupons": "Remaining Coupons",
+    "autoResetting": "Next scan in {{seconds}}s...",
+    "confirmReset": "Next Scan"
   },
   "selfCheck": {
     "title": "Meal Coupon Self-Check",
@@ -237,7 +249,10 @@
     "expires": "Expires",
     "claimedToday": "Claimed Today",
     "recentClaims": "Recent Claims",
-    "upcomingHolidays": "Upcoming Holidays"
+    "upcomingHolidays": "Upcoming Holidays",
+    "weekProgress": "This Week's Accumulation",
+    "redeemableToday": "Redeemable Today",
+    "weekResetNotice": "Weekly reset — unused coupons from last week were voided"
   },
   "audit": {
     "title": "Compliance & Security Audit Trail",

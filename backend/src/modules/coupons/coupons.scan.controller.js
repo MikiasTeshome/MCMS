@@ -54,6 +54,9 @@ export const issueScannedCoupon = async (req, res, next) => {
     if (error.code === 'QR_INVALID') {
       return errorResponse(res, 400, 'QR card is invalid.');
     }
+    if (error.code === 'CAP_NOT_REACHED') {
+      return errorResponse(res, 400, error.message);
+    }
     if (error.code === 'DUPLICATE_CLAIM') {
       return errorResponse(res, 400, error.message);
     }
@@ -68,9 +71,12 @@ export const selfCheckEmployee = async (req, res, next) => {
       return errorResponse(res, 400, 'employeeId is required');
     }
 
-    const data = await couponsScanService.selfCheck(employeeId);
+    const data = await couponsScanService.selfCheck(employeeId, req.user);
     return successResponse(res, 200, 'Self-check loaded', data);
   } catch (error) {
+    if (error.code === 'FORBIDDEN') {
+      return errorResponse(res, 403, error.message);
+    }
     if (error.code === 'QR_INVALID') {
       return errorResponse(res, 400, 'QR card is invalid.');
     }

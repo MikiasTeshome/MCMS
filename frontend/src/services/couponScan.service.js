@@ -1,5 +1,4 @@
 import api from './api.js';
-import axios from 'axios';
 
 export const scanEmployeeQr = async (employeeId) => {
   const response = await api.post('/coupons/scan', { employeeId });
@@ -15,12 +14,8 @@ export const issueCoupons = async ({ employeeId, quantity, overrideReason }) => 
   return response.data;
 };
 
-/** Public self-check — no auth token required */
+/** Authenticated self-check */
 export const selfCheckEmployee = async (employeeId) => {
-  const base =
-    typeof window !== 'undefined'
-      ? `${window.location.origin}/api/v1`
-      : '/api/v1';
-  const response = await axios.get(`${base}/self-check/${encodeURIComponent(employeeId)}`);
+  const response = await api.get(`/self-check/${encodeURIComponent(employeeId)}`);
   return response.data;
 };

@@ -212,16 +212,28 @@
     "scanNext": "ቀጣይ ቃኝ",
     "issueOne": "አንድ ኩፖን ስጥ",
     "issueAll": "ሁሉንም ስጥ ({{count}})",
+    "issueN": "{{count}} ኩፖን(ዎች) ስጥ",
     "issuing": "በመስጠት ላይ…",
     "noCouponsToIssue": "ለመስጠት ኩፖን የለም።",
     "claimedContactAdmin": "ሰራተኛው ዛሬ ቀድሞ ተጠቅሟል። ለመስጠት አስተዳዳሪን ያግኙ።",
+    "redeemableToday": "ዛሬ የሚወሰድ",
+    "dailyCapLabel": "ቀን {{day}} ከ-5 — እስከ {{cap}} ኩፖን(ዎች) ዛሬ ይቻላል",
+    "weekAccumulation": "የዚህ ሳምንት ክምችት",
+    "weekResetNotice": "የሳምንት ዳግም ማስጀመር — ያልዋሉ ኩፖኖች ተሰርዘዋል",
+    "capReached": "የዛሬ ገደብ: {{cap}}",
     "scanning": "በመቃኝ ላይ",
     "initializingCamera": "ካሜራ በመክፈት ላይ…",
     "scannerOffline": "ቃኝ ከመስመር ውጭ",
     "noCamera": "ካሜራ አልተገኘም።",
     "cameraDenied": "የካሪራ ፍቃድ ተከልክሏል።",
     "cameraStartFailed": "ካሜራ ማስኬድ አልተሳካም። በሌላ መተግበሪያ ተጠቅሟል?",
-    "httpsRequired": "በHTTP ላይ ካሜራ ታግዷል። በስልክዎ https://{{host}}:{{port}} ይክፈቱ (http አይደለም)፣ ካሜራ ይፍቀዱ።"
+    "httpsRequired": "በHTTP ላይ ካሜራ ታግዷል። በስልክዎ https://{{host}}:{{port}} ይክፈቱ (http አይደለም)፣ ካሜራ ይፍቀዱ።",
+    "issueSuccessTitle": "መስጠት ተረጋግጧል",
+    "issuedTo": "የተሰጠው ለ",
+    "couponsIssued": "የተሰጡት ኩፖኖች",
+    "remainingCoupons": "ቀሪ ኩፖኖች (ሳምንት)",
+    "autoResetting": "በ{{seconds}} ሰከንድ ውስጥ በራስ-ሰር ይዘጋል...",
+    "confirmReset": "ቀጣይ ቃኝ"
   },
   "selfCheck": {
     "title": "የምግብ ኩፖን ራስ-ማረጋገጫ",
@@ -237,7 +249,10 @@
     "expires": "የማለቂያ",
     "claimedToday": "ዛሬ ተጠቅሟል",
     "recentClaims": "የቅርብ ጊዜ መጠቀሞች",
-    "upcomingHolidays": "የሚቀጥሉ በዓላት"
+    "upcomingHolidays": "የሚቀጥሉ በዓላት",
+    "weekProgress": "የዚህ ሳምንት ክምችት",
+    "redeemableToday": "ዛሬ የሚወሰድ",
+    "weekResetNotice": "የሳምንት ዳግም ማስጀመር — ያልዋሉ ኩፖኖች ተሰርዘዋል"
   },
   "audit": {
     "title": "የኦዲት እና የደህንነት መዝገብ",

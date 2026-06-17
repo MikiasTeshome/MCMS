@@ -18,6 +18,9 @@ export const login = async (req, res, next) => {
     if (error.message === 'Invalid credentials') {
       return errorResponse(res, 401, 'Invalid email or password');
     }
+    if (error.message === 'Account inactive') {
+      return errorResponse(res, 403, 'Account is inactive. Please contact HR or an administrator.');
+    }
     next(error);
   }
 };

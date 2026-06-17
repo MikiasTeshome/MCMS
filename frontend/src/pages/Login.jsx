@@ -17,6 +17,7 @@ const Login = () => {
   const [password, setPassword] = useState('');
   const [errorMsg, setErrorMsg] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  const showSeedCredentials = import.meta.env.DEV;
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -90,16 +91,18 @@ const Login = () => {
           </button>
         </form>
 
-        <div className="mt-8 pt-6 border-t border-app-border text-center">
-          <p className="section-label mb-3">Seed Credentials</p>
-          <div className="grid grid-cols-2 gap-2 text-[11px] text-app-muted">
-            <div>Admin: <span className="text-app-secondary">admin@system.com</span></div>
-            <div>Cafe: <span className="text-app-secondary">cafe@system.com</span></div>
-            <div>HR: <span className="text-app-secondary">hr@system.com</span></div>
-            <div>Employee: <span className="text-app-secondary">emp1@system.com</span></div>
-            <div className="col-span-2 mt-1">Password: <span className="text-app-primary font-medium">Password123!</span></div>
+        {showSeedCredentials && (
+          <div className="mt-8 pt-6 border-t border-app-border text-center">
+            <p className="section-label mb-3">Seed Credentials</p>
+            <div className="grid grid-cols-2 gap-2 text-[11px] text-app-muted">
+              <div>Admin: <span className="text-app-secondary">admin@system.com</span></div>
+              <div>Cafe: <span className="text-app-secondary">cafe@system.com</span></div>
+              <div>HR: <span className="text-app-secondary">hr@system.com</span></div>
+              <div>Employee: <span className="text-app-secondary">emp1@system.com</span></div>
+              <div className="col-span-2 mt-1">Password: <span className="text-app-primary font-medium">Password123!</span></div>
+            </div>
           </div>
-        </div>
+        )}
       </div>
     </div>
   );

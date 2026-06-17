@@ -160,14 +160,15 @@ class CouponsService {
       if (!c) throw new Error('Coupon code invalid');
       if (c.status !== 'ALLOCATED') throw new Error('Coupon already used or expired');
 
-      // Guard duplicate claim on same day (composite unique index)
+      // Guard duplicate visit on same day.
+      // claimedDateString uses "YYYY-MM-DD" for the first coupon of a session and
+      // "YYYY-MM-DD-N" for subsequent ones, so we check startsWith to catch all cases.
       const today = new Date();
       const dateString = today.toISOString().split('T')[0];
-      // Ensure no other coupon for this employee claimed today
       const duplicate = await tx.coupon.findFirst({
         where: {
           employeeId: c.employeeId,
-          claimedDateString: dateString,
+          claimedDateString: { startsWith: dateString },
           status: 'CLAIMED',
         },
       });

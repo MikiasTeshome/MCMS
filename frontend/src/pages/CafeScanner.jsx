@@ -5,6 +5,7 @@ import QRScanner from '../components/cafe/QRScanner.jsx';
 import EmployeeInfoCard from '../components/cafe/EmployeeInfoCard.jsx';
 import CouponIssuePanel from '../components/cafe/CouponIssuePanel.jsx';
 import ScanNotification from '../components/cafe/ScanNotification.jsx';
+import SuccessModal from '../components/cafe/SuccessModal.jsx';
 import { scanEmployeeQr, issueCoupons } from '../services/couponScan.service.js';
 
 const CafeScanner = () => {
@@ -16,6 +17,12 @@ const CafeScanner = () => {
   const [successMsg, setSuccessMsg] = useState('');
   const [overrideReason, setOverrideReason] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  const [showSuccessModal, setShowSuccessModal] = useState(false);
+  const [successData, setSuccessData] = useState({
+    employeeName: '',
+    issuedCount: 0,
+    remainingCoupons: 0,
+  });
 
   const issueSectionRef = useRef(null);
 
@@ -74,16 +81,23 @@ const CafeScanner = () => {
         overrideReason: employee.claimedToday ? overrideReason : undefined,
       });
       if (res.success) {
-        setSuccessMsg(
-          t('cafe.issueSuccess', { count: res.data.issuedCount })
-        );
-        await handleScanPayload(employee.employeeId);
+        setSuccessData({
+          employeeName: employee.fullName,
+          issuedCount: res.data.issuedCount,
+          remainingCoupons: res.data.remainingCoupons,
+        });
+        setShowSuccessModal(true);
       }
     } catch (err) {
       setApiError(err.response?.data?.message || t('cafe.issueFailed'));
     } finally {
       setSubmitting(false);
     }
+  };
+
+  const handleConfirmSuccess = () => {
+    setShowSuccessModal(false);
+    handleRescan();
   };
 
   const handleRescan = () => {
@@ -96,7 +110,7 @@ const CafeScanner = () => {
 
   const eligible =
     employee &&
-    employee.availableCoupons > 0 &&
+    (employee.couponsRedeemableNow ?? employee.availableCoupons) > 0 &&
     !employee.claimedToday;
 
   return (
@@ -110,7 +124,7 @@ const CafeScanner = () => {
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
         <div className="lg:col-span-5 space-y-6">
-          <QRScanner onScan={handleScanPayload} scanPaused={loading || submitting} />
+          <QRScanner onScan={handleScanPayload} scanPaused={loading || submitting || showSuccessModal} />
 
           <div className="glass-card p-6">
             <h3 className="text-sm font-bold uppercase tracking-wider text-app-secondary mb-4 flex items-center gap-2">
@@ -168,8 +182,7 @@ const CafeScanner = () => {
                   submitting={submitting}
                   overrideReason={overrideReason}
                   onOverrideReasonChange={setOverrideReason}
-                  onIssueOne={() => handleIssue(1)}
-                  onIssueAll={() => handleIssue(0)}
+                  onIssue={handleIssue}
                   onRescan={handleRescan}
                 />
               </div>
@@ -189,6 +202,15 @@ const CafeScanner = () => {
           )}
         </div>
       </div>
+
+      <SuccessModal
+        isOpen={showSuccessModal}
+        employeeName={successData.employeeName}
+        issuedCount={successData.issuedCount}
+        remainingCoupons={successData.remainingCoupons}
+        onConfirm={handleConfirmSuccess}
+        autoCloseTimeout={3000}
+      />
     </div>
   );
 };
