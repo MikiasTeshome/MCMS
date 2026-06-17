@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext.jsx';
 import { useTranslation } from 'react-i18next';
-import { Ticket, Mail, Lock, Languages, ShieldCheck, Sun, Moon } from 'lucide-react';
+import { Mail, Lock, Languages, ShieldCheck, Sun, Moon } from 'lucide-react';
 import { useI18n } from '../i18n/I18nProvider.jsx';
 import { useTheme } from '../context/ThemeContext.jsx';
 
@@ -50,9 +50,7 @@ const Login = () => {
 
       <div className="w-full max-w-md surface-card animate-fade-in">
         <div className="flex flex-col items-center text-center mb-8">
-          <div className="w-12 h-12 logo-mark rounded-card-lg flex items-center justify-center mb-4">
-            <Ticket className="w-6 h-6" />
-          </div>
+          <img src="/logo.png" alt="Tafari Makonnen Polytechnic College" className="h-20 w-auto object-contain mb-4" />
           <h1 className="page-title mb-1">{t('login.title')}</h1>
           <p className="page-subtitle !mt-1">{t('login.subtitle')}</p>
         </div>
