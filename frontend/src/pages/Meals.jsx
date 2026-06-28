@@ -108,7 +108,7 @@ const Meals = () => {
               setMealForm({ nameEn: '', nameAm: '', descriptionEn: '', descriptionAm: '', price: '', status: 'ACTIVE' });
               setShowAddModal(true);
             }}
-            className="btn-primary w-full py-3"
+            className="btn-primary w-full sm:w-auto py-3"
           >
             <Plus className="w-5 h-5" />
             <span>{t('meals.addButton')}</span>

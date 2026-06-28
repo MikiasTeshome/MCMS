@@ -1,3 +1,4 @@
+import crypto from 'crypto';
 import bcrypt from 'bcryptjs';
 import prisma from '../../config/db.js';
 import auditService from '../audit/audit.service.js';
@@ -121,10 +122,10 @@ class EmployeesService {
         },
       });
 
-      // QR payload is the employee UUID only (no coupon data in QR)
+      // QR payload is a secure random UUID
       const qrCard = await tx.qRCard.create({
         data: {
-          cardCode: user.id,
+          cardCode: crypto.randomUUID(),
           employeeId: user.id,
           status: 'ACTIVE',
         },

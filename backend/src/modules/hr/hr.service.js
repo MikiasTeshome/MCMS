@@ -1,3 +1,4 @@
+import crypto from 'crypto';
 import prisma from '../../config/db.js';
 import auditService from '../audit/audit.service.js';
 
@@ -25,8 +26,8 @@ class HRService {
         },
       });
 
-      // QR encodes employee UUID only (same id as user account)
-      const cardCode = employeeId;
+      // QR encodes a newly generated secure unique code
+      const cardCode = crypto.randomUUID();
 
       const newCard = await tx.qRCard.create({
         data: {

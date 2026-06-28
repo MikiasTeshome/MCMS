@@ -118,7 +118,7 @@ const Coupons = () => {
         {['ADMIN', 'HR'].includes(user?.role) && (
           <button
             onClick={() => setShowIssueModal(true)}
-            className="btn-primary w-full py-3"
+            className="btn-primary w-full sm:w-auto py-3"
           >
             <Plus className="w-5 h-5" />
             <span>{t('coupons.issueButton')}</span>

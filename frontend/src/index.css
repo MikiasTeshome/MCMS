@@ -104,24 +104,24 @@
 
   /* Secondary buttons (Export, Import) */
   .toolbar-row .btn-secondary {
-    background-color: #171717;
-    border: 1px solid #2a2a2a;
-    color: #ffffff;
+    background-color: var(--color-btn-secondary-bg);
+    border: 1px solid var(--color-btn-secondary-border);
+    color: var(--color-btn-secondary-text);
   }
 
   .toolbar-row .btn-secondary:hover:not(:disabled) {
-    background-color: #1f1f1f;
+    background-color: var(--color-btn-secondary-hover);
   }
 
   /* Primary button (Provision Employee) */
   .toolbar-row .btn-primary {
-    background-color: #ffffff;
-    color: #111111;
+    background-color: var(--color-btn-primary-bg);
+    color: var(--color-btn-primary-text);
     border: none;
   }
 
   .toolbar-row .btn-primary:hover:not(:disabled) {
-    background-color: #f4f4f5;
+    background-color: var(--color-btn-primary-hover);
   }
 
   /* ── Surfaces ── */
@@ -562,26 +562,71 @@
   .app-sidebar {
     background-color: var(--color-sidebar-bg);
     border-right: 1px solid var(--color-border);
+    transition: width 200ms ease;
+  }
+
+  .sidebar-brand {
+    @apply flex items-center gap-2.5 shrink-0 overflow-hidden;
+    height: var(--header-height);
+    border-bottom: 1px solid var(--color-border);
+    padding-left: 20px;
+    padding-right: 20px;
+  }
+
+  .sidebar-brand-name {
+    color: var(--color-sidebar-text-active);
+  }
+
+  .app-sidebar.sidebar-collapsed .sidebar-brand {
+    justify-content: center;
+    padding-left: 8px;
+    padding-right: 8px;
+  }
+
+  .sidebar-label {
+    white-space: nowrap;
+    overflow: hidden;
+    opacity: 1;
+    max-width: 200px;
+    transition: opacity 180ms ease, max-width 200ms ease;
+  }
+
+  .app-sidebar.sidebar-collapsed .sidebar-label {
+    opacity: 0;
+    max-width: 0;
   }
 
   .nav-link {
-    @apply flex items-center gap-3 px-3 py-2.5 text-sm font-medium relative;
+    @apply flex items-center gap-3 px-3 py-2.5 text-sm font-medium relative overflow-hidden;
     border-radius: 12px;
     color: var(--color-text-secondary);
-    transition: all 180ms ease;
+    transition: background-color 180ms ease, color 180ms ease, padding 200ms ease;
+  }
+
+  .nav-link-icon {
+    @apply flex-shrink-0;
+    width: 18px;
+    height: 18px;
   }
 
   .app-sidebar .nav-link {
-    color: rgba(255, 255, 255, 0.72);
+    color: var(--color-sidebar-text);
   }
 
   .app-sidebar .nav-link:hover {
-    color: #ffffff;
-    background-color: var(--color-hover);
+    color: var(--color-sidebar-text-hover);
+    background-color: var(--color-sidebar-hover);
+  }
+
+  .app-sidebar.sidebar-collapsed .nav-link {
+    justify-content: center;
+    gap: 0;
+    padding-left: 10px;
+    padding-right: 10px;
   }
 
   .nav-link-active {
-    color: #ffffff !important;
+    color: var(--color-sidebar-text-active) !important;
     background-color: var(--color-sidebar-active) !important;
   }
 
@@ -594,7 +639,25 @@
     width: 3px;
     height: 20px;
     border-radius: 0 2px 2px 0;
-    background-color: #ffffff;
+    background-color: var(--color-sidebar-indicator);
+  }
+
+  .sidebar-footer-btn {
+    color: var(--color-sidebar-text);
+  }
+
+  .sidebar-footer-btn:hover {
+    color: var(--color-sidebar-text-hover);
+    background-color: var(--color-sidebar-hover);
+  }
+
+  .sidebar-close-btn {
+    color: var(--color-sidebar-text);
+  }
+
+  .sidebar-close-btn:hover {
+    color: var(--color-sidebar-text-hover);
+    background-color: var(--color-sidebar-hover);
   }
 
   .detail-row {

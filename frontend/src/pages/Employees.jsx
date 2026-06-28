@@ -134,7 +134,7 @@ const Employees = () => {
       if (res.success) {
         setActionSuccess(t('employees.qrSuccess', { name: emp.name }));
         setSelectedEmployee(emp);
-        setSelectedCardCode(emp.id);
+        setSelectedCardCode(res.data.cardCode);
         setShowPrintModal(true);
         fetchEmployees();
       }
