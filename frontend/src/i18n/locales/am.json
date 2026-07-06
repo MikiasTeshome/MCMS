@@ -180,7 +180,15 @@
     "importEmpty": "በፋይሉ ውስጥ ትክክለኛ የሰራተኛ ረድፍ አልተገኘም።",
     "importAllFailed": "ሰራተኛ አልተመዘገበም። ከታች ያሉትን ስህተቶች ይመልከቱ።",
     "importErrors": "ያልተሳኩ ረድፎች",
-    "importErrorRow": "ረድፍ {{row}} ({{name}})፡ {{message}}"
+    "importErrorRow": "ረድፍ {{row}} ({{name}})፡ {{message}}",
+    "editModalTitle": "የሰራተኛ መረጃ አስተካክል",
+    "editTooltip": "ሰራተኛ አስተካክል",
+    "editSuccess": "{{name}} በተሳካ ሁኔታ ተዘምኗል!",
+    "editFailed": "ሰራተኛ ማዘመን አልተሳካም",
+    "deleteTooltip": "ሰራተኛ ሰርዝ",
+    "deleteConfirm": "{{name}}ን ቋሚ ለመሰረዝ እርግጠኛ ነዎት? ይህ ሊቀለበስ አይችልም።",
+    "deleteSuccess": "{{name}} ተሰርዟል።",
+    "deleteFailed": "ሰራተኛ መሰረዝ አልተሳካም"
   },
   "cafe": {
     "title": "የካፌ ማረጋገጫ እና የመስጠት ጣቢያ",

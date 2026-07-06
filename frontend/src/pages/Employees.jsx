@@ -18,6 +18,8 @@ import {
   Eye,
   Copy,
   Check,
+  Pencil,
+  Trash2,
 } from 'lucide-react';
 import { PageHeader, PageSkeleton, ProgressBar, EmptyState } from '../components/ui/Page.jsx';
 import api from '../services/api.js';
@@ -46,9 +48,22 @@ const Employees = () => {
   const [showAddModal, setShowAddModal] = useState(false);
   const [showPrintModal, setShowPrintModal] = useState(false);
   const [showDetailsModal, setShowDetailsModal] = useState(false);
+  const [showEditModal, setShowEditModal] = useState(false);
   const [selectedEmployee, setSelectedEmployee] = useState(null);
   const [selectedCardCode, setSelectedCardCode] = useState('');
   const [copiedField, setCopiedField] = useState(null);
+
+  const [editForm, setEditForm] = useState({
+    name: '',
+    email: '',
+    department: '',
+    position: '',
+    employeeIdNumber: '',
+    isActive: true,
+  });
+  const [editError, setEditError] = useState('');
+  const [editSuccess, setEditSuccess] = useState('');
+  const [editing, setEditing] = useState(false);
 
   const [employeeForm, setEmployeeForm] = useState({
     email: '',
@@ -163,6 +178,60 @@ const Employees = () => {
     setShowDetailsModal(false);
     setSelectedEmployee(null);
     setCopiedField(null);
+  };
+
+  const openEdit = (emp) => {
+    setSelectedEmployee(emp);
+    setEditForm({
+      name: emp.name || '',
+      email: emp.email || '',
+      department: emp.employeeProfile?.department || '',
+      position: emp.employeeProfile?.position || '',
+      employeeIdNumber: emp.employeeProfile?.employeeIdNumber || '',
+      isActive: emp.isActive !== false,
+    });
+    setEditError('');
+    setEditSuccess('');
+    setShowEditModal(true);
+  };
+
+  const closeEdit = () => {
+    setShowEditModal(false);
+    setSelectedEmployee(null);
+    setEditError('');
+    setEditSuccess('');
+  };
+
+  const handleEditSubmit = async (e) => {
+    e.preventDefault();
+    setEditError('');
+    setEditSuccess('');
+    setEditing(true);
+    try {
+      const res = await api.put(`/employees/${selectedEmployee.id}`, editForm);
+      if (res.data.success) {
+        setEditSuccess(t('employees.editSuccess', { name: editForm.name }));
+        fetchEmployees();
+        setTimeout(() => closeEdit(), 1200);
+      }
+    } catch (err) {
+      setEditError(err.response?.data?.message || t('employees.editFailed'));
+    } finally {
+      setEditing(false);
+    }
+  };
+
+  const handleDelete = async (emp) => {
+    if (!window.confirm(t('employees.deleteConfirm', { name: emp.name }))) return;
+    setActionError('');
+    setActionSuccess('');
+    try {
+      await api.delete(`/employees/${emp.id}`);
+      setActionSuccess(t('employees.deleteSuccess', { name: emp.name }));
+      fetchEmployees();
+    } catch (err) {
+      setActionError(err.response?.data?.message || t('employees.deleteFailed'));
+    }
   };
 
   const handleExport = () => {
@@ -367,6 +436,14 @@ const Employees = () => {
                           </button>
                           <button
                             type="button"
+                            onClick={() => openEdit(emp)}
+                            className="btn-icon-action"
+                            title={t('employees.editTooltip')}
+                          >
+                            <Pencil className="w-4 h-4" />
+                          </button>
+                          <button
+                            type="button"
                             onClick={() => handlePrintCard(emp)}
                             disabled={!emp.qrCards?.[0]}
                             className="btn-icon-action"
@@ -381,6 +458,14 @@ const Employees = () => {
                             title={t('employees.generateQrTooltip')}
                           >
                             <QrCode className="w-4 h-4" />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleDelete(emp)}
+                            className="btn-icon-action text-red-400 hover:text-red-300 hover:bg-red-500/10"
+                            title={t('employees.deleteTooltip')}
+                          >
+                            <Trash2 className="w-4 h-4" />
                           </button>
                         </div>
                       </td>
@@ -675,6 +760,116 @@ const Employees = () => {
                 )}
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Edit Modal ── */}
+      {showEditModal && selectedEmployee && (
+        <div className="modal-overlay" onClick={closeEdit}>
+          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between mb-6">
+              <h3 className="modal-title">
+                <Pencil className="w-5 h-5 icon-accent" />
+                <span>{t('employees.editModalTitle')}</span>
+              </h3>
+              <button type="button" onClick={closeEdit} className="btn-icon" title={t('common.close')}>
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {editError && (
+              <div className="alert alert-error mb-4">
+                <ShieldAlert className="w-4 h-4 flex-shrink-0" />
+                <span>{editError}</span>
+              </div>
+            )}
+            {editSuccess && (
+              <div className="alert alert-success mb-4">
+                <CheckCircle className="w-4 h-4 flex-shrink-0" />
+                <span>{editSuccess}</span>
+              </div>
+            )}
+
+            <form onSubmit={handleEditSubmit} className="form-stack">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="form-group">
+                  <label className="input-label">{t('employees.fullName')}</label>
+                  <input
+                    type="text"
+                    required
+                    value={editForm.name}
+                    onChange={(e) => setEditForm({ ...editForm, name: e.target.value })}
+                    className="glass-input text-xs"
+                  />
+                </div>
+
+                <div className="form-group">
+                  <label className="input-label">{t('employees.employeeId')}</label>
+                  <input
+                    type="text"
+                    value={editForm.employeeIdNumber}
+                    onChange={(e) => setEditForm({ ...editForm, employeeIdNumber: e.target.value })}
+                    className="glass-input text-xs"
+                  />
+                </div>
+
+                <div className="form-group">
+                  <label className="input-label">{t('employees.emailAddress')}</label>
+                  <input
+                    type="email"
+                    required
+                    value={editForm.email}
+                    onChange={(e) => setEditForm({ ...editForm, email: e.target.value })}
+                    className="glass-input text-xs"
+                  />
+                </div>
+
+                <div className="form-group">
+                  <label className="input-label">{t('employees.department')}</label>
+                  <input
+                    type="text"
+                    required
+                    value={editForm.department}
+                    onChange={(e) => setEditForm({ ...editForm, department: e.target.value })}
+                    className="glass-input text-xs"
+                  />
+                </div>
+
+                <div className="form-group">
+                  <label className="input-label">{t('employees.position')}</label>
+                  <input
+                    type="text"
+                    required
+                    value={editForm.position}
+                    onChange={(e) => setEditForm({ ...editForm, position: e.target.value })}
+                    className="glass-input text-xs"
+                  />
+                </div>
+
+                <div className="form-group flex flex-col justify-center">
+                  <label className="input-label">{t('common.status')}</label>
+                  <label className="flex items-center gap-2 cursor-pointer pt-1">
+                    <input
+                      type="checkbox"
+                      checked={editForm.isActive}
+                      onChange={(e) => setEditForm({ ...editForm, isActive: e.target.checked })}
+                      className="w-4 h-4 accent-blue-500 rounded"
+                    />
+                    <span className="text-sm text-app-secondary">{t('common.active')}</span>
+                  </label>
+                </div>
+              </div>
+
+              <div className="flex gap-3 pt-4">
+                <button type="button" onClick={closeEdit} className="flex-1 btn-secondary">
+                  {t('common.cancel')}
+                </button>
+                <button type="submit" disabled={editing} className="flex-1 btn-primary">
+                  {editing ? <Loader className="animate-spin h-5 w-5" /> : <span>{t('common.save')}</span>}
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}

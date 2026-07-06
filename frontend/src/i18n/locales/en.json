@@ -180,7 +180,15 @@
     "importEmpty": "No valid employee rows found in the file.",
     "importAllFailed": "No employees were imported. See errors below.",
     "importErrors": "Failed rows",
-    "importErrorRow": "Row {{row}} ({{name}}): {{message}}"
+    "importErrorRow": "Row {{row}} ({{name}}): {{message}}",
+    "editModalTitle": "Edit Employee Profile",
+    "editTooltip": "Edit employee",
+    "editSuccess": "{{name}} updated successfully!",
+    "editFailed": "Failed to update employee",
+    "deleteTooltip": "Delete employee",
+    "deleteConfirm": "Are you sure you want to permanently delete {{name}}? This cannot be undone.",
+    "deleteSuccess": "{{name}} has been deleted.",
+    "deleteFailed": "Failed to delete employee"
   },
   "cafe": {
     "title": "Canteen Verification & Claim Desk",
