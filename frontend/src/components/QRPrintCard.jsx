@@ -3,6 +3,10 @@ import { useTranslation } from 'react-i18next';
 import { QRCodeSVG } from 'qrcode.react';
 import { Printer, X } from 'lucide-react';
 
+const CR80_PORTRAIT_WIDTH = '53.98mm';
+const CR80_PORTRAIT_HEIGHT = '85.60mm';
+const QR_SIZE = 200;
+
 /* ─────────────────────────────────────────────────────
    Inline styles scoped exclusively to the ID card.
    Tailwind is kept only for the modal shell & buttons.
@@ -10,16 +14,16 @@ import { Printer, X } from 'lucide-react';
 const cardStyles = {
   /* ── Outer card shell ── */
   card: {
-    width: '85.6mm',
-    height: '53.98mm',
+    width: CR80_PORTRAIT_WIDTH,
+    height: CR80_PORTRAIT_HEIGHT,
     boxSizing: 'border-box',
-    borderRadius: '12px',
+    borderRadius: '10px',
     overflow: 'hidden',
     position: 'relative',
     fontFamily: "'Inter', 'Manrope', 'Segoe UI', system-ui, sans-serif",
-    background: '#ffffff',
-    border: '1px solid #c8daf4',
-    boxShadow: '0 4px 24px rgba(0,91,172,0.12), 0 1px 4px rgba(0,91,172,0.07)',
+    background: 'linear-gradient(180deg, #ffffff 0%, #f7fbff 54%, #ffffff 100%)',
+    border: '1px solid #bfd3ee',
+    boxShadow: '0 10px 28px rgba(0,61,122,0.18), 0 2px 6px rgba(0,91,172,0.12)',
     display: 'flex',
     flexDirection: 'column',
     userSelect: 'none',
@@ -37,16 +41,17 @@ const cardStyles = {
     position: 'absolute',
     inset: 0,
     backgroundImage: [
-      'repeating-linear-gradient(0deg, transparent, transparent 5px, rgba(0,91,172,0.024) 5px, rgba(0,91,172,0.024) 6px)',
-      'repeating-linear-gradient(90deg, transparent, transparent 5px, rgba(0,91,172,0.024) 5px, rgba(0,91,172,0.024) 6px)',
+      'radial-gradient(circle at 50% 28%, rgba(0,119,212,0.075), transparent 34mm)',
+      'repeating-linear-gradient(0deg, transparent, transparent 5px, rgba(0,91,172,0.022) 5px, rgba(0,91,172,0.022) 6px)',
+      'repeating-linear-gradient(90deg, transparent, transparent 5px, rgba(0,91,172,0.022) 5px, rgba(0,91,172,0.022) 6px)',
     ].join(','),
   },
   watermarkImg: {
     position: 'absolute',
     bottom: '-6mm',
-    right: '-4mm',
-    width: '42mm',
-    opacity: 0.055,
+    right: '-5mm',
+    width: '45mm',
+    opacity: 0.045,
     filter: 'grayscale(1)',
     transform: 'rotate(-8deg)',
   },
@@ -68,21 +73,21 @@ const cardStyles = {
     zIndex: 5,
     display: 'flex',
     alignItems: 'center',
-    gap: '8px',
-    padding: '10px 12px 7px 12px',
+    gap: '5px',
+    padding: '5px 7px 4px 7px',
     borderBottom: '1px solid rgba(0,91,172,0.12)',
-    background: 'linear-gradient(135deg, #f0f7ff 0%, #e8f3ff 100%)',
+    background: 'linear-gradient(135deg, #f8fbff 0%, #eaf4ff 100%)',
   },
   /* Plain logo — no circular clip, 18% larger */
   logoImg: {
-    width: '40px',
-    height: '40px',
+    width: '30px',
+    height: '30px',
     objectFit: 'contain',
     flexShrink: 0,
   },
   headerDivider: {
     width: '1px',
-    height: '30px',
+    height: '23px',
     background: 'rgba(0,91,172,0.18)',
     flexShrink: 0,
   },
@@ -91,9 +96,10 @@ const cardStyles = {
     flexDirection: 'column',
     lineHeight: 1.25,
     overflow: 'hidden',
+    minWidth: 0,
   },
   collegeName: {
-    fontSize: '7.8px',
+    fontSize: '6.4px',
     fontWeight: 800,
     color: '#0a2540',
     letterSpacing: '0.03em',
@@ -103,11 +109,13 @@ const cardStyles = {
     textOverflow: 'ellipsis',
   },
   collegeNameAm: {
-    fontSize: '8.5px',
+    fontSize: '7px',
     fontWeight: 700,
     color: '#005BAC',
     letterSpacing: '0.01em',
     whiteSpace: 'nowrap',
+    overflow: 'hidden',
+    textOverflow: 'ellipsis',
   },
 
   /* ── BODY ── */
@@ -116,9 +124,12 @@ const cardStyles = {
     zIndex: 5,
     flex: 1,
     display: 'flex',
+    flexDirection: 'column',
     alignItems: 'center',
-    gap: '10px',
-    padding: '6px 12px',
+    justifyContent: 'space-between',
+    gap: '2px',
+    padding: '3px 5px',
+    minHeight: 0,
   },
 
   /* QR column */
@@ -129,11 +140,11 @@ const cardStyles = {
     justifyContent: 'center',
   },
   qrInner: {
-    padding: '5px',
+    padding: '3px',
     background: '#ffffff',
-    border: '1px solid rgba(0,91,172,0.18)',
-    borderRadius: '8px',
-    boxShadow: '0 1px 6px rgba(0,91,172,0.09)',
+    border: '1px solid rgba(0,91,172,0.22)',
+    borderRadius: '7px',
+    boxShadow: '0 3px 12px rgba(0,61,122,0.16), inset 0 0 0 2px #ffffff',
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
@@ -141,34 +152,35 @@ const cardStyles = {
 
   /* Vertical separator */
   bodySep: {
-    width: '1px',
-    alignSelf: 'stretch',
-    background: 'linear-gradient(to bottom, transparent, rgba(0,91,172,0.14) 20%, rgba(0,91,172,0.14) 80%, transparent)',
+    width: '100%',
+    height: '1px',
+    background: 'linear-gradient(to right, transparent, rgba(0,91,172,0.14) 20%, rgba(0,91,172,0.14) 80%, transparent)',
     flexShrink: 0,
-    margin: '4px 0',
+    margin: '1px 0',
   },
 
   /* Info column — gap increased for breathing room */
   info: {
-    flex: 1,
+    width: '100%',
     display: 'flex',
     flexDirection: 'column',
-    gap: '8px',
+    gap: '2px',
     overflow: 'hidden',
     justifyContent: 'center',
+    textAlign: 'center',
   },
   fieldLabel: {
-    fontSize: '6px',
-    fontWeight: 600,
-    color: '#5e7fa8',
+    fontSize: '5.4px',
+    fontWeight: 700,
+    color: '#6e87a7',
     textTransform: 'uppercase',
     letterSpacing: '0.07em',
     lineHeight: 1,
-    marginBottom: '1px',
+    marginBottom: 0,
     paddingLeft: 0,
   },
   nameValue: {
-    fontSize: '10.5px',
+    fontSize: '9.7px',
     fontWeight: 800,
     color: '#0a2540',
     lineHeight: 1.2,
@@ -178,7 +190,7 @@ const cardStyles = {
     textOverflow: 'ellipsis',
   },
   idValue: {
-    fontSize: '9px',
+    fontSize: '8.4px',
     fontWeight: 700,
     color: '#005BAC',
     lineHeight: 1,
@@ -187,7 +199,7 @@ const cardStyles = {
   },
   /* Plain text — same look as name/id, no pill */
   metaValue: {
-    fontSize: '8.5px',
+    fontSize: '7.2px',
     fontWeight: 600,
     color: '#1e3a5f',
     lineHeight: 1.2,
@@ -204,8 +216,10 @@ const cardStyles = {
     alignItems: 'center',
     justifyContent: 'center',
     padding: '3px 12px 4px 12px',
+    minHeight: '14px',
+    flexShrink: 0,
     borderTop: '1px solid rgba(0,91,172,0.10)',
-    background: 'linear-gradient(135deg, #004f99 0%, #0077d4 100%)',
+    background: 'linear-gradient(135deg, #003d7a 0%, #005BAC 52%, #0077d4 100%)',
   },
   footerTitle: {
     fontSize: '6.5px',
@@ -268,7 +282,7 @@ const QRPrintCard = ({ employee, cardCode, onClose }) => {
 
   /* ── Page setup: CR80 exactly ── */
   @page {
-    size: 85.60mm 53.98mm;
+    size: ${CR80_PORTRAIT_WIDTH} ${CR80_PORTRAIT_HEIGHT};
     margin: 0mm;
   }
 
@@ -280,8 +294,8 @@ const QRPrintCard = ({ employee, cardCode, onClose }) => {
   }
 
   html, body {
-    width: 85.60mm;
-    height: 53.98mm;
+    width: ${CR80_PORTRAIT_WIDTH};
+    height: ${CR80_PORTRAIT_HEIGHT};
     overflow: hidden;
     background: #fff;
     font-family: 'Inter', 'Segoe UI', sans-serif;
@@ -293,27 +307,32 @@ const QRPrintCard = ({ employee, cardCode, onClose }) => {
     if the OS ignores @page size.
   */
   .card {
-    width: 85.60mm;   /* 3.375 in */
-    height: 53.98mm;  /* 2.125 in */
+    width: ${CR80_PORTRAIT_WIDTH};
+    height: ${CR80_PORTRAIT_HEIGHT};
     position: relative;
     display: flex;
     flex-direction: column;
-    background: #ffffff;
+    background: linear-gradient(180deg, #ffffff 0%, #f7fbff 54%, #ffffff 100%);
+    border: .26mm solid #bfd3ee;
+    border-radius: 2.65mm;
     overflow: hidden;
+    page-break-inside: avoid;
+    break-inside: avoid;
   }
 
   /* ── Security grid ── */
   .grid-bg {
     position: absolute; inset: 0; z-index: 0; pointer-events: none;
     background-image:
-      repeating-linear-gradient(0deg, transparent, transparent 5px, rgba(0,91,172,.024) 5px, rgba(0,91,172,.024) 6px),
-      repeating-linear-gradient(90deg, transparent, transparent 5px, rgba(0,91,172,.024) 5px, rgba(0,91,172,.024) 6px);
+      radial-gradient(circle at 50% 28%, rgba(0,119,212,.075), transparent 34mm),
+      repeating-linear-gradient(0deg, transparent, transparent 5px, rgba(0,91,172,.022) 5px, rgba(0,91,172,.022) 6px),
+      repeating-linear-gradient(90deg, transparent, transparent 5px, rgba(0,91,172,.022) 5px, rgba(0,91,172,.022) 6px);
   }
 
   /* ── Watermark ── */
   .watermark {
-    position: absolute; bottom: -6mm; right: -4mm;
-    width: 42mm; opacity: .055; filter: grayscale(1);
+    position: absolute; bottom: -6mm; right: -5mm;
+    width: 45mm; opacity: .045; filter: grayscale(1);
     transform: rotate(-8deg); z-index: 0; pointer-events: none;
   }
 
@@ -326,55 +345,64 @@ const QRPrintCard = ({ employee, cardCode, onClose }) => {
   /* ── Header ── */
   .header {
     position: relative; z-index: 5;
-    display: flex; align-items: center; gap: 8px;
-    padding: 10px 12px 7px 12px;
+    display: flex; align-items: center; gap: 5px;
+    padding: 5px 7px 4px 7px;
     border-bottom: 1px solid rgba(0,91,172,.12);
-    background: linear-gradient(135deg, #f0f7ff 0%, #e8f3ff 100%);
+    background: linear-gradient(135deg, #f8fbff 0%, #eaf4ff 100%);
   }
-  .logo  { width: 40px; height: 40px; object-fit: contain; flex-shrink: 0; }
-  .hdiv  { width: 1px; height: 30px; background: rgba(0,91,172,.18); flex-shrink: 0; }
+  .logo  { width: 30px; height: 30px; object-fit: contain; flex-shrink: 0; }
+  .hdiv  { width: 1px; height: 23px; background: rgba(0,91,172,.18); flex-shrink: 0; }
+  .header-text { min-width: 0; overflow: hidden; }
   .college-en {
-    font-size: 7.8px; font-weight: 800; color: #0a2540;
+    font-size: 6.4px; font-weight: 800; color: #0a2540;
     letter-spacing: .03em; text-transform: uppercase; white-space: nowrap;
+    overflow: hidden; text-overflow: ellipsis;
   }
   .college-am {
-    font-size: 8.5px; font-weight: 700; color: #005BAC;
+    font-size: 7px; font-weight: 700; color: #005BAC;
     letter-spacing: .01em; white-space: nowrap;
+    overflow: hidden; text-overflow: ellipsis;
   }
 
   /* ── Body ── */
   .body {
     position: relative; z-index: 5; flex: 1;
-    display: flex; align-items: center; gap: 10px; padding: 6px 12px;
+    display: flex; flex-direction: column; align-items: center; justify-content: space-between;
+    gap: 2px; padding: 3px 5px; min-height: 0;
   }
   .qr-box {
-    flex-shrink: 0; padding: 5px; background: #fff;
-    border: 1px solid rgba(0,91,172,.18); border-radius: 8px;
-    box-shadow: 0 1px 6px rgba(0,91,172,.09);
+    flex-shrink: 0; padding: 3px; background: #fff;
+    border: 1px solid rgba(0,91,172,.22); border-radius: 7px;
+    box-shadow: 0 3px 12px rgba(0,61,122,.16), inset 0 0 0 2px #fff;
     display: flex; align-items: center; justify-content: center;
   }
+  .qr-box svg {
+    width: ${QR_SIZE}px;
+    height: ${QR_SIZE}px;
+    display: block;
+  }
   .vsep {
-    width: 1px; align-self: stretch; margin: 4px 0; flex-shrink: 0;
-    background: linear-gradient(to bottom, transparent, rgba(0,91,172,.14) 20%, rgba(0,91,172,.14) 80%, transparent);
+    width: 100%; height: 1px; margin: 1px 0; flex-shrink: 0;
+    background: linear-gradient(to right, transparent, rgba(0,91,172,.14) 20%, rgba(0,91,172,.14) 80%, transparent);
   }
   .info {
-    flex: 1; display: flex; flex-direction: column; gap: 8px;
-    overflow: hidden; justify-content: center;
+    width: 100%; display: flex; flex-direction: column; gap: 2px;
+    overflow: hidden; justify-content: center; text-align: center;
   }
   .lbl {
-    font-size: 6px; font-weight: 600; color: #5e7fa8;
-    text-transform: uppercase; letter-spacing: .07em; line-height: 1; margin-bottom: 1px;
+    font-size: 5.4px; font-weight: 700; color: #6e87a7;
+    text-transform: uppercase; letter-spacing: .07em; line-height: 1; margin-bottom: 0;
   }
   .val-name {
-    font-size: 10.5px; font-weight: 800; color: #0a2540; line-height: 1.2;
+    font-size: 9.7px; font-weight: 800; color: #0a2540; line-height: 1.2;
     letter-spacing: -.01em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
   }
   .val-id {
-    font-size: 9px; font-weight: 700; color: #005BAC;
+    font-size: 8.4px; font-weight: 700; color: #005BAC;
     line-height: 1; letter-spacing: .04em;
   }
   .val-meta {
-    font-size: 8.5px; font-weight: 600; color: #1e3a5f; line-height: 1.2;
+    font-size: 7.2px; font-weight: 600; color: #1e3a5f; line-height: 1.2;
     white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
   }
 
@@ -383,8 +411,10 @@ const QRPrintCard = ({ employee, cardCode, onClose }) => {
     position: relative; z-index: 5;
     display: flex; align-items: center; justify-content: center;
     padding: 3px 12px 4px 12px;
+    min-height: 14px;
+    flex-shrink: 0;
     border-top: 1px solid rgba(0,91,172,.10);
-    background: linear-gradient(135deg, #004f99 0%, #0077d4 100%);
+    background: linear-gradient(135deg, #003d7a 0%, #005BAC 52%, #0077d4 100%);
   }
   .footer-title {
     font-size: 6.5px; font-weight: 700; color: #fff;
@@ -405,7 +435,7 @@ const QRPrintCard = ({ employee, cardCode, onClose }) => {
   <div class="header">
     <img class="logo" src="${window.location.origin}/logo.png" alt="TMPC Logo"/>
     <div class="hdiv"></div>
-    <div>
+    <div class="header-text">
       <div class="college-en">${t('qrCard.collegeName')}</div>
       <div class="college-am">ተፈሪ መኮንን ፖሊቴክኒክ ኮሌጅ</div>
     </div>
@@ -435,7 +465,7 @@ const QRPrintCard = ({ employee, cardCode, onClose }) => {
 <\/script>
 </body></html>`;
 
-    const win = window.open('', '_blank', 'width=500,height=400');
+    const win = window.open('', '_blank', 'width=420,height=640');
     if (win) { win.document.write(html); win.document.close(); }
   };
 
@@ -485,10 +515,11 @@ const QRPrintCard = ({ employee, cardCode, onClose }) => {
                 <div style={cardStyles.qrInner}>
                   <QRCodeSVG
                     value={cardCode || 'N/A'}
-                    size={70}
+                    size={QR_SIZE}
                     level="H"
-                    includeMargin={false}
-                    fgColor="#0a2540"
+                    includeMargin
+                    bgColor="#ffffff"
+                    fgColor="#000000"
                   />
                 </div>
               </div>
