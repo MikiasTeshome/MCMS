@@ -2,6 +2,40 @@ import prisma from '../../config/db.js';
 import auditService from '../audit/audit.service.js';
 import { calculateExpiryDate } from '../../utils/expiry.js'; // helper to compute working days
 
+const STANDARD_COUPON_VALUE = 40;
+
+const startOfLocalDay = (date = new Date()) => {
+  const value = new Date(date);
+  value.setHours(0, 0, 0, 0);
+  return value;
+};
+
+const startOfLocalWeek = (date = new Date()) => {
+  const value = startOfLocalDay(date);
+  const day = value.getDay();
+  const daysSinceMonday = (day + 6) % 7;
+  value.setDate(value.getDate() - daysSinceMonday);
+  return value;
+};
+
+const startOfLocalMonth = (date = new Date()) => {
+  const value = startOfLocalDay(date);
+  value.setDate(1);
+  return value;
+};
+
+const addDays = (date, days) => {
+  const value = new Date(date);
+  value.setDate(value.getDate() + days);
+  return value;
+};
+
+const addMonths = (date, months) => {
+  const value = new Date(date);
+  value.setMonth(value.getMonth() + months);
+  return value;
+};
+
 class CouponsService {
   /**
    * Legacy wrapper for createCoupon to support frontend request parameters
@@ -234,6 +268,72 @@ class CouponsService {
   /**
    * Retrieves coupons list with role filtering and legacy mappings for frontend
    */
+  async getCouponScanReport() {
+    const now = new Date();
+    const todayStart = startOfLocalDay(now);
+    const weekStart = startOfLocalWeek(now);
+    const monthStart = startOfLocalMonth(now);
+    const lastWeekStart = addDays(weekStart, -7);
+
+    // Get the oldest claim to generate historical months
+    const oldestClaim = await prisma.couponClaim.findFirst({
+      orderBy: { issuedAt: 'asc' },
+      select: { issuedAt: true }
+    });
+
+    const ranges = {
+      today: { startDate: todayStart, endDate: now },
+      thisWeek: { startDate: weekStart, endDate: now },
+      lastWeek: { startDate: lastWeekStart, endDate: weekStart },
+      thisMonth: { startDate: monthStart, endDate: now },
+      lifetime: { startDate: new Date(0), endDate: now }
+    };
+
+    // Generate dynamic historical months
+    let currentMonthIter = startOfLocalMonth(now);
+    currentMonthIter = addMonths(currentMonthIter, -1); // Start from last month
+    const oldestMonth = oldestClaim ? startOfLocalMonth(oldestClaim.issuedAt) : currentMonthIter;
+
+    let monthCount = 0;
+    while (currentMonthIter >= oldestMonth && monthCount < 60) {
+      const nextMonth = addMonths(currentMonthIter, 1);
+      const key = `month_${currentMonthIter.getFullYear()}_${String(currentMonthIter.getMonth() + 1).padStart(2, '0')}`;
+      ranges[key] = { startDate: currentMonthIter, endDate: nextMonth };
+      
+      currentMonthIter = addMonths(currentMonthIter, -1);
+      monthCount++;
+    }
+
+    const countRange = ({ startDate, endDate }) =>
+      prisma.couponClaim.count({
+        where: {
+          issuedAt: {
+            gte: startDate,
+            lt: endDate,
+          },
+        },
+      });
+
+    const counts = await Promise.all(Object.values(ranges).map(countRange));
+    const periodReports = Object.fromEntries(
+      Object.keys(ranges).map((key, index) => [key, {
+        count: counts[index],
+        rate: STANDARD_COUPON_VALUE,
+        amount: counts[index] * STANDARD_COUPON_VALUE,
+        startDate: ranges[key].startDate,
+        endDate: ranges[key].endDate,
+      }])
+    );
+
+    return {
+      standardCouponValue: STANDARD_COUPON_VALUE,
+      periods: periodReports,
+      today: periodReports.today,
+      week: periodReports.thisWeek,
+      month: periodReports.thisMonth,
+    };
+  }
+
   async getCoupons(filters = {}, user) {
     const { status, beneficiaryId, code, vendorId } = filters;
     const where = {};

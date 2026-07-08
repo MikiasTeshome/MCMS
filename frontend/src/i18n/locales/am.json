@@ -8,6 +8,7 @@
     "users": "ተጠቃሚዎች",
     "employees": "ሰራተኞች",
     "cafeScanner": "ካፌ ቃኝ",
+    "reports": "ሪፖርቶች",
     "auditLogs": "የኦዲት መዝገቦች",
     "logout": "ውጣ",
     "loading": "በመጫን ላይ...",
@@ -282,5 +283,27 @@
     "footer": "የምግብ ኩፖን መታወቂያ ካርድ",
     "official": "TMPC ኦፊሴላይ",
     "print": "መታወቂያ አትም"
+  },
+  "reports": {
+    "title": "የኩፖን አጠቃቀም ሪፖርት",
+    "subtitle": "በቀን፣ በሳምንት እና በወር የተቃኙ ኩፖኖችን ብዛት እና የብር ድምር ይገምግሙ።",
+    "today": "ዛሬ",
+    "thisWeek": "በዚህ ሳምንት",
+    "lastWeek": "ባለፈው ሳምንት",
+    "thisMonth": "በዚህ ወር",
+    "lastMonth": "ባለፈው ወር",
+    "lifetime": "ጠቅላላ ጊዜ",
+    "pastMonths": "ያለፉት ወራት...",
+    "couponsScanned": "የተቃኙ ኩፖኖች",
+    "count": "የኩፖን ብዛት",
+    "rate": "መደበኛ ዋጋ",
+    "total": "ጠቅላላ መጠን",
+    "summary": "ማጠቃለያ",
+    "from": "ከ",
+    "to": "እስከ",
+    "formula": "{{count}} ኩፖኖች x {{rate}} ብር = {{amount}} ብር",
+    "period": "ጊዜ",
+    "scanned": "የተቃኘ",
+    "amount": "መጠን"
   }
 }

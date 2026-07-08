@@ -13,6 +13,7 @@ import AuditLogs from '../pages/AuditLogs.jsx';
 import CafeScanner from '../pages/CafeScanner.jsx';
 import SelfCheck from '../pages/SelfCheck.jsx';
 import Employees from '../pages/Employees.jsx';
+import Reports from '../pages/Reports.jsx';
 
 const AppRoutes = () => {
   return (
@@ -83,6 +84,15 @@ const AppRoutes = () => {
           element={
             <ProtectedRoute allowedRoles={['ADMIN']}>
               <AuditLogs />
+            </ProtectedRoute>
+          } 
+        />
+        
+        <Route 
+          path="reports" 
+          element={
+            <ProtectedRoute allowedRoles={['ADMIN', 'HR', 'FINANCE', 'CAFE_STAFF']}>
+              <Reports />
             </ProtectedRoute>
           } 
         />

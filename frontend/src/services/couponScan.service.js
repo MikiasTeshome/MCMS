@@ -14,6 +14,11 @@ export const issueCoupons = async ({ employeeId, quantity, overrideReason }) => 
   return response.data;
 };
 
+export const getCouponScanReport = async () => {
+  const response = await api.get('/coupons/reports/scans');
+  return response.data;
+};
+
 /** Authenticated self-check */
 export const selfCheckEmployee = async (employeeId) => {
   const response = await api.get(`/self-check/${encodeURIComponent(employeeId)}`);

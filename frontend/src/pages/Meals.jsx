@@ -146,7 +146,7 @@ const Meals = () => {
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-1.5 text-app-secondary text-sm font-bold font-mono">
                     <BadgeDollarSign className="w-4 h-4 icon-accent" />
-                    <span>${parseFloat(meal.price).toFixed(2)}</span>
+                    <span>{parseFloat(meal.price).toFixed(2)} {t('common.birr')}</span>
                   </div>
                   <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${
                     meal.status === 'ACTIVE'
@@ -254,7 +254,7 @@ const Meals = () => {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <label className="text-xs font-bold text-app-secondary uppercase tracking-wider block">
-                    Price (USD)
+                    Standard Canteen Meal Price (ETB)
                   </label>
                   <input
                     type="number"
@@ -262,7 +262,7 @@ const Meals = () => {
                     required
                     value={mealForm.price}
                     onChange={(e) => setMealForm({ ...mealForm, price: e.target.value })}
-                    placeholder="9.99"
+                    placeholder="40"
                     className="glass-input"
                   />
                 </div>

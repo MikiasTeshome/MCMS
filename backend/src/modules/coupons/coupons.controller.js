@@ -16,6 +16,15 @@ export const getCoupons = async (req, res, next) => {
   }
 };
 
+export const getCouponScanReport = async (req, res, next) => {
+  try {
+    const result = await couponsService.getCouponScanReport();
+    return successResponse(res, 200, 'Coupon scan report retrieved successfully', result);
+  } catch (error) {
+    next(error);
+  }
+};
+
 export const createCoupon = async (req, res, next) => {
   try {
     const { beneficiaryId, mealId, expiresAt } = req.body;

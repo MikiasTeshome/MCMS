@@ -14,6 +14,7 @@ import {
   X,
   PanelLeftClose,
   PanelLeft,
+  PieChart,
 } from 'lucide-react';
 
 const Sidebar = ({ isOpen, setIsOpen, collapsed, onToggleCollapse }) => {
@@ -27,6 +28,7 @@ const Sidebar = ({ isOpen, setIsOpen, collapsed, onToggleCollapse }) => {
     { path: '/employees', label: t('common.employees'), icon: UserCheck, roles: ['ADMIN', 'HR'] },
     { path: '/cafe-scanner', label: t('common.cafeScanner'), icon: QrCode, roles: ['ADMIN', 'CAFE_STAFF'] },
     { path: '/users', label: t('common.users'), icon: UsersIcon, roles: ['ADMIN', 'HR'] },
+    { path: '/reports', label: t('common.reports', { defaultValue: 'Reports' }), icon: PieChart, roles: ['ADMIN', 'HR', 'FINANCE', 'CAFE_STAFF'] },
     { path: '/audit-logs', label: t('common.auditLogs'), icon: ShieldAlert, roles: ['ADMIN'] },
   ];
 

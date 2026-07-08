@@ -365,7 +365,7 @@ const Coupons = () => {
                   <option value="" className="bg-app-surface">-- Choose Pricing Model --</option>
                   {meals.map((m) => (
                     <option key={m.id} value={m.id} className="bg-app-surface">
-                      {localStorage.getItem('mcms_lang') === 'am' ? m.nameAm : m.nameEn} (${parseFloat(m.price).toFixed(2)})
+                      {localStorage.getItem('mcms_lang') === 'am' ? m.nameAm : m.nameEn} ({parseFloat(m.price).toFixed(2)} {t('common.birr')})
                     </option>
                   ))}
                 </select>

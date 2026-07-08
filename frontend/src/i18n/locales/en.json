@@ -8,6 +8,7 @@
     "users": "Users",
     "employees": "Employees",
     "cafeScanner": "Cafe Scanner",
+    "reports": "Reports",
     "auditLogs": "Audit Logs",
     "logout": "Logout",
     "loading": "Loading...",
@@ -282,5 +283,27 @@
     "footer": "MEAL COUPON IDENTIFICATION CARD",
     "official": "TMPC OFFICIAL",
     "print": "Print ID Card"
+  },
+  "reports": {
+    "title": "Coupon Scan Reports",
+    "subtitle": "Review scanned coupon counts and Birr totals by day, week, and month.",
+    "today": "Today",
+    "thisWeek": "This Week",
+    "lastWeek": "Last Week",
+    "thisMonth": "This Month",
+    "lastMonth": "Last Month",
+    "lifetime": "Lifetime",
+    "pastMonths": "Past Months...",
+    "couponsScanned": "Coupons scanned",
+    "count": "Coupon Count",
+    "rate": "Standard Rate",
+    "total": "Total Amount",
+    "summary": "Summary",
+    "from": "From",
+    "to": "To",
+    "formula": "{{count}} coupons x {{rate}} Birr = {{amount}} Birr",
+    "period": "Period",
+    "scanned": "Scanned",
+    "amount": "Amount"
   }
 }
