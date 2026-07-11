@@ -1,5 +1,26 @@
 import prisma from '../config/db.js';
 
+let holidayCache = { loadedAt: 0, dates: new Set() };
+const HOLIDAY_CACHE_TTL_MS = 5 * 60 * 1000;
+
+async function getHolidaySet() {
+  const now = Date.now();
+  if (holidayCache.loadedAt && now - holidayCache.loadedAt < HOLIDAY_CACHE_TTL_MS) {
+    return holidayCache.dates;
+  }
+
+  const holidays = await prisma.holiday.findMany({
+    select: { date: true },
+  });
+  holidayCache = {
+    loadedAt: now,
+    dates: new Set(
+      holidays.map((holiday) => new Date(holiday.date).toISOString().slice(0, 10))
+    ),
+  };
+  return holidayCache.dates;
+}
+
 /**
  * Calculate a future Date object that is `workingDays` business days after `startDate`.
  * It excludes Saturday, Sunday, and any dates present in the `Holiday` table.
@@ -20,15 +41,8 @@ export async function calculateExpiryDate(startDate, workingDays) {
     if (dayOfWeek === 0 || dayOfWeek === 6) {
       continue; // skip weekends
     }
-    // Check holiday table (date only)
-    const holiday = await prisma.holiday.findFirst({
-      where: {
-        date: {
-          equals: current,
-        },
-      },
-    });
-    if (holiday) {
+    const holidaySet = await getHolidaySet();
+    if (holidaySet.has(current.toISOString().slice(0, 10))) {
       continue; // skip official holidays
     }
     remaining -= 1; // count as a working day

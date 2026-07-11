@@ -1,5 +1,3 @@
-import * as XLSX from 'xlsx';
-
 const TEMPLATE_HEADERS = ['Full Name', 'Department'];
 
 const EXPORT_HEADERS = [
@@ -52,7 +50,8 @@ function formatCellValue(value) {
   }
 
   if (typeof value === 'number' && value > 25569) {
-    const parsed = XLSX.SSF.parse_date_code(value);
+    const XLSX = globalThis.XLSX;
+    const parsed = XLSX?.SSF?.parse_date_code?.(value);
     if (parsed) {
       const date = new Date(parsed.y, parsed.m - 1, parsed.d);
       return date.toISOString();
@@ -77,37 +76,48 @@ function mapRow(rawRow) {
 }
 
 function downloadWorkbook(workbook, filename) {
-  XLSX.writeFile(workbook, filename);
+  return globalThis.XLSX.writeFile(workbook, filename);
+}
+
+async function loadXlsx() {
+  if (!globalThis.XLSX) {
+    globalThis.XLSX = await import('xlsx');
+  }
+  return globalThis.XLSX;
 }
 
 export function exportEmployeesToExcel(employees, filename = 'employees.xlsx') {
-  const rows = employees.map((emp) => ({
-    'Employee ID Number': emp.employeeProfile?.employeeIdNumber || '',
-    'Full Name': emp.name || '',
-    Email: emp.email || '',
-    Department: emp.employeeProfile?.department || '',
-    Position: emp.employeeProfile?.position || '',
-    'Staff Type': emp.employeeProfile?.staffType || 'Standard',
-    Active: emp.isActive ? 'Yes' : 'No',
-    'QR Card Code': emp.qrCards?.[0]?.cardCode || '',
-    'Joined Date': emp.createdAt ? new Date(emp.createdAt).toLocaleDateString() : '',
-  }));
+  return loadXlsx().then((XLSX) => {
+    const rows = employees.map((emp) => ({
+      'Employee ID Number': emp.employeeProfile?.employeeIdNumber || '',
+      'Full Name': emp.name || '',
+      Email: emp.email || '',
+      Department: emp.employeeProfile?.department || '',
+      Position: emp.employeeProfile?.position || '',
+      'Staff Type': emp.employeeProfile?.staffType || 'Standard',
+      Active: emp.isActive ? 'Yes' : 'No',
+      'QR Card Code': emp.qrCards?.[0]?.cardCode || '',
+      'Joined Date': emp.createdAt ? new Date(emp.createdAt).toLocaleDateString() : '',
+    }));
 
-  const worksheet = XLSX.utils.json_to_sheet(rows, { header: EXPORT_HEADERS });
-  const workbook = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(workbook, worksheet, 'Employees');
-  downloadWorkbook(workbook, filename);
+    const worksheet = XLSX.utils.json_to_sheet(rows, { header: EXPORT_HEADERS });
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, 'Employees');
+    return XLSX.writeFile(workbook, filename);
+  });
 }
 
 export function downloadEmployeeTemplate(filename = 'employee_import_template.xlsx') {
-  const worksheet = XLSX.utils.aoa_to_sheet([
-    TEMPLATE_HEADERS,
-    ['John Doe', 'Engineering'],
-    ['Jane Worker', 'Marketing'],
-  ]);
-  const workbook = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(workbook, worksheet, 'Template');
-  downloadWorkbook(workbook, filename);
+  return loadXlsx().then((XLSX) => {
+    const worksheet = XLSX.utils.aoa_to_sheet([
+      TEMPLATE_HEADERS,
+      ['John Doe', 'Engineering'],
+      ['Jane Worker', 'Marketing'],
+    ]);
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, 'Template');
+    return XLSX.writeFile(workbook, filename);
+  });
 }
 
 export function parseEmployeeExcelFile(file) {
@@ -117,19 +127,23 @@ export function parseEmployeeExcelFile(file) {
 
     reader.onload = (event) => {
       try {
-        const workbook = isCsv
-          ? XLSX.read(event.target.result, { type: 'string' })
-          : XLSX.read(new Uint8Array(event.target.result), { type: 'array' });
+        loadXlsx()
+          .then((XLSX) => {
+            const workbook = isCsv
+              ? XLSX.read(event.target.result, { type: 'string' })
+              : XLSX.read(new Uint8Array(event.target.result), { type: 'array' });
 
-        const sheetName = workbook.SheetNames[0];
-        const worksheet = workbook.Sheets[sheetName];
-        const rawRows = XLSX.utils.sheet_to_json(worksheet, { defval: '' });
+            const sheetName = workbook.SheetNames[0];
+            const worksheet = workbook.Sheets[sheetName];
+            const rawRows = XLSX.utils.sheet_to_json(worksheet, { defval: '' });
 
-        const rows = rawRows
-          .map(mapRow)
-          .filter((row) => row.name || row.department || row.email || row.employeeIdNumber);
+            const rows = rawRows
+              .map(mapRow)
+              .filter((row) => row.name || row.department || row.email || row.employeeIdNumber);
 
-        resolve(rows);
+            resolve(rows);
+          })
+          .catch(reject);
       } catch (error) {
         reject(new Error('Could not parse file. Please use the provided template.'));
       }

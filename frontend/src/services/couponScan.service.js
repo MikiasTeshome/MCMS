@@ -14,8 +14,8 @@ export const issueCoupons = async ({ employeeId, quantity, overrideReason }) => 
   return response.data;
 };
 
-export const getCouponScanReport = async () => {
-  const response = await api.get('/coupons/reports/scans');
+export const getCouponScanReport = async (params = {}) => {
+  const response = await api.get('/coupons/reports/scans', { params });
   return response.data;
 };
 

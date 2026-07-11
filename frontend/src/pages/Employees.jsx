@@ -32,7 +32,7 @@ import {
 const truncateCode = (code) => (code ? `${code.slice(0, 8)}...` : '—');
 
 const getInitials = (name) =>
-  name
+  String(name || '')
     .split(' ')
     .map((n) => n[0])
     .join('')
@@ -43,7 +43,9 @@ const Employees = () => {
   const { t } = useTranslation();
 
   const [employeesList, setEmployeesList] = useState([]);
+  const [pageMeta, setPageMeta] = useState({ page: 1, limit: 25, total: 0, totalPages: 1 });
   const [loading, setLoading] = useState(true);
+  const [filters, setFilters] = useState({ search: '', sort: 'name', order: 'asc' });
 
   const [showAddModal, setShowAddModal] = useState(false);
   const [showPrintModal, setShowPrintModal] = useState(false);
@@ -84,11 +86,25 @@ const Employees = () => {
   const [importing, setImporting] = useState(false);
   const fileInputRef = useRef(null);
 
-  const fetchEmployees = async () => {
+  const fetchEmployees = async (page = pageMeta.page, limit = pageMeta.limit, nextFilters = filters) => {
     try {
       setLoading(true);
-      const res = await api.get('/employees');
-      setEmployeesList(res.data.data || []);
+      const res = await api.get('/employees', {
+        params: {
+          page,
+          limit,
+          search: nextFilters.search || undefined,
+          sort: nextFilters.sort,
+          order: nextFilters.order,
+        },
+      });
+      setEmployeesList(Array.isArray(res.data?.data?.data) ? res.data.data.data : []);
+      setPageMeta({
+        page: res.data.page || page,
+        limit: res.data.limit || limit,
+        total: res.data.total || 0,
+        totalPages: res.data.totalPages || 1,
+      });
     } catch (err) {
       console.error('Failed to load employees list:', err);
     } finally {
@@ -97,7 +113,7 @@ const Employees = () => {
   };
 
   useEffect(() => {
-    fetchEmployees();
+    fetchEmployees(1, 25);
   }, []);
 
   const copyText = async (text, fieldKey) => {
@@ -120,7 +136,7 @@ const Employees = () => {
     try {
       const res = await api.post('/employees', employeeForm);
       if (res.data.success) {
-        setActionSuccess(t('employees.provisionSuccess', { name: res.data.data.user.name }));
+        setActionSuccess(t('employees.provisionSuccess', { name: res.data?.data?.user?.name || employeeForm.name }));
         setShowAddModal(false);
         setEmployeeForm({
           email: '',
@@ -234,6 +250,12 @@ const Employees = () => {
     }
   };
 
+  const updateFilters = (patch) => {
+    const next = { ...filters, ...patch };
+    setFilters(next);
+    fetchEmployees(1, pageMeta.limit, next);
+  };
+
   const handleExport = () => {
     exportEmployeesToExcel(employeesList);
     setActionSuccess(t('employees.exportSuccess'));
@@ -267,7 +289,7 @@ const Employees = () => {
       }
 
       const res = await api.post('/employees/import', { rows });
-      const results = res.data.data;
+      const results = res.data?.data;
       setImportResults(results);
 
       if (results.created > 0) {
@@ -327,6 +349,47 @@ const Employees = () => {
         }
       />
 
+      <div className="surface-card flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+        <input
+          type="search"
+          value={filters.search}
+          onChange={(e) => updateFilters({ search: e.target.value })}
+          placeholder={t('common.search', { defaultValue: 'Search employees' })}
+          className="glass-input lg:max-w-sm"
+        />
+        <div className="flex flex-wrap items-center gap-3">
+          <select
+            value={filters.sort}
+            onChange={(e) => updateFilters({ sort: e.target.value })}
+            className="glass-input !w-auto"
+          >
+            <option value="name">Name</option>
+            <option value="createdAt">Created</option>
+          </select>
+          <select
+            value={filters.order}
+            onChange={(e) => updateFilters({ order: e.target.value })}
+            className="glass-input !w-auto"
+          >
+            <option value="asc">Ascending</option>
+            <option value="desc">Descending</option>
+          </select>
+          <select
+            value={pageMeta.limit}
+            onChange={(e) => {
+              const limit = Number(e.target.value);
+              setPageMeta((meta) => ({ ...meta, limit }));
+              fetchEmployees(1, limit, filters);
+            }}
+            className="glass-input !w-auto"
+          >
+            {[10, 25, 50, 100].map((size) => (
+              <option key={size} value={size}>{size} / page</option>
+            ))}
+          </select>
+        </div>
+      </div>
+
       {(actionError || actionSuccess) && (
         <div className="max-w-2xl">
           {actionError && (
@@ -345,6 +408,14 @@ const Employees = () => {
       )}
 
       <div className="table-wrap surface-card-hover">
+        <div className="flex items-center justify-between gap-3 px-4 pb-3 text-sm text-app-secondary">
+          <span>{pageMeta.total.toLocaleString()} records</span>
+          <div className="flex items-center gap-2">
+            <button className="btn-secondary" disabled={pageMeta.page <= 1} onClick={() => fetchEmployees(pageMeta.page - 1, pageMeta.limit)}>Previous</button>
+            <span>Page {pageMeta.page} of {pageMeta.totalPages}</span>
+            <button className="btn-secondary" disabled={pageMeta.page >= pageMeta.totalPages} onClick={() => fetchEmployees(pageMeta.page + 1, pageMeta.limit)}>Next</button>
+          </div>
+        </div>
         <div className="table-scroll">
           <table className="table-modern table-directory">
             <thead>
@@ -358,7 +429,7 @@ const Employees = () => {
               </tr>
             </thead>
             <tbody>
-              {employeesList.length === 0 ? (
+              {(Array.isArray(employeesList) ? employeesList : []).length === 0 ? (
                 <tr>
                   <td colSpan="6">
                     <EmptyState
@@ -375,7 +446,7 @@ const Employees = () => {
                   </td>
                 </tr>
               ) : (
-                employeesList.map((emp) => {
+                (Array.isArray(employeesList) ? employeesList : []).map((emp) => {
                   const cardCode = emp.qrCards?.[0]?.cardCode;
                   const isActive = emp.isActive !== false;
                   const copyKey = `row-${emp.id}`;

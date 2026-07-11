@@ -1,8 +1,63 @@
 import prisma from '../../config/db.js';
+import { Prisma } from '@prisma/client';
+import crypto from 'crypto';
 import auditService from '../audit/audit.service.js';
 import { calculateExpiryDate } from '../../utils/expiry.js'; // helper to compute working days
 
 const STANDARD_COUPON_VALUE = 40;
+const COUPON_SORT_FIELDS = new Set(['updatedAt', 'createdAt', 'expiresAt', 'code', 'claimedAt']);
+const COUPON_RELATION_SELECT = {
+  employee: {
+    select: {
+      id: true,
+      name: true,
+      email: true,
+    },
+  },
+  claimedBy: {
+    select: {
+      id: true,
+      name: true,
+      email: true,
+    },
+  },
+  allocatedBy: {
+    select: {
+      id: true,
+      name: true,
+      email: true,
+    },
+  },
+  config: {
+    select: {
+      id: true,
+      name: true,
+      value: true,
+      expiryWorkingDays: true,
+    },
+  },
+};
+
+const startOfDayUTC = (value) => {
+  const date = new Date(value);
+  date.setUTCHours(0, 0, 0, 0);
+  return date;
+};
+
+const endOfDayUTC = (value) => {
+  const date = new Date(value);
+  date.setUTCHours(23, 59, 59, 999);
+  return date;
+};
+
+const addDaysUTC = (value, days) => {
+  const date = new Date(value);
+  date.setUTCDate(date.getUTCDate() + days);
+  return date;
+};
+
+const formatDateKey = (date) => new Date(date).toISOString().slice(0, 10);
+const buildCouponCode = () => `COUPON-${crypto.randomUUID().slice(0, 8).toUpperCase()}`;
 
 const startOfLocalDay = (date = new Date()) => {
   const value = new Date(date);
@@ -85,8 +140,8 @@ class CouponsService {
         ? new Date(expiresAt)
         : await calculateExpiryDate(new Date(), config.expiryWorkingDays);
 
-      // Generate unique coupon code (simple UUID-like string)
-      const code = `COUPON-${Date.now()}-${Math.random().toString(36).substr(2, 5).toUpperCase()}`;
+      // Generate unique coupon code using a cryptographically strong identifier.
+      const code = buildCouponCode();
 
       const newCoupon = await tx.coupon.create({
         data: {
@@ -133,13 +188,23 @@ class CouponsService {
         ? new Date(expiresAt)
         : await calculateExpiryDate(new Date(), config.expiryWorkingDays);
 
+      const employees = await tx.user.findMany({
+        where: {
+          id: { in: beneficiaryIds },
+          role: 'EMPLOYEE',
+        },
+        select: {
+          id: true,
+          role: true,
+        },
+      });
+      const validEmployeeIds = new Set(employees.map((emp) => emp.id));
+
       const created = [];
       for (const benId of beneficiaryIds) {
-        // Validate employee exists under the transaction
-        const emp = await tx.user.findUnique({ where: { id: benId } });
-        if (!emp || emp.role !== 'EMPLOYEE') continue; // skip invalid rows
+        if (!validEmployeeIds.has(benId)) continue;
 
-        const code = `COUPON-${Date.now()}-${Math.random().toString(36).substr(2, 5).toUpperCase()}`;
+        const code = buildCouponCode();
         const coupon = await tx.coupon.create({
           data: {
             code,
@@ -173,7 +238,16 @@ class CouponsService {
   async validateQR(cardCode) {
     const card = await prisma.qRCard.findUnique({
       where: { cardCode },
-      include: { employee: true },
+      select: {
+        employee: {
+          select: {
+            id: true,
+            name: true,
+            email: true,
+            role: true,
+          },
+        },
+      },
     });
     if (!card) {
       throw new Error('QR card not recognised');
@@ -189,7 +263,23 @@ class CouponsService {
     const coupon = await prisma.$transaction(async (tx) => {
       const c = await tx.coupon.findUnique({
         where: { code },
-        include: { employee: true },
+        select: {
+          id: true,
+          code: true,
+          status: true,
+          expiresAt: true,
+          createdAt: true,
+          updatedAt: true,
+          claimedAt: true,
+          employeeId: true,
+          employee: {
+            select: {
+              id: true,
+              name: true,
+              email: true,
+            },
+          },
+        },
       });
       if (!c) throw new Error('Coupon code invalid');
       if (c.status !== 'ALLOCATED') throw new Error('Coupon already used or expired');
@@ -218,10 +308,34 @@ class CouponsService {
           claimedAt: new Date(),
           claimedDateString: dateString,
         },
-        include: {
-          employee: true,
-          claimedBy: true,
-          config: true,
+        select: {
+          id: true,
+          code: true,
+          expiresAt: true,
+          createdAt: true,
+          updatedAt: true,
+          claimedAt: true,
+          employee: {
+            select: {
+              id: true,
+              name: true,
+              email: true,
+            },
+          },
+          claimedBy: {
+            select: {
+              id: true,
+              name: true,
+              email: true,
+            },
+          },
+          config: {
+            select: {
+              id: true,
+              name: true,
+              value: true,
+            },
+          },
         },
       });
       return updated;
@@ -268,74 +382,144 @@ class CouponsService {
   /**
    * Retrieves coupons list with role filtering and legacy mappings for frontend
    */
-  async getCouponScanReport() {
+  async getCouponScanReport(filters = {}) {
     const now = new Date();
-    const todayStart = startOfLocalDay(now);
-    const weekStart = startOfLocalWeek(now);
-    const monthStart = startOfLocalMonth(now);
-    const lastWeekStart = addDays(weekStart, -7);
+    const rangeType = filters.range || 'thisMonth';
+    let startDate = filters.startDate ? new Date(filters.startDate) : null;
+    let endDate = filters.endDate ? new Date(filters.endDate) : null;
 
-    // Get the oldest claim to generate historical months
-    const oldestClaim = await prisma.couponClaim.findFirst({
-      orderBy: { issuedAt: 'asc' },
-      select: { issuedAt: true }
-    });
-
-    const ranges = {
-      today: { startDate: todayStart, endDate: now },
-      thisWeek: { startDate: weekStart, endDate: now },
-      lastWeek: { startDate: lastWeekStart, endDate: weekStart },
-      thisMonth: { startDate: monthStart, endDate: now },
-      lifetime: { startDate: new Date(0), endDate: now }
-    };
-
-    // Generate dynamic historical months
-    let currentMonthIter = startOfLocalMonth(now);
-    currentMonthIter = addMonths(currentMonthIter, -1); // Start from last month
-    const oldestMonth = oldestClaim ? startOfLocalMonth(oldestClaim.issuedAt) : currentMonthIter;
-
-    let monthCount = 0;
-    while (currentMonthIter >= oldestMonth && monthCount < 60) {
-      const nextMonth = addMonths(currentMonthIter, 1);
-      const key = `month_${currentMonthIter.getFullYear()}_${String(currentMonthIter.getMonth() + 1).padStart(2, '0')}`;
-      ranges[key] = { startDate: currentMonthIter, endDate: nextMonth };
-      
-      currentMonthIter = addMonths(currentMonthIter, -1);
-      monthCount++;
+    if (!startDate || !endDate) {
+      if (rangeType === 'today') {
+        startDate = startOfDayUTC(now);
+        endDate = endOfDayUTC(now);
+      } else if (rangeType === 'yesterday') {
+        const yesterday = addDaysUTC(now, -1);
+        startDate = startOfDayUTC(yesterday);
+        endDate = endOfDayUTC(yesterday);
+      } else if (rangeType === 'thisWeek') {
+        startDate = startOfLocalWeek(now);
+        endDate = now;
+      } else if (rangeType === 'lastWeek') {
+        const weekStart = startOfLocalWeek(now);
+        startDate = addDays(weekStart, -7);
+        endDate = weekStart;
+      } else if (rangeType === 'lastMonth') {
+        const monthStart = startOfLocalMonth(now);
+        startDate = addMonths(monthStart, -1);
+        endDate = monthStart;
+      } else if (rangeType === 'thisYear') {
+        startDate = new Date(now.getFullYear(), 0, 1);
+        endDate = now;
+      } else if (rangeType === 'lifetime') {
+        const oldestClaim = await prisma.couponClaim.findFirst({
+          orderBy: { issuedAt: 'asc' },
+          select: { issuedAt: true }
+        });
+        startDate = oldestClaim ? oldestClaim.issuedAt : startOfLocalMonth(now);
+        endDate = now;
+      } else {
+        startDate = startOfLocalMonth(now);
+        endDate = now;
+      }
     }
 
-    const countRange = ({ startDate, endDate }) =>
-      prisma.couponClaim.count({
-        where: {
-          issuedAt: {
-            gte: startDate,
-            lt: endDate,
-          },
-        },
-      });
+    startDate = startOfDayUTC(startDate);
+    endDate = endOfDayUTC(endDate);
 
-    const counts = await Promise.all(Object.values(ranges).map(countRange));
-    const periodReports = Object.fromEntries(
-      Object.keys(ranges).map((key, index) => [key, {
-        count: counts[index],
-        rate: STANDARD_COUPON_VALUE,
-        amount: counts[index] * STANDARD_COUPON_VALUE,
-        startDate: ranges[key].startDate,
-        endDate: ranges[key].endDate,
-      }])
-    );
+    const rangeDays = Math.max(1, Math.ceil((endDate - startDate) / 86400000) + 1);
+    const previousStart = addDaysUTC(startDate, -rangeDays);
+    const previousEnd = addDaysUTC(startDate, -1);
+
+    const rangeLabel = `${startDate.toLocaleDateString()} → ${endDate.toLocaleDateString()}`;
+
+    const aggregateRange = async (from, to) => {
+      const rows = await prisma.$queryRaw`
+        SELECT
+          DATE_TRUNC('day', cc."issuedAt")::date AS day,
+          COUNT(*)::int AS count,
+          COALESCE(SUM(c."value"), 0)::numeric AS amount
+        FROM "CouponClaim" cc
+        INNER JOIN "Coupon" c ON c."id" = cc."couponId"
+        WHERE cc."issuedAt" >= ${from} AND cc."issuedAt" <= ${to}
+        GROUP BY 1
+        ORDER BY 1 ASC
+      `;
+      return rows.map((row) => ({
+        day: formatDateKey(row.day),
+        count: Number(row.count || 0),
+        amount: Number(row.amount || 0),
+      }));
+    };
+
+    const [selectedRows, previousRows] = await Promise.all([
+      aggregateRange(startDate, endDate),
+      rangeType === 'lifetime' ? Promise.resolve([]) : aggregateRange(previousStart, previousEnd),
+    ]);
+    const selectedRowMap = new Map(selectedRows.map((row) => [row.day, row]));
+
+    const selectedCount = selectedRows.reduce((sum, row) => sum + row.count, 0);
+    const selectedAmount = selectedRows.reduce((sum, row) => sum + row.amount, 0);
+    const previousCount = previousRows.reduce((sum, row) => sum + row.count, 0);
+    const previousAmount = previousRows.reduce((sum, row) => sum + row.amount, 0);
+    const compare = (current, previous) => {
+      if (!previous) return null;
+      return Number((((current - previous) / previous) * 100).toFixed(2));
+    };
+
+    const chartSeries = [];
+    const dayCursor = new Date(startDate);
+    while (dayCursor <= endDate) {
+      const key = formatDateKey(dayCursor);
+      const match = selectedRowMap.get(key);
+      chartSeries.push({
+        date: key,
+        label: dayCursor.toLocaleDateString(undefined, { month: 'short', day: 'numeric' }),
+        count: match?.count || 0,
+        amount: match?.amount || 0,
+      });
+      dayCursor.setUTCDate(dayCursor.getUTCDate() + 1);
+    }
 
     return {
       standardCouponValue: STANDARD_COUPON_VALUE,
-      periods: periodReports,
-      today: periodReports.today,
-      week: periodReports.thisWeek,
-      month: periodReports.thisMonth,
+      selectedRange: {
+        startDate,
+        endDate,
+        label: rangeLabel,
+        rangeType,
+      },
+      chartSeries,
+      summary: {
+        selectedCount,
+        selectedAmount,
+        averagePerDay: Number((selectedCount / chartSeries.length).toFixed(2)),
+        averageRevenuePerDay: Number((selectedAmount / chartSeries.length).toFixed(2)),
+        highestScanDay: chartSeries.reduce((best, row) => (row.count > (best?.count || -1) ? row : best), null),
+        lowestScanDay: chartSeries.reduce((best, row) => (best === null || row.count < best.count ? row : best), null),
+      },
+      comparison: rangeType === 'lifetime' ? null : {
+        previousStartDate: previousStart,
+        previousEndDate: previousEnd,
+        selectedVsPreviousCount: compare(selectedCount, previousCount),
+        selectedVsPreviousAmount: compare(selectedAmount, previousAmount),
+        previousCount,
+        previousAmount,
+      },
+      metrics: {
+        selectedCount,
+        selectedAmount,
+        rate: STANDARD_COUPON_VALUE,
+        previousCount,
+        previousAmount,
+      },
     };
   }
 
   async getCoupons(filters = {}, user) {
-    const { status, beneficiaryId, code, vendorId } = filters;
+    const { status, beneficiaryId, code, vendorId, search, sort = 'updatedAt', order = 'desc' } = filters;
+    const page = Math.max(parseInt(filters.page, 10) || 1, 1);
+    const limit = Math.min(Math.max(parseInt(filters.limit, 10) || 25, 1), 100);
+    const skip = (page - 1) * limit;
     const where = {};
 
     if (status) {
@@ -357,6 +541,15 @@ class CouponsService {
       where.claimedById = vendorId;
     }
 
+    if (search) {
+      where.OR = [
+        { code: { contains: search, mode: 'insensitive' } },
+        { employee: { name: { contains: search, mode: 'insensitive' } } },
+        { employee: { email: { contains: search, mode: 'insensitive' } } },
+        { config: { name: { contains: search, mode: 'insensitive' } } },
+      ];
+    }
+
     // Role-based scoping limits
     if (user.role === 'EMPLOYEE') {
       where.employeeId = user.id;
@@ -367,19 +560,36 @@ class CouponsService {
       }
     }
 
-    const coupons = await prisma.coupon.findMany({
-      where,
-      include: {
-        employee: true,
-        claimedBy: true,
-        allocatedBy: true,
-        config: true,
-      },
-      orderBy: { updatedAt: 'desc' },
-    });
+    const sortField = COUPON_SORT_FIELDS.has(sort) ? sort : 'updatedAt';
+    const orderBy = {
+      [sortField]: order === 'asc' ? 'asc' : 'desc',
+    };
+
+    const [coupons, total] = await Promise.all([
+      prisma.coupon.findMany({
+        where,
+        select: {
+          id: true,
+          code: true,
+          status: true,
+          expiresAt: true,
+          claimedAt: true,
+          createdAt: true,
+          updatedAt: true,
+          claimedDateString: true,
+          value: true,
+          ...COUPON_RELATION_SELECT,
+        },
+        orderBy,
+        skip,
+        take: limit,
+      }),
+      prisma.coupon.count({ where }),
+    ]);
 
     // Map database structures to legacy API objects expected by frontend
-    return coupons.map((c) => ({
+    return {
+      data: coupons.map((c) => ({
       id: c.id,
       code: c.code,
       status: c.status === 'ALLOCATED' ? 'ACTIVE' : c.status === 'CLAIMED' ? 'REDEEMED' : c.status,
@@ -406,7 +616,12 @@ class CouponsService {
         price: c.config.value,
         status: 'ACTIVE',
       } : null,
-    }));
+      })),
+      page,
+      limit,
+      total,
+      totalPages: Math.max(Math.ceil(total / limit), 1),
+    };
   }
 }
 

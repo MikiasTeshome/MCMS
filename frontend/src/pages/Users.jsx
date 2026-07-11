@@ -10,7 +10,11 @@ const Users = () => {
   const { t } = useTranslation();
 
   const [usersList, setUsersList] = useState([]);
+  const [pageMeta, setPageMeta] = useState({ page: 1, limit: 25, total: 0, totalPages: 1 });
   const [roleFilter, setRoleFilter] = useState('');
+  const [search, setSearch] = useState('');
+  const [sort, setSort] = useState('name');
+  const [order, setOrder] = useState('asc');
   const [loading, setLoading] = useState(true);
 
   // Form states
@@ -20,10 +24,23 @@ const Users = () => {
   const [actionSuccess, setActionSuccess] = useState('');
   const [processing, setProcessing] = useState(false);
 
-  const fetchUsers = async () => {
+  const fetchUsers = async (page = pageMeta.page, limit = pageMeta.limit) => {
     try {
-      const res = await getUsers({ role: roleFilter });
-      setUsersList(res.data || []);
+      const res = await getUsers({
+        role: roleFilter || undefined,
+        search: search || undefined,
+        page,
+        limit,
+        sort,
+        order,
+      });
+      setUsersList(res.data?.data || []);
+      setPageMeta({
+        page: res.page || page,
+        limit: res.limit || limit,
+        total: res.total || 0,
+        totalPages: res.totalPages || 1,
+      });
     } catch (err) {
       console.error('Failed to load user directory:', err);
     } finally {
@@ -32,8 +49,38 @@ const Users = () => {
   };
 
   useEffect(() => {
-    fetchUsers();
+    fetchUsers(1, 25);
   }, [roleFilter]);
+
+  const applyFilters = (patch) => {
+    const next = { roleFilter, search, sort, order, ...patch };
+    const nextRole = next.roleFilter;
+    const nextSearch = next.search;
+    const nextSort = next.sort;
+    const nextOrder = next.order;
+    setRoleFilter(nextRole);
+    setSearch(nextSearch);
+    setSort(nextSort);
+    setOrder(nextOrder);
+    getUsers({
+      role: nextRole || undefined,
+      search: nextSearch || undefined,
+      page: 1,
+      limit: pageMeta.limit,
+      sort: nextSort,
+      order: nextOrder,
+    }).then((res) => {
+      setUsersList(res.data?.data || []);
+      setPageMeta({
+        page: res.page || 1,
+        limit: res.limit || pageMeta.limit,
+        total: res.total || 0,
+        totalPages: res.totalPages || 1,
+      });
+    }).catch((err) => {
+      console.error('Failed to load user directory:', err);
+    });
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -47,7 +94,7 @@ const Users = () => {
         setActionSuccess(`Account successfully provisioned for ${res.data.name}!`);
         setShowAddModal(false);
         setUserForm({ email: '', password: '', name: '', role: 'EMPLOYEE' });
-        fetchUsers();
+        fetchUsers(1, pageMeta.limit);
       }
     } catch (err) {
       setActionError(err.response?.data?.message || 'Provisioning failed');
@@ -114,8 +161,59 @@ const Users = () => {
         </div>
       </div>
 
+      <div className="surface-card flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+          <input
+            type="search"
+            value={search}
+            onChange={(e) => applyFilters({ search: e.target.value })}
+            placeholder={t('common.search', { defaultValue: 'Search users' })}
+            className="glass-input lg:max-w-sm"
+          />
+        <div className="flex flex-wrap items-center gap-3">
+          <select
+            value={sort}
+            onChange={(e) => applyFilters({ sort: e.target.value })}
+            className="glass-input !w-auto"
+          >
+            <option value="name">Name</option>
+            <option value="email">Email</option>
+            <option value="createdAt">Created</option>
+            <option value="role">Role</option>
+          </select>
+          <select
+            value={order}
+            onChange={(e) => applyFilters({ order: e.target.value })}
+            className="glass-input !w-auto"
+          >
+            <option value="asc">Ascending</option>
+            <option value="desc">Descending</option>
+          </select>
+          <select
+            value={pageMeta.limit}
+            onChange={(e) => {
+              const nextLimit = Number(e.target.value);
+              setPageMeta((meta) => ({ ...meta, limit: nextLimit }));
+              fetchUsers(1, nextLimit);
+            }}
+            className="glass-input !w-auto"
+          >
+            {[10, 25, 50, 100].map((size) => (
+              <option key={size} value={size}>{size} / page</option>
+            ))}
+          </select>
+        </div>
+      </div>
+
       {/* Users table */}
       <div className="table-wrap">
+        <div className="flex items-center justify-between gap-3 px-4 pb-3 text-sm text-app-secondary">
+          <span>{pageMeta.total.toLocaleString()} records</span>
+          <div className="flex items-center gap-2">
+            <button className="btn-secondary" disabled={pageMeta.page <= 1} onClick={() => fetchUsers(pageMeta.page - 1, pageMeta.limit)}>Previous</button>
+            <span>Page {pageMeta.page} of {pageMeta.totalPages}</span>
+            <button className="btn-secondary" disabled={pageMeta.page >= pageMeta.totalPages} onClick={() => fetchUsers(pageMeta.page + 1, pageMeta.limit)}>Next</button>
+          </div>
+        </div>
         <div className="table-scroll">
           <table className="table-modern">
             <thead>

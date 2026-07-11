@@ -1,22 +1,22 @@
-import React from 'react';
+import React, { Suspense, lazy } from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
 import ProtectedRoute from './ProtectedRoute.jsx';
 import DashboardLayout from '../components/layouts/DashboardLayout.jsx';
 
-// Pages imports
-import Login from '../pages/Login.jsx';
-import Dashboard from '../pages/Dashboard.jsx';
-import Coupons from '../pages/Coupons.jsx';
-import Meals from '../pages/Meals.jsx';
-import Users from '../pages/Users.jsx';
-import AuditLogs from '../pages/AuditLogs.jsx';
-import CafeScanner from '../pages/CafeScanner.jsx';
-import SelfCheck from '../pages/SelfCheck.jsx';
-import Employees from '../pages/Employees.jsx';
-import Reports from '../pages/Reports.jsx';
+const Login = lazy(() => import('../pages/Login.jsx'));
+const Dashboard = lazy(() => import('../pages/Dashboard.jsx'));
+const Coupons = lazy(() => import('../pages/Coupons.jsx'));
+const Meals = lazy(() => import('../pages/Meals.jsx'));
+const Users = lazy(() => import('../pages/Users.jsx'));
+const AuditLogs = lazy(() => import('../pages/AuditLogs.jsx'));
+const CafeScanner = lazy(() => import('../pages/CafeScanner.jsx'));
+const SelfCheck = lazy(() => import('../pages/SelfCheck.jsx'));
+const Employees = lazy(() => import('../pages/Employees.jsx'));
+const Reports = lazy(() => import('../pages/Reports.jsx'));
 
 const AppRoutes = () => {
   return (
+    <Suspense fallback={<div className="page-shell"><div className="surface-card">Loading...</div></div>}>
     <Routes>
       {/* Public Routes */}
       <Route path="/login" element={<Login />} />
@@ -101,6 +101,7 @@ const AppRoutes = () => {
       {/* Fallback Catch */}
       <Route path="*" element={<Navigate to="/dashboard" replace />} />
     </Routes>
+    </Suspense>
   );
 };
 

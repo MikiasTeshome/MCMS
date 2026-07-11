@@ -9,7 +9,7 @@ export const getCoupons = async (req, res, next) => {
       status: req.query.status,
     };
     
-    const result = await couponsService.getCoupons(filters, req.user);
+    const result = await couponsService.getCoupons({ ...filters, ...req.query }, req.user);
     return successResponse(res, 200, 'Coupons retrieved successfully', result);
   } catch (error) {
     next(error);
@@ -18,7 +18,7 @@ export const getCoupons = async (req, res, next) => {
 
 export const getCouponScanReport = async (req, res, next) => {
   try {
-    const result = await couponsService.getCouponScanReport();
+    const result = await couponsService.getCouponScanReport(req.query);
     return successResponse(res, 200, 'Coupon scan report retrieved successfully', result);
   } catch (error) {
     next(error);

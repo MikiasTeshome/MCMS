@@ -5,6 +5,7 @@ import auditService from '../audit/audit.service.js';
 
 const EMP_ID_PREFIX = 'EMP-';
 const EMP_ID_BASE = 10000;
+const EMPLOYEE_SORT_FIELDS = new Set(['name', 'createdAt', 'email', 'updatedAt']);
 
 class EmployeesService {
   /**
@@ -150,7 +151,85 @@ class EmployeesService {
   /**
    * Retrieves list of all employees with their profiles and active cards
    */
-  async getEmployees() {
+  buildEmployeeWhere(filters = {}) {
+    const where = { role: 'EMPLOYEE' };
+    const { search, department, status } = filters;
+
+    if (status) {
+      where.isActive = status === 'ACTIVE';
+    }
+
+    const AND = [];
+    if (department) {
+      AND.push({ employeeProfile: { department: { equals: department, mode: 'insensitive' } } });
+    }
+    if (search) {
+      AND.push({
+        OR: [
+          { name: { contains: search, mode: 'insensitive' } },
+          { email: { contains: search, mode: 'insensitive' } },
+          { employeeProfile: { department: { contains: search, mode: 'insensitive' } } },
+          { employeeProfile: { position: { contains: search, mode: 'insensitive' } } },
+          { employeeProfile: { employeeIdNumber: { contains: search, mode: 'insensitive' } } },
+        ],
+      });
+    }
+
+    if (AND.length > 0) {
+      where.AND = AND;
+    }
+
+    return where;
+  }
+
+  async getEmployees(filters = {}) {
+    const page = Math.max(parseInt(filters.page, 10) || 1, 1);
+    const limit = Math.min(Math.max(parseInt(filters.limit, 10) || 25, 1), 100);
+    const skip = (page - 1) * limit;
+    const sort = EMPLOYEE_SORT_FIELDS.has(filters.sort) ? filters.sort : 'name';
+    const order = filters.order === 'desc' ? 'desc' : 'asc';
+    const where = this.buildEmployeeWhere(filters);
+
+    const [data, total] = await Promise.all([
+      prisma.user.findMany({
+        where,
+        select: {
+          id: true,
+          email: true,
+          name: true,
+          role: true,
+          isActive: true,
+          employeeProfile: true,
+          qrCards: {
+            where: { status: 'ACTIVE' },
+          },
+          createdAt: true,
+        },
+        orderBy: sort === 'createdAt' ? { createdAt: order } : { name: order },
+        skip,
+        take: limit,
+      }),
+      prisma.user.count({ where }),
+    ]);
+
+    return {
+      data,
+      page,
+      limit,
+      total,
+      totalPages: Math.max(Math.ceil(total / limit), 1),
+    };
+  }
+
+  async getEmployeeStats() {
+    const [activeEmployees, totalEmployees] = await Promise.all([
+      prisma.user.count({ where: { role: 'EMPLOYEE', isActive: true } }),
+      prisma.user.count({ where: { role: 'EMPLOYEE' } }),
+    ]);
+    return { activeEmployees, totalEmployees };
+  }
+
+  async getAllEmployees() {
     return prisma.user.findMany({
       where: { role: 'EMPLOYEE' },
       select: {

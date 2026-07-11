@@ -3,8 +3,8 @@ import { successResponse, errorResponse } from '../../utils/response.js';
 
 export const getEmployees = async (req, res, next) => {
   try {
-    const list = await employeesService.getEmployees();
-    return successResponse(res, 200, 'Employees list retrieved successfully', list);
+    const result = await employeesService.getEmployees(req.query);
+    return successResponse(res, 200, 'Employees list retrieved successfully', result);
   } catch (error) {
     next(error);
   }

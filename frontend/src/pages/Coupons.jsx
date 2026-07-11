@@ -12,6 +12,8 @@ const Coupons = () => {
   const { t } = useTranslation();
 
   const [coupons, setCoupons] = useState([]);
+  const [pageMeta, setPageMeta] = useState({ page: 1, limit: 25, total: 0, totalPages: 1 });
+  const [filters, setFilters] = useState({ search: '', sort: 'updatedAt', order: 'desc' });
   const [beneficiaries, setBeneficiaries] = useState([]);
   const [meals, setMeals] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -24,16 +26,28 @@ const Coupons = () => {
   const [actionSuccess, setActionSuccess] = useState('');
   const [processing, setProcessing] = useState(false);
 
-  const fetchPageData = async () => {
+  const fetchPageData = async (page = pageMeta.page, limit = pageMeta.limit, nextFilters = filters) => {
     try {
-      const couponsRes = await getCoupons();
-      setCoupons(couponsRes.data || []);
+      const couponsRes = await getCoupons({
+        page,
+        limit,
+        search: nextFilters.search || undefined,
+        sort: nextFilters.sort,
+        order: nextFilters.order,
+      });
+      setCoupons(couponsRes.data?.data || []);
+      setPageMeta({
+        page: couponsRes.page || page,
+        limit: couponsRes.limit || limit,
+        total: couponsRes.total || 0,
+        totalPages: couponsRes.totalPages || 1,
+      });
 
       if (['ADMIN', 'HR'].includes(user?.role)) {
         const usersRes = await getUsers({ role: 'EMPLOYEE' });
         const mealsRes = await getMeals({ status: 'ACTIVE' });
-        setBeneficiaries(usersRes.data || []);
-        setMeals(mealsRes.data || []);
+        setBeneficiaries(usersRes.data?.data || []);
+        setMeals(mealsRes.data?.data || []);
       }
     } catch (err) {
       console.error('Failed to load coupons context:', err);
@@ -43,8 +57,14 @@ const Coupons = () => {
   };
 
   useEffect(() => {
-    fetchPageData();
+    fetchPageData(1, 25);
   }, [user]);
+
+  const updateFilters = (patch) => {
+    const next = { ...filters, ...patch };
+    setFilters(next);
+    fetchPageData(1, pageMeta.limit, next);
+  };
 
   // Handle coupon issuance (ADMIN/MANAGER only)
   const handleIssue = async (e) => {
@@ -63,7 +83,7 @@ const Coupons = () => {
         setActionSuccess(t('coupons.redeemSuccess')); // Standard success message
         setIssueData({ beneficiaryId: '', mealId: '', expiresAt: '' });
         setShowIssueModal(false);
-        fetchPageData();
+        fetchPageData(1, pageMeta.limit);
       }
     } catch (err) {
       setActionError(err.response?.data?.message || 'Failed to issue coupon');
@@ -84,7 +104,7 @@ const Coupons = () => {
       if (res.success) {
         setActionSuccess(t('coupons.redeemSuccess') + ` (Code: ${res.data.code})`);
         setScanCode('');
-        fetchPageData();
+        fetchPageData(1, pageMeta.limit);
       }
     } catch (err) {
       setActionError(err.response?.data?.message || 'Redemption failed');
@@ -124,6 +144,49 @@ const Coupons = () => {
             <span>{t('coupons.issueButton')}</span>
           </button>
         )}
+      </div>
+
+      <div className="surface-card flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+        <input
+          type="search"
+          value={filters.search}
+          onChange={(e) => updateFilters({ search: e.target.value })}
+          placeholder={t('common.search', { defaultValue: 'Search coupons' })}
+          className="glass-input lg:max-w-sm"
+        />
+        <div className="flex flex-wrap items-center gap-3">
+          <select
+            value={filters.sort}
+            onChange={(e) => updateFilters({ sort: e.target.value })}
+            className="glass-input !w-auto"
+          >
+            <option value="updatedAt">Updated</option>
+            <option value="createdAt">Created</option>
+            <option value="expiresAt">Expires</option>
+            <option value="code">Code</option>
+          </select>
+          <select
+            value={filters.order}
+            onChange={(e) => updateFilters({ order: e.target.value })}
+            className="glass-input !w-auto"
+          >
+            <option value="desc">Descending</option>
+            <option value="asc">Ascending</option>
+          </select>
+          <select
+            value={pageMeta.limit}
+            onChange={(e) => {
+              const limit = Number(e.target.value);
+              setPageMeta((meta) => ({ ...meta, limit }));
+              fetchPageData(1, limit, filters);
+            }}
+            className="glass-input !w-auto"
+          >
+            {[10, 25, 50, 100].map((size) => (
+              <option key={size} value={size}>{size} / page</option>
+            ))}
+          </select>
+        </div>
       </div>
 
       {/* Success/Error alert notifications */}
@@ -281,6 +344,14 @@ const Coupons = () => {
       {['ADMIN', 'HR'].includes(user?.role) && (
         <div className="glass-card p-6 space-y-4">
           <h3 className="text-lg font-semibold text-app-primary ">All Coupons Ledger</h3>
+          <div className="flex items-center justify-between gap-3 text-sm text-app-secondary">
+            <span>{pageMeta.total.toLocaleString()} records</span>
+            <div className="flex items-center gap-2">
+              <button className="btn-secondary" disabled={pageMeta.page <= 1} onClick={() => fetchPageData(pageMeta.page - 1, pageMeta.limit)}>Previous</button>
+              <span>Page {pageMeta.page} of {pageMeta.totalPages}</span>
+              <button className="btn-secondary" disabled={pageMeta.page >= pageMeta.totalPages} onClick={() => fetchPageData(pageMeta.page + 1, pageMeta.limit)}>Next</button>
+            </div>
+          </div>
           <div className="overflow-x-auto">
             <table className="w-full text-left text-sm border-collapse">
               <thead>

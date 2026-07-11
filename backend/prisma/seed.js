@@ -142,7 +142,7 @@ async function main() {
   const configStandard = await prisma.couponConfig.create({
     data: {
       name: 'Standard Canteen Meal',
-      value: 12.50,
+      value: 40,
       expiryWorkingDays: 5,
       createdById: finance.id,
     },

@@ -2,6 +2,8 @@ import bcrypt from 'bcryptjs';
 import prisma from '../../config/db.js';
 import auditService from '../audit/audit.service.js';
 
+const USER_SORT_FIELDS = new Set(['name', 'email', 'createdAt', 'role']);
+
 class UsersService {
   /**
    * Provisions a new user account, hashes password, logs action
@@ -44,23 +46,45 @@ class UsersService {
    * Retrieves users filtered by role
    */
   async getUsers(filters = {}) {
-    const { role } = filters;
+    const { role, search } = filters;
+    const page = Math.max(parseInt(filters.page, 10) || 1, 1);
+    const limit = Math.min(Math.max(parseInt(filters.limit, 10) || 25, 1), 100);
+    const skip = (page - 1) * limit;
+    const sort = USER_SORT_FIELDS.has(filters.sort) ? filters.sort : 'name';
+    const order = filters.order === 'desc' ? 'desc' : 'asc';
     const where = {};
     if (role) where.role = role;
+    if (search) {
+      where.OR = [
+        { name: { contains: search, mode: 'insensitive' } },
+        { email: { contains: search, mode: 'insensitive' } },
+      ];
+    }
 
-    const users = await prisma.user.findMany({
-      where,
-      select: {
-        id: true,
-        email: true,
-        name: true,
-        role: true,
-        createdAt: true,
-      },
-      orderBy: { name: 'asc' },
-    });
+    const [users, total] = await Promise.all([
+      prisma.user.findMany({
+        where,
+        select: {
+          id: true,
+          email: true,
+          name: true,
+          role: true,
+          createdAt: true,
+        },
+        orderBy: { [sort]: order },
+        skip,
+        take: limit,
+      }),
+      prisma.user.count({ where }),
+    ]);
 
-    return users;
+    return {
+      data: users,
+      page,
+      limit,
+      total,
+      totalPages: Math.max(Math.ceil(total / limit), 1),
+    };
   }
 }
 
