@@ -91,6 +91,197 @@ const addMonths = (date, months) => {
   return value;
 };
 
+const ETHIOPIA_TIME_ZONE = 'Africa/Addis_Ababa';
+const ETHIOPIA_OFFSET_MS = 3 * 60 * 60 * 1000;
+
+const ethiopianDateFormatter = new Intl.DateTimeFormat('en-u-ca-ethiopic-nu-latn', {
+  timeZone: ETHIOPIA_TIME_ZONE,
+  year: 'numeric',
+  month: 'numeric',
+  day: 'numeric',
+});
+
+const ethiopianShortFormatter = new Intl.DateTimeFormat('en-u-ca-ethiopic-nu-latn', {
+  timeZone: ETHIOPIA_TIME_ZONE,
+  year: 'numeric',
+  month: 'short',
+  day: 'numeric',
+});
+
+const gregorianPartsFormatter = new Intl.DateTimeFormat('en-US', {
+  timeZone: ETHIOPIA_TIME_ZONE,
+  year: 'numeric',
+  month: 'numeric',
+  day: 'numeric',
+});
+
+const gregorianShortFormatter = new Intl.DateTimeFormat('en-US', {
+  timeZone: ETHIOPIA_TIME_ZONE,
+  year: 'numeric',
+  month: 'short',
+  day: 'numeric',
+});
+
+const normalizeDate = (value) => {
+  if (!value) return null;
+  const date = value instanceof Date ? new Date(value.getTime()) : new Date(value);
+  return Number.isNaN(date.getTime()) ? null : date;
+};
+
+const getEthiopiaLocalDate = (value) => {
+  const date = normalizeDate(value);
+  if (!date) return null;
+  return new Date(date.getTime() + ETHIOPIA_OFFSET_MS);
+};
+
+const getEthiopianParts = (value) => {
+  const date = normalizeDate(value);
+  if (!date) return { year: 0, month: 0, day: 0 };
+  const parts = ethiopianDateFormatter.formatToParts(date);
+  return {
+    year: Number(parts.find((part) => part.type === 'year')?.value || 0),
+    month: Number(parts.find((part) => part.type === 'month')?.value || 0),
+    day: Number(parts.find((part) => part.type === 'day')?.value || 0),
+  };
+};
+
+const formatEthiopianDate = (value) => {
+  const { year, month, day } = getEthiopianParts(value);
+  if (!year || !month || !day) return '';
+  return `${String(month).padStart(2, '0')}/${String(day).padStart(2, '0')}/${year}`;
+};
+
+const formatEthiopianShortDate = (value) => {
+  const date = normalizeDate(value);
+  if (!date) return '';
+  return ethiopianShortFormatter.format(date).replace(/\s*ERA1$/, '');
+};
+
+const startOfEthiopiaDayUtc = (value) => {
+  const localDate = getEthiopiaLocalDate(value);
+  if (!localDate) return null;
+  return new Date(Date.UTC(localDate.getUTCFullYear(), localDate.getUTCMonth(), localDate.getUTCDate()) - ETHIOPIA_OFFSET_MS);
+};
+
+const endOfEthiopiaDayUtc = (value) => {
+  const localDate = getEthiopiaLocalDate(value);
+  if (!localDate) return null;
+  return new Date(Date.UTC(localDate.getUTCFullYear(), localDate.getUTCMonth(), localDate.getUTCDate(), 23, 59, 59, 999) - ETHIOPIA_OFFSET_MS);
+};
+
+const shiftUtcDays = (value, days) => {
+  const date = normalizeDate(value);
+  if (!date) return null;
+  const shifted = new Date(date.getTime());
+  shifted.setUTCDate(shifted.getUTCDate() + days);
+  return shifted;
+};
+
+const createGregorianMidday = (year, month, day) =>
+  new Date(Date.UTC(year, month - 1, day, 12, 0, 0, 0));
+
+const parseEthiopianInput = (value) => {
+  const normalized = String(value || '').trim().replace(/-/g, '/');
+  const match = normalized.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+  if (!match) return null;
+
+  const month = Number(match[1]);
+  const day = Number(match[2]);
+  const year = Number(match[3]);
+
+  if (!year || month < 1 || month > 13 || day < 1 || day > 30) {
+    return null;
+  }
+
+  return { year, month, day };
+};
+
+const ethiopianToGregorianDate = (ethiopianDate) => {
+  const target =
+    typeof ethiopianDate === 'string' ? parseEthiopianInput(ethiopianDate) : ethiopianDate;
+  if (!target) return null;
+
+  const approximateStart = createGregorianMidday(target.year + 7, 9, 11);
+  const searchWindow = 400;
+
+  for (let offset = -40; offset <= searchWindow; offset += 1) {
+    const candidate = new Date(approximateStart.getTime() + offset * 86400000);
+    const parts = getEthiopianParts(candidate);
+    if (parts.year === target.year && parts.month === target.month && parts.day === target.day) {
+      return candidate;
+    }
+  }
+
+  return null;
+};
+
+const parseGregorianInput = (value) => {
+  const normalized = String(value || '').trim();
+  const isoMatch = normalized.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (isoMatch) {
+    const year = Number(isoMatch[1]);
+    const month = Number(isoMatch[2]);
+    const day = Number(isoMatch[3]);
+    return new Date(Date.UTC(year, month - 1, day, 12, 0, 0, 0));
+  }
+
+  const mdyMatch = normalized.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+  if (!mdyMatch) return null;
+
+  const month = Number(mdyMatch[1]);
+  const day = Number(mdyMatch[2]);
+  const year = Number(mdyMatch[3]);
+  if (!year || month < 1 || month > 12 || day < 1 || day > 31) return null;
+  return new Date(Date.UTC(year, month - 1, day, 12, 0, 0, 0));
+};
+
+const getCalendarMode = (value) => (value === 'gregorian' ? 'gregorian' : 'ethiopian');
+
+const formatGregorianDate = (value) => {
+  const date = normalizeDate(value);
+  if (!date) return '';
+  const parts = gregorianPartsFormatter.formatToParts(date);
+  const month = Number(parts.find((part) => part.type === 'month')?.value || 0);
+  const day = Number(parts.find((part) => part.type === 'day')?.value || 0);
+  const year = Number(parts.find((part) => part.type === 'year')?.value || 0);
+  if (!year || !month || !day) return '';
+  return `${String(month).padStart(2, '0')}/${String(day).padStart(2, '0')}/${year}`;
+};
+
+const formatGregorianShortDate = (value) => {
+  const date = normalizeDate(value);
+  if (!date) return '';
+  return gregorianShortFormatter.format(date);
+};
+
+const getGregorianParts = (value) => {
+  const date = normalizeDate(value);
+  if (!date) return { year: 0, month: 0, day: 0 };
+  const parts = gregorianPartsFormatter.formatToParts(date);
+  return {
+    year: Number(parts.find((part) => part.type === 'year')?.value || 0),
+    month: Number(parts.find((part) => part.type === 'month')?.value || 0),
+    day: Number(parts.find((part) => part.type === 'day')?.value || 0),
+  };
+};
+
+const getCalendarParts = (calendarMode, value) =>
+  getCalendarMode(calendarMode) === 'gregorian' ? getGregorianParts(value) : getEthiopianParts(value);
+
+const formatCalendarDate = (calendarMode, value) =>
+  getCalendarMode(calendarMode) === 'gregorian' ? formatGregorianDate(value) : formatEthiopianDate(value);
+
+const formatCalendarShortDate = (calendarMode, value) =>
+  getCalendarMode(calendarMode) === 'gregorian' ? formatGregorianShortDate(value) : formatEthiopianShortDate(value);
+
+const parseCalendarDate = (calendarMode, value) =>
+  getCalendarMode(calendarMode) === 'gregorian' ? parseGregorianInput(value) : ethiopianToGregorianDate(value);
+
+const calendarPartsToGregorianDate = (calendarMode, parts) =>
+  getCalendarMode(calendarMode) === 'gregorian'
+    ? new Date(Date.UTC(parts.year, parts.month - 1, parts.day, 12, 0, 0, 0))
+    : ethiopianToGregorianDate(parts);
+
 class CouponsService {
   /**
    * Legacy wrapper for createCoupon to support frontend request parameters
@@ -379,63 +570,94 @@ class CouponsService {
     };
   }
 
-  /**
-   * Retrieves coupons list with role filtering and legacy mappings for frontend
-   */
   async getCouponScanReport(filters = {}) {
     const now = new Date();
     const rangeType = filters.range || 'thisMonth';
-    let startDate = filters.startDate ? new Date(filters.startDate) : null;
-    let endDate = filters.endDate ? new Date(filters.endDate) : null;
+    const calendarMode = getCalendarMode(filters.calendarMode);
+    let startDate = filters.startDate ? startOfEthiopiaDayUtc(parseCalendarDate(calendarMode, filters.startDate)) : null;
+    let endDate = filters.endDate ? endOfEthiopiaDayUtc(parseCalendarDate(calendarMode, filters.endDate)) : null;
 
     if (!startDate || !endDate) {
+      const todayStart = startOfEthiopiaDayUtc(now);
+      const todayEnd = endOfEthiopiaDayUtc(now);
+      const currentParts = getCalendarParts(calendarMode, now);
+
       if (rangeType === 'today') {
-        startDate = startOfDayUTC(now);
-        endDate = endOfDayUTC(now);
+        startDate = todayStart;
+        endDate = todayEnd;
       } else if (rangeType === 'yesterday') {
-        const yesterday = addDaysUTC(now, -1);
-        startDate = startOfDayUTC(yesterday);
-        endDate = endOfDayUTC(yesterday);
+        const yesterday = shiftUtcDays(todayStart, -1);
+        startDate = yesterday;
+        endDate = endOfEthiopiaDayUtc(yesterday);
       } else if (rangeType === 'thisWeek') {
-        startDate = startOfLocalWeek(now);
-        endDate = now;
+        const localNow = getEthiopiaLocalDate(now);
+        const day = localNow.getUTCDay();
+        const daysSinceMonday = (day + 6) % 7;
+        startDate = shiftUtcDays(todayStart, -daysSinceMonday);
+        endDate = todayEnd;
       } else if (rangeType === 'lastWeek') {
-        const weekStart = startOfLocalWeek(now);
-        startDate = addDays(weekStart, -7);
-        endDate = weekStart;
+        const localNow = getEthiopiaLocalDate(now);
+        const day = localNow.getUTCDay();
+        const daysSinceMonday = (day + 6) % 7;
+        const thisWeekStart = shiftUtcDays(todayStart, -daysSinceMonday);
+        startDate = shiftUtcDays(thisWeekStart, -7);
+        endDate = endOfEthiopiaDayUtc(shiftUtcDays(thisWeekStart, -1));
       } else if (rangeType === 'lastMonth') {
-        const monthStart = startOfLocalMonth(now);
-        startDate = addMonths(monthStart, -1);
-        endDate = monthStart;
+        const previousMonth =
+          currentParts.month === 1
+            ? { year: currentParts.year - 1, month: 13, day: 1 }
+            : { year: currentParts.year, month: currentParts.month - 1, day: 1 };
+        const previousMonthStart = calendarPartsToGregorianDate(calendarMode, previousMonth);
+        const currentMonthStart = calendarPartsToGregorianDate(calendarMode, {
+          year: currentParts.year,
+          month: currentParts.month,
+          day: 1,
+        });
+        startDate = startOfEthiopiaDayUtc(previousMonthStart || todayStart);
+        endDate = currentMonthStart
+          ? endOfEthiopiaDayUtc(shiftUtcDays(startOfEthiopiaDayUtc(currentMonthStart), -1))
+          : todayEnd;
       } else if (rangeType === 'thisYear') {
-        startDate = new Date(now.getFullYear(), 0, 1);
-        endDate = now;
+        const yearStart = calendarPartsToGregorianDate(calendarMode, {
+          year: currentParts.year,
+          month: 1,
+          day: 1,
+        });
+        startDate = startOfEthiopiaDayUtc(yearStart || todayStart);
+        endDate = todayEnd;
       } else if (rangeType === 'lifetime') {
         const oldestClaim = await prisma.couponClaim.findFirst({
           orderBy: { issuedAt: 'asc' },
-          select: { issuedAt: true }
+          select: { issuedAt: true },
         });
-        startDate = oldestClaim ? oldestClaim.issuedAt : startOfLocalMonth(now);
-        endDate = now;
+        startDate = oldestClaim ? startOfEthiopiaDayUtc(oldestClaim.issuedAt) : todayStart;
+        endDate = todayEnd;
       } else {
-        startDate = startOfLocalMonth(now);
-        endDate = now;
+        const monthStart = calendarPartsToGregorianDate(calendarMode, {
+          year: currentParts.year,
+          month: currentParts.month,
+          day: 1,
+        });
+        startDate = startOfEthiopiaDayUtc(monthStart || todayStart);
+        endDate = todayEnd;
       }
     }
 
-    startDate = startOfDayUTC(startDate);
-    endDate = endOfDayUTC(endDate);
+    if (!startDate || !endDate) {
+      startDate = startOfEthiopiaDayUtc(now);
+      endDate = endOfEthiopiaDayUtc(now);
+    }
 
     const rangeDays = Math.max(1, Math.ceil((endDate - startDate) / 86400000) + 1);
-    const previousStart = addDaysUTC(startDate, -rangeDays);
-    const previousEnd = addDaysUTC(startDate, -1);
+    const previousStart = shiftUtcDays(startDate, -rangeDays);
+    const previousEnd = endOfEthiopiaDayUtc(shiftUtcDays(startDate, -1));
 
-    const rangeLabel = `${startDate.toLocaleDateString()} → ${endDate.toLocaleDateString()}`;
+    const rangeLabel = `${formatCalendarDate(calendarMode, startDate)} -> ${formatCalendarDate(calendarMode, endDate)}`;
 
     const aggregateRange = async (from, to) => {
       const rows = await prisma.$queryRaw`
         SELECT
-          DATE_TRUNC('day', cc."issuedAt")::date AS day,
+          DATE_TRUNC('day', cc."issuedAt" + INTERVAL '3 hours')::date AS day,
           COUNT(*)::int AS count,
           COALESCE(SUM(c."value"), 0)::numeric AS amount
         FROM "CouponClaim" cc
@@ -473,7 +695,7 @@ class CouponsService {
       const match = selectedRowMap.get(key);
       chartSeries.push({
         date: key,
-        label: dayCursor.toLocaleDateString(undefined, { month: 'short', day: 'numeric' }),
+        label: formatCalendarShortDate(calendarMode, dayCursor),
         count: match?.count || 0,
         amount: match?.amount || 0,
       });
@@ -487,6 +709,7 @@ class CouponsService {
         endDate,
         label: rangeLabel,
         rangeType,
+        calendarMode,
       },
       chartSeries,
       summary: {

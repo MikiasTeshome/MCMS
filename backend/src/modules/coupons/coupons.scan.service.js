@@ -6,6 +6,7 @@ import { calculateExpiryDate } from '../../utils/expiry.js';
 
 
 const SCAN_SESSION_MINUTES = 15;
+const ADDIS_TIME_ZONE = 'Africa/Addis_Ababa';
 
 /** Fallback when Prisma client has not been regenerated yet */
 const scanSessionMemory = new Map();
@@ -59,6 +60,76 @@ function deviceInfoFromReq(req) {
   if (!req) return null;
   return req.headers['user-agent'] || null;
 }
+
+const addisDayFormatter = new Intl.DateTimeFormat('en-CA', {
+  timeZone: ADDIS_TIME_ZONE,
+  year: 'numeric',
+  month: '2-digit',
+  day: '2-digit',
+});
+
+const normalizeDateInput = (value) => {
+  if (value === undefined || value === null || value === '') return null;
+  const date = value instanceof Date ? new Date(value.getTime()) : new Date(value);
+  return Number.isNaN(date.getTime()) ? null : date;
+};
+
+const getAddisDayKey = (value) => {
+  const date = normalizeDateInput(value);
+  if (!date) return '';
+
+  const parts = addisDayFormatter.formatToParts(date);
+  const year = parts.find((part) => part.type === 'year')?.value || '';
+  const month = parts.find((part) => part.type === 'month')?.value || '';
+  const day = parts.find((part) => part.type === 'day')?.value || '';
+  if (!year || !month || !day) return '';
+  return `${year}-${month}-${day}`;
+};
+
+const isEmployeeOnLeave = (profile, referenceDate = new Date()) => {
+  if (!profile?.leaveStartDate || !profile?.leaveReturnDate) {
+    return false;
+  }
+
+  const todayKey = getAddisDayKey(referenceDate);
+  const startKey = getAddisDayKey(profile.leaveStartDate);
+  const returnKey = getAddisDayKey(profile.leaveReturnDate);
+
+  if (!todayKey || !startKey || !returnKey) {
+    return false;
+  }
+
+  return todayKey >= startKey && todayKey < returnKey;
+};
+
+const EMPLOYEE_SCAN_SELECT = {
+  id: true,
+  email: true,
+  name: true,
+  role: true,
+  isActive: true,
+  employeeProfile: {
+    select: {
+      department: true,
+      position: true,
+      employeeIdNumber: true,
+      staffType: true,
+      leaveDays: true,
+      leaveStartDate: true,
+      leaveReturnDate: true,
+      createdAt: true,
+      updatedAt: true,
+    },
+  },
+};
+
+const QR_CARD_SELECT = {
+  id: true,
+  cardCode: true,
+  status: true,
+  createdAt: true,
+  updatedAt: true,
+};
 
 class CouponsScanService {
   /**
@@ -239,7 +310,9 @@ class CouponsScanService {
     }
   }
 
-  async buildEmployeeCouponStats(employeeId) {
+  async buildEmployeeCouponStats(employeeId, options = {}) {
+    const allowAccrual = options.allowAccrual !== false;
+
     // --- Step 1: Lazy weekly reset ---
     // Before counting, void any ALLOCATED coupons from a previous week.
     await this.voidLastWeekCoupons(employeeId);
@@ -247,7 +320,9 @@ class CouponsScanService {
     // --- Step 2: Self-healing catch-up ---
     // Ensure the employee has the correct number of coupons for this week.
     // Handles cold-start (scheduler never ran) and missed cron days.
-    await this.ensureWeeklyCoupons(employeeId);
+    if (allowAccrual) {
+      await this.ensureWeeklyCoupons(employeeId);
+    }
 
     const now = new Date();
     const weekStart = startOfWeek(now);
@@ -333,10 +408,13 @@ class CouponsScanService {
     };
   }
 
-  async validateEmployeeForScan(employeeId) {
+  async validateEmployeeForScan(employeeId, options = {}) {
+    const allowLeave = options.allowLeave === true;
+    const requireActiveCard = options.requireActiveCard !== false;
+
     const employee = await prisma.user.findUnique({
       where: { id: employeeId },
-      include: { employeeProfile: true },
+      select: EMPLOYEE_SCAN_SELECT,
     });
 
     if (!employee || employee.role !== 'EMPLOYEE') {
@@ -351,14 +429,30 @@ class CouponsScanService {
       throw err;
     }
 
-    const qrCard = await this.getActiveQRCard(employeeId);
-    if (!qrCard) {
-      const err = new Error('QR card is invalid.');
-      err.code = 'QR_INVALID';
+    const leaveState = {
+      isOnLeave: isEmployeeOnLeave(employee.employeeProfile),
+      leaveDays: employee.employeeProfile?.leaveDays ?? null,
+      leaveStartDate: employee.employeeProfile?.leaveStartDate ?? null,
+      leaveReturnDate: employee.employeeProfile?.leaveReturnDate ?? null,
+    };
+
+    if (leaveState.isOnLeave && !allowLeave) {
+      const err = new Error('Employee is currently on leave.');
+      err.code = 'ON_LEAVE';
       throw err;
     }
 
-    return { employee, qrCard };
+    let qrCard = null;
+    if (requireActiveCard) {
+      qrCard = await this.getActiveQRCard(employeeId);
+      if (!qrCard) {
+        const err = new Error('QR card is invalid.');
+        err.code = 'QR_INVALID';
+        throw err;
+      }
+    }
+
+    return { employee, qrCard, leaveState };
   }
 
   async recordScanSession(employeeId, staffId, req) {
@@ -434,7 +528,23 @@ class CouponsScanService {
       throw e;
     }
 
-    const { employee } = await this.validateEmployeeForScan(employeeId);
+    let employeeContext;
+    try {
+      employeeContext = await this.validateEmployeeForScan(employeeId);
+    } catch (error) {
+      if (error.code === 'ON_LEAVE') {
+        await auditService.log({
+          action: 'COUPON_BLOCKED',
+          entityType: 'Employee',
+          entityId: employeeId,
+          actorId: staffId,
+          newState: { reason: 'Employee is currently on leave.' },
+          req,
+        });
+      }
+      throw error;
+    }
+    const { employee, leaveState } = employeeContext;
     const stats = await this.buildEmployeeCouponStats(employeeId);
 
     await this.recordScanSession(employeeId, staffId, req);
@@ -467,6 +577,7 @@ class CouponsScanService {
       weekBalance: stats.weekBalance,
       dailyCap: stats.dailyCap,
       couponsRedeemableNow: stats.couponsRedeemableNow,
+      leaveStatus: leaveState,
       eligible:
         stats.couponsRedeemableNow > 0 &&
         !stats.claimedToday,
@@ -491,7 +602,23 @@ class CouponsScanService {
       throw new Error('Valid employeeId is required.');
     }
 
-    const { employee } = await this.validateEmployeeForScan(employeeId);
+    let employeeContext;
+    try {
+      employeeContext = await this.validateEmployeeForScan(employeeId);
+    } catch (error) {
+      if (error.code === 'ON_LEAVE') {
+        await auditService.log({
+          action: 'COUPON_BLOCKED',
+          entityType: 'Employee',
+          entityId: employeeId,
+          actorId: issuedById,
+          newState: { reason: 'Employee is currently on leave.' },
+          req,
+        });
+      }
+      throw error;
+    }
+    const { employee } = employeeContext;
 
     const scannedFirst =
       isAdmin && cleanOverrideReason
@@ -676,8 +803,13 @@ class CouponsScanService {
       throw err;
     }
 
-    const { employee } = await this.validateEmployeeForScan(employeeId);
-    const stats = await this.buildEmployeeCouponStats(employeeId);
+    const { employee, leaveState } = await this.validateEmployeeForScan(employeeId, {
+      allowLeave: true,
+      requireActiveCard: false,
+    });
+    const stats = await this.buildEmployeeCouponStats(employeeId, {
+      allowAccrual: !leaveState.isOnLeave,
+    });
 
     const recentClaims = hasCouponClaimModel()
       ? await prisma.couponClaim.findMany({
@@ -724,6 +856,7 @@ class CouponsScanService {
       weekBalance: stats.weekBalance,
       dailyCap: stats.dailyCap,
       couponsRedeemableNow: stats.couponsRedeemableNow,
+      leaveStatus: leaveState,
       recentClaimHistory: recentClaims.map((c) => ({
         couponCode: c.coupon.code,
         value: Number(c.coupon.value),

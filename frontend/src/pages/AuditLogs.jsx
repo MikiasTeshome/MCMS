@@ -1,12 +1,15 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext.jsx';
+import { useCalendar } from '../context/CalendarContext.jsx';
 import { useTranslation } from 'react-i18next';
 import { getAuditLogs } from '../services/audit.service.js';
 import { PageHeader, PageSkeleton } from '../components/ui/Page.jsx';
 import { ShieldAlert, RefreshCw, Eye, Calendar, Terminal } from 'lucide-react';
+import { formatCalendarDateTime } from '../utils/ethiopianDate.js';
 
 const AuditLogs = () => {
   const { user } = useAuth();
+  const { calendarMode } = useCalendar();
   const { t } = useTranslation();
 
   const [logs, setLogs] = useState([]);
@@ -136,7 +139,7 @@ const AuditLogs = () => {
                       <div className="text-xs text-app-muted">{log.actor?.email || ''}</div>
                     </td>
                     <td className="py-3 font-mono text-xs text-app-secondary">{log.ipAddress || '-'}</td>
-                    <td className="py-3 text-app-secondary">{new Date(log.createdAt).toLocaleString()}</td>
+                    <td className="py-3 text-app-secondary">{formatCalendarDateTime(calendarMode, log.createdAt)}</td>
                     <td className="py-3 text-right">
                       <button
                         onClick={() => setSelectedLog(log)}
@@ -220,7 +223,7 @@ const AuditLogs = () => {
                 </div>
                 <div>
                   <span className="text-app-muted block uppercase font-bold tracking-wider mb-1">Execution Time</span>
-                  <span className="text-white">{new Date(selectedLog.createdAt).toLocaleString()}</span>
+                  <span className="text-white">{formatCalendarDateTime(calendarMode, selectedLog.createdAt)}</span>
                 </div>
                 <div className="col-span-full border-t border-slate-850 pt-2 mt-2">
                   <span className="text-app-muted block uppercase font-bold tracking-wider mb-1">User Agent</span>

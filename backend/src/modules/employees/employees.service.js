@@ -7,6 +7,39 @@ const EMP_ID_PREFIX = 'EMP-';
 const EMP_ID_BASE = 10000;
 const EMPLOYEE_SORT_FIELDS = new Set(['name', 'createdAt', 'email', 'updatedAt']);
 
+const EMPLOYEE_PROFILE_SELECT = {
+  id: true,
+  department: true,
+  position: true,
+  employeeIdNumber: true,
+  staffType: true,
+  leaveDays: true,
+  leaveStartDate: true,
+  leaveReturnDate: true,
+  createdAt: true,
+  updatedAt: true,
+};
+
+const QR_CARD_SELECT = {
+  id: true,
+  cardCode: true,
+  status: true,
+  createdAt: true,
+  updatedAt: true,
+};
+
+const normalizeDateInput = (value) => {
+  if (value === undefined || value === null || value === '') return null;
+  const date = value instanceof Date ? new Date(value.getTime()) : new Date(value);
+  return Number.isNaN(date.getTime()) ? null : date;
+};
+
+const normalizeLeaveDays = (value) => {
+  if (value === undefined || value === null || value === '') return null;
+  const days = Number.parseInt(value, 10);
+  return Number.isFinite(days) && days > 0 ? days : null;
+};
+
 class EmployeesService {
   /**
    * Finds the highest numeric suffix among existing EMP- IDs.
@@ -84,6 +117,9 @@ class EmployeesService {
       employeeIdNumber,
       staffType,
       joinedDate,
+      leaveDays,
+      leaveStartDate,
+      leaveReturnDate,
     } = data;
 
     let joinedAt = new Date();
@@ -119,6 +155,9 @@ class EmployeesService {
           position,
           employeeIdNumber,
           staffType: staffType || 'Standard',
+          leaveDays: normalizeLeaveDays(leaveDays),
+          leaveStartDate: normalizeDateInput(leaveStartDate),
+          leaveReturnDate: normalizeDateInput(leaveReturnDate),
           createdAt: joinedAt,
         },
       });
@@ -199,9 +238,12 @@ class EmployeesService {
           name: true,
           role: true,
           isActive: true,
-          employeeProfile: true,
+          employeeProfile: {
+            select: EMPLOYEE_PROFILE_SELECT,
+          },
           qrCards: {
             where: { status: 'ACTIVE' },
+            select: QR_CARD_SELECT,
           },
           createdAt: true,
         },
@@ -232,18 +274,21 @@ class EmployeesService {
   async getAllEmployees() {
     return prisma.user.findMany({
       where: { role: 'EMPLOYEE' },
-      select: {
-        id: true,
-        email: true,
-        name: true,
-        role: true,
-        isActive: true,
-        employeeProfile: true,
-        qrCards: {
-          where: { status: 'ACTIVE' },
+        select: {
+          id: true,
+          email: true,
+          name: true,
+          role: true,
+          isActive: true,
+          employeeProfile: {
+            select: EMPLOYEE_PROFILE_SELECT,
+          },
+          qrCards: {
+            where: { status: 'ACTIVE' },
+            select: QR_CARD_SELECT,
+          },
+          createdAt: true,
         },
-        createdAt: true,
-      },
       orderBy: { name: 'asc' },
     });
   }
@@ -254,7 +299,16 @@ class EmployeesService {
   async updateEmployee(id, data, actorId, req) {
     const oldData = await prisma.user.findUnique({
       where: { id },
-      include: { employeeProfile: true },
+      select: {
+        id: true,
+        email: true,
+        name: true,
+        role: true,
+        isActive: true,
+        employeeProfile: {
+          select: EMPLOYEE_PROFILE_SELECT,
+        },
+      },
     });
 
     if (!oldData || oldData.role !== 'EMPLOYEE') {
@@ -281,6 +335,19 @@ class EmployeesService {
             department: data.department !== undefined ? data.department : oldData.employeeProfile.department,
             position: data.position !== undefined ? data.position : oldData.employeeProfile.position,
             employeeIdNumber: data.employeeIdNumber !== undefined ? data.employeeIdNumber : oldData.employeeProfile.employeeIdNumber,
+            staffType: data.staffType !== undefined ? data.staffType : oldData.employeeProfile.staffType,
+            leaveDays:
+              data.leaveDays !== undefined
+                ? normalizeLeaveDays(data.leaveDays)
+                : oldData.employeeProfile.leaveDays,
+            leaveStartDate:
+              data.leaveStartDate !== undefined
+                ? normalizeDateInput(data.leaveStartDate)
+                : oldData.employeeProfile.leaveStartDate,
+            leaveReturnDate:
+              data.leaveReturnDate !== undefined
+                ? normalizeDateInput(data.leaveReturnDate)
+                : oldData.employeeProfile.leaveReturnDate,
           },
         });
       }
@@ -363,7 +430,16 @@ class EmployeesService {
   async deleteEmployee(id, actorId, req) {
     const employee = await prisma.user.findUnique({
       where: { id },
-      include: { employeeProfile: true },
+      select: {
+        id: true,
+        email: true,
+        name: true,
+        role: true,
+        isActive: true,
+        employeeProfile: {
+          select: EMPLOYEE_PROFILE_SELECT,
+        },
+      },
     });
 
     if (!employee || employee.role !== 'EMPLOYEE') {

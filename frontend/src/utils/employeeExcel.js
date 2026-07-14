@@ -7,6 +7,9 @@ const EXPORT_HEADERS = [
   'Department',
   'Position',
   'Staff Type',
+  'Leave Days',
+  'Leave Start Date',
+  'Leave Return Date',
   'Active',
   'QR Card Code',
   'Joined Date',
@@ -95,6 +98,13 @@ export function exportEmployeesToExcel(employees, filename = 'employees.xlsx') {
       Department: emp.employeeProfile?.department || '',
       Position: emp.employeeProfile?.position || '',
       'Staff Type': emp.employeeProfile?.staffType || 'Standard',
+      'Leave Days': emp.employeeProfile?.leaveDays ?? '',
+      'Leave Start Date': emp.employeeProfile?.leaveStartDate
+        ? new Date(emp.employeeProfile.leaveStartDate).toLocaleDateString()
+        : '',
+      'Leave Return Date': emp.employeeProfile?.leaveReturnDate
+        ? new Date(emp.employeeProfile.leaveReturnDate).toLocaleDateString()
+        : '',
       Active: emp.isActive ? 'Yes' : 'No',
       'QR Card Code': emp.qrCards?.[0]?.cardCode || '',
       'Joined Date': emp.createdAt ? new Date(emp.createdAt).toLocaleDateString() : '',

@@ -1,6 +1,7 @@
 import React from 'react';
 import { BrowserRouter } from 'react-router-dom';
 import { AuthProvider } from './context/AuthContext.jsx';
+import { CalendarProvider } from './context/CalendarContext.jsx';
 import { ThemeProvider } from './context/ThemeContext.jsx';
 import { ToastProvider } from './context/ToastContext.jsx';
 import { I18nProvider } from './i18n/I18nProvider.jsx';
@@ -13,9 +14,11 @@ function App() {
       <ThemeProvider>
         <I18nProvider>
           <AuthProvider>
-            <ToastProvider>
-              <AppRoutes />
-            </ToastProvider>
+            <CalendarProvider>
+              <ToastProvider>
+                <AppRoutes />
+              </ToastProvider>
+            </CalendarProvider>
           </AuthProvider>
         </I18nProvider>
       </ThemeProvider>

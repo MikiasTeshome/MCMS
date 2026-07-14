@@ -1,14 +1,16 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useAuth } from '../../context/AuthContext.jsx';
+import { useCalendar } from '../../context/CalendarContext.jsx';
 import { useI18n } from '../../i18n/I18nProvider.jsx';
 import { useTranslation } from 'react-i18next';
 import { useTheme } from '../../context/ThemeContext.jsx';
-import { Languages, User as UserIcon, Menu, Search, Sun, Moon, ChevronDown } from 'lucide-react';
+import { Languages, User as UserIcon, Menu, Search, Sun, Moon, ChevronDown, CalendarDays } from 'lucide-react';
 
 const Header = ({ onMenuToggle }) => {
   const { user } = useAuth();
   const { t } = useTranslation();
   const { language, changeLanguage } = useI18n();
+  const { calendarMode, setCalendarMode } = useCalendar();
   const { isDark, toggleTheme } = useTheme();
   const [profileOpen, setProfileOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
@@ -61,6 +63,19 @@ const Header = ({ onMenuToggle }) => {
           >
             <option value="en">EN</option>
             <option value="am">AM</option>
+          </select>
+        </div>
+
+        <div className="flex items-center gap-1.5 rounded-full px-3 py-1.5 border border-app-border bg-app-surface">
+          <CalendarDays className="w-3.5 h-3.5 text-app-muted" aria-hidden="true" />
+          <select
+            value={calendarMode}
+            onChange={(e) => setCalendarMode(e.target.value)}
+            aria-label="Calendar"
+            className="bg-transparent text-xs text-app-secondary font-medium focus:outline-none cursor-pointer"
+          >
+            <option value="ethiopian">ET</option>
+            <option value="gregorian">GR</option>
           </select>
         </div>
 

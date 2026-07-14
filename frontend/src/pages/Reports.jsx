@@ -1,7 +1,15 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import { useCalendar } from '../context/CalendarContext.jsx';
 import { PageHeader, PageSkeleton } from '../components/ui/Page.jsx';
 import { getCouponScanReport } from '../services/couponScan.service.js';
+import {
+  formatCalendarDate,
+  formatCalendarDateRange,
+  formatCalendarShortDate,
+  parseCalendarDateString,
+  toIsoDay,
+} from '../utils/ethiopianDate.js';
 import { CalendarDays, Download, Printer, TrendingUp, ArrowUpRight, ArrowDownRight } from 'lucide-react';
 
 const PRESETS = [
@@ -15,10 +23,16 @@ const PRESETS = [
   { key: 'lifetime', label: 'Lifetime' },
 ];
 
-const toInputDate = (date) => new Date(date).toISOString().slice(0, 10);
+const isPresetKey = (key) => PRESETS.some((preset) => preset.key === key);
+
+const CALENDARS = {
+  ethiopian: 'Ethiopian Calendar',
+  gregorian: 'Gregorian Calendar',
+};
 
 const Reports = () => {
   const { t } = useTranslation();
+  const { calendarMode } = useCalendar();
   const chartRef = useRef(null);
   const [loading, setLoading] = useState(true);
   const [report, setReport] = useState(null);
@@ -42,15 +56,41 @@ const Reports = () => {
     }
   };
 
+  const loadPresetReport = async (presetKey) => {
+    await loadReport({ range: presetKey, calendarMode });
+  };
+
   useEffect(() => {
-    loadReport({ range: activePreset });
-  }, [activePreset]);
+    if (!isPresetKey(activePreset)) return;
+    loadPresetReport(activePreset);
+  }, [activePreset, calendarMode]);
+
+  useEffect(() => {
+    setCustomRange({ startDate: '', endDate: '' });
+  }, [calendarMode]);
+
+  useEffect(() => {
+    if (!report?.selectedRange?.startDate || !report?.selectedRange?.endDate) return;
+    if (!isPresetKey(activePreset)) return;
+    setCustomRange({
+      startDate: formatCalendarDate(calendarMode, report.selectedRange.startDate),
+      endDate: formatCalendarDate(calendarMode, report.selectedRange.endDate),
+    });
+  }, [report, activePreset, calendarMode]);
 
   useEffect(() => {
     setTablePage(1);
   }, [activePreset, tableSort.key, tableSort.order]);
 
-  const rangeLabel = report?.selectedRange?.label || '';
+  const selectedRangeLabel = useMemo(() => {
+    const startDate = report?.selectedRange?.startDate;
+    const endDate = report?.selectedRange?.endDate;
+    if (startDate && endDate) {
+      return formatCalendarDateRange(calendarMode, startDate, endDate);
+    }
+    return report?.selectedRange?.label || '';
+  }, [report, calendarMode]);
+
   const series = report?.chartSeries || [];
   const selectedCount = report?.metrics?.selectedCount || 0;
   const selectedAmount = report?.metrics?.selectedAmount || 0;
@@ -59,12 +99,32 @@ const Reports = () => {
   const summary = report?.summary || {};
 
   const chartData = useMemo(() => {
-    return series.map((item, index) => ({
-      ...item,
-      value: activeMetric === 'amount' ? item.amount : item.count,
-      index,
-    }));
-  }, [series, activeMetric]);
+    return series.map((item, index) => {
+      const dateLabel = formatCalendarShortDate(calendarMode, item.date) || item.label;
+      return {
+        ...item,
+        label: dateLabel,
+        value: activeMetric === 'amount' ? item.amount : item.count,
+        index,
+      };
+    });
+  }, [series, activeMetric, calendarMode]);
+
+  const summaryHighestDay = useMemo(() => {
+    if (!summary.highestScanDay) return null;
+    return {
+      ...summary.highestScanDay,
+      label: formatCalendarShortDate(calendarMode, summary.highestScanDay.date) || summary.highestScanDay.label,
+    };
+  }, [summary.highestScanDay, calendarMode]);
+
+  const summaryLowestDay = useMemo(() => {
+    if (!summary.lowestScanDay) return null;
+    return {
+      ...summary.lowestScanDay,
+      label: formatCalendarShortDate(calendarMode, summary.lowestScanDay.date) || summary.lowestScanDay.label,
+    };
+  }, [summary.lowestScanDay, calendarMode]);
 
   const maxValue = Math.max(1, ...chartData.map((item) => item.value));
   const minValue = Math.min(0, ...chartData.map((item) => item.value));
@@ -80,7 +140,7 @@ const Reports = () => {
   });
 
   const pathD = points.map((p, idx) => `${idx === 0 ? 'M' : 'L'} ${p.x} ${p.y}`).join(' ');
-  const areaD = `${pathD} L ${points.at(-1)?.x || padding} ${height - padding} L ${points[0]?.x || padding} ${height - padding} Z`;
+  const areaD = `${pathD} L ${points[points.length - 1]?.x || padding} ${height - padding} L ${points[0]?.x || padding} ${height - padding} Z`;
 
   const sortedTable = useMemo(() => {
     const rows = [...chartData];
@@ -88,7 +148,7 @@ const Reports = () => {
       const dir = tableSort.order === 'asc' ? 1 : -1;
       if (tableSort.key === 'count') return dir * (a.count - b.count);
       if (tableSort.key === 'amount') return dir * (a.amount - b.amount);
-      return dir * a.date.localeCompare(b.date);
+      return dir * String(a.date || '').localeCompare(String(b.date || ''));
     });
     return rows;
   }, [chartData, tableSort]);
@@ -126,22 +186,47 @@ const Reports = () => {
     const ws = XLSX.utils.json_to_sheet(rows);
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, 'Coupon Scan Report');
-    XLSX.writeFile(wb, `coupon-scan-report-${toInputDate(new Date())}.xlsx`);
+    XLSX.writeFile(wb, `coupon-scan-report-${toIsoDay(new Date())}.xlsx`);
   };
 
   const exportPdf = () => window.print();
 
+  const handlePresetClick = (presetKey) => {
+    setActivePreset(presetKey);
+  };
+
+  const handleApplyCustomRange = () => {
+    const start = parseCalendarDateString(calendarMode, customRange.startDate);
+    const end = parseCalendarDateString(calendarMode, customRange.endDate);
+    if (!start || !end) return;
+
+    const startDate = start <= end ? start : end;
+    const endDate = start <= end ? end : start;
+
+    setActivePreset('custom');
+    loadReport({
+      startDate: toIsoDay(startDate),
+      endDate: toIsoDay(endDate),
+      calendarMode,
+    });
+  };
+
+  const handleResetRange = () => {
+    setCustomRange({ startDate: '', endDate: '' });
+    setActivePreset('thisMonth');
+  };
+
   if (loading || !report) return <PageSkeleton cards={3} table={false} />;
 
   const summaryItems = [
-    { label: 'Date Range', value: rangeLabel },
+    { label: 'Date Range', value: selectedRangeLabel },
     { label: 'Coupons Scanned', value: selectedCount.toLocaleString() },
     { label: 'Standard Rate', value: `${rate.toLocaleString()} ${t('common.birr')}` },
     { label: 'Total Revenue', value: `${selectedAmount.toLocaleString()} ${t('common.birr')}` },
     { label: 'Average / Day', value: summary.averagePerDay?.toLocaleString?.() ?? summary.averagePerDay ?? 0 },
     { label: 'Revenue / Day', value: `${summary.averageRevenuePerDay?.toLocaleString?.() ?? summary.averageRevenuePerDay ?? 0} ${t('common.birr')}` },
-    { label: 'Highest Day', value: summary.highestScanDay?.label || '—' },
-    { label: 'Lowest Day', value: summary.lowestScanDay?.label || '—' },
+    { label: 'Highest Day', value: summaryHighestDay?.label || '-' },
+    { label: 'Lowest Day', value: summaryLowestDay?.label || '-' },
   ];
 
   return (
@@ -152,7 +237,7 @@ const Reports = () => {
           subtitle={
             <span className="flex flex-wrap items-center gap-2">
               <CalendarDays className="w-4 h-4 text-app-secondary" />
-              <span>{rangeLabel}</span>
+              <span>{selectedRangeLabel}</span>
             </span>
           }
         />
@@ -174,7 +259,7 @@ const Reports = () => {
             <button
               key={preset.key}
               type="button"
-              onClick={() => setActivePreset(preset.key)}
+              onClick={() => handlePresetClick(preset.key)}
               className={`px-4 py-2 rounded-card border text-sm font-semibold transition-colors ${
                 activePreset === preset.key ? 'text-white border-transparent' : 'text-app-secondary border-app-border hover:text-app-primary'
               }`}
@@ -188,30 +273,33 @@ const Reports = () => {
         <div className="grid grid-cols-1 md:grid-cols-3 gap-3 items-end">
           <div className="space-y-2">
             <label className="text-xs font-bold text-app-secondary uppercase tracking-wider">Start Date</label>
-            <input type="date" value={customRange.startDate} onChange={(e) => setCustomRange((v) => ({ ...v, startDate: e.target.value }))} className="glass-input" />
+            <input
+              type="text"
+              inputMode="numeric"
+              placeholder="MM/DD/YYYY"
+              value={customRange.startDate}
+              onChange={(e) => setCustomRange((value) => ({ ...value, startDate: e.target.value }))}
+              className="glass-input"
+            />
+            <p className="text-xs text-app-muted">Enter the {CALENDARS[calendarMode].toLowerCase()} date in MM/DD/YYYY format.</p>
           </div>
           <div className="space-y-2">
             <label className="text-xs font-bold text-app-secondary uppercase tracking-wider">End Date</label>
-            <input type="date" value={customRange.endDate} onChange={(e) => setCustomRange((v) => ({ ...v, endDate: e.target.value }))} className="glass-input" />
+            <input
+              type="text"
+              inputMode="numeric"
+              placeholder="MM/DD/YYYY"
+              value={customRange.endDate}
+              onChange={(e) => setCustomRange((value) => ({ ...value, endDate: e.target.value }))}
+              className="glass-input"
+            />
+            <p className="text-xs text-app-muted">Stored and queried as Gregorian UTC behind the scenes.</p>
           </div>
           <div className="flex gap-2">
-            <button
-              className="btn-primary w-full"
-              onClick={() => {
-                if (!customRange.startDate || !customRange.endDate) return;
-                setActivePreset('custom');
-                loadReport({ startDate: customRange.startDate, endDate: customRange.endDate });
-              }}
-            >
+            <button className="btn-primary w-full" onClick={handleApplyCustomRange}>
               Apply
             </button>
-            <button
-              className="btn-secondary w-full"
-              onClick={() => {
-                setCustomRange({ startDate: '', endDate: '' });
-                setActivePreset('thisMonth');
-              }}
-            >
+            <button className="btn-secondary w-full" onClick={handleResetRange}>
               Reset
             </button>
           </div>
@@ -294,11 +382,15 @@ const Reports = () => {
                   {comparison ? comparisonBadge(comparison.selectedVsPreviousAmount) : <span className="text-app-muted">No comparison</span>}
                 </div>
                 <div className="pt-2 border-t border-app-border text-xs text-app-muted">
-                  {summary.highestScanDay?.label && (
-                    <div>Highest day: <span className="text-app-primary">{summary.highestScanDay.label}</span></div>
+                  {summaryHighestDay?.label && (
+                    <div>
+                      Highest day: <span className="text-app-primary">{summaryHighestDay.label}</span>
+                    </div>
                   )}
-                  {summary.lowestScanDay?.label && (
-                    <div>Lowest day: <span className="text-app-primary">{summary.lowestScanDay.label}</span></div>
+                  {summaryLowestDay?.label && (
+                    <div>
+                      Lowest day: <span className="text-app-primary">{summaryLowestDay.label}</span>
+                    </div>
                   )}
                 </div>
               </div>
@@ -331,7 +423,16 @@ const Reports = () => {
                     ['rate', 'Standard Rate'],
                   ].map(([key, label]) => (
                     <th key={key} className="sticky top-0 bg-app-surface z-10">
-                      <button type="button" className="inline-flex items-center gap-1" onClick={() => setTableSort((s) => ({ key, order: s.key === key && s.order === 'asc' ? 'desc' : 'asc' }))}>
+                      <button
+                        type="button"
+                        className="inline-flex items-center gap-1"
+                        onClick={() =>
+                          setTableSort((s) => ({
+                            key,
+                            order: s.key === key && s.order === 'asc' ? 'desc' : 'asc',
+                          }))
+                        }
+                      >
                         {label}
                       </button>
                     </th>

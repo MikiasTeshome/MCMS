@@ -71,6 +71,9 @@ model EmployeeProfile {
   position         String
   employeeIdNumber String   @unique // HR identification ID (e.g. EMP-10024)
   staffType        String   @default("Standard")
+  leaveDays        Int?     // Total leave duration requested by HR
+  leaveStartDate   DateTime?
+  leaveReturnDate  DateTime?
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
 }

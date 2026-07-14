@@ -27,6 +27,9 @@ export const scanCoupon = async (req, res, next) => {
     if (error.code === 'INACTIVE') {
       return errorResponse(res, 400, error.message);
     }
+    if (error.code === 'ON_LEAVE') {
+      return errorResponse(res, 403, error.message);
+    }
     next(error);
   }
 };
@@ -59,6 +62,9 @@ export const issueScannedCoupon = async (req, res, next) => {
     }
     if (error.code === 'DUPLICATE_CLAIM') {
       return errorResponse(res, 400, error.message);
+    }
+    if (error.code === 'ON_LEAVE') {
+      return errorResponse(res, 403, error.message);
     }
     return errorResponse(res, 400, error.message);
   }

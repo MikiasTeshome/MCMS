@@ -1,13 +1,16 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useSearchParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
+import { useCalendar } from '../context/CalendarContext.jsx';
 import { Html5Qrcode } from 'html5-qrcode';
 import { selfCheckEmployee } from '../services/couponScan.service.js';
 import ScanNotification from '../components/cafe/ScanNotification.jsx';
 import { User, Calendar, Ticket, Loader2, RefreshCw } from 'lucide-react';
+import { formatCalendarDate } from '../utils/ethiopianDate.js';
 
 const SelfCheck = () => {
   const { t } = useTranslation();
+  const { calendarMode } = useCalendar();
   const { employeeId: routeId } = useParams();
   const [searchParams] = useSearchParams();
   const employeeId = routeId || searchParams.get('id') || '';
@@ -123,6 +126,34 @@ const SelfCheck = () => {
               />
             </div>
 
+            {data.leaveStatus?.isOnLeave && (
+              <div className="rounded-xl border border-amber-400/40 bg-amber-500/10 p-4">
+                <div className="text-sm font-bold text-amber-500">
+                  {t('employees.onLeave')}
+                </div>
+                <p className="text-xs text-app-secondary mt-1">
+                  {t('employees.leaveSectionHelp')}
+                </p>
+                <div className="mt-3 text-xs text-app-secondary space-y-1">
+                  <div>
+                    {t('employees.leaveDays')}: {data.leaveStatus.leaveDays || '—'}
+                  </div>
+                  <div>
+                    {t('employees.leaveStartDate')}: {' '}
+                    {data.leaveStatus.leaveStartDate
+                      ? formatCalendarDate(calendarMode, data.leaveStatus.leaveStartDate)
+                      : '—'}
+                  </div>
+                  <div>
+                    {t('employees.leaveReturnDate')}: {' '}
+                    {data.leaveStatus.leaveReturnDate
+                      ? formatCalendarDate(calendarMode, data.leaveStatus.leaveReturnDate)
+                      : '—'}
+                  </div>
+                </div>
+              </div>
+            )}
+
             {/* Weekly tracker */}
             {(data.dailyCap != null) && (
               <WeekProgressBar
@@ -142,7 +173,7 @@ const SelfCheck = () => {
                       <span className="font-mono text-app-secondary">{c.couponCode}</span>
                       <span>
                         {c.value} {t('common.birr')} ·{' '}
-                        {new Date(c.issuedAt).toLocaleDateString()}
+                        {formatCalendarDate(calendarMode, c.issuedAt)}
                       </span>
                     </li>
                   ))}
@@ -158,7 +189,7 @@ const SelfCheck = () => {
                 <ul className="text-sm text-app-secondary space-y-1">
                   {data.holidays.map((h) => (
                     <li key={h.date}>
-                      {h.date} — {h.description}
+                      {formatCalendarDate(calendarMode, h.date)} - {h.description}
                     </li>
                   ))}
                 </ul>

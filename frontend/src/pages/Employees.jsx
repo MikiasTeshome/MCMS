@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
+import { useCalendar } from '../context/CalendarContext.jsx';
 import { generateQR } from '../services/hr.service.js';
 import QRPrintCard from '../components/QRPrintCard.jsx';
 import {
@@ -28,6 +29,12 @@ import {
   downloadEmployeeTemplate,
   parseEmployeeExcelFile,
 } from '../utils/employeeExcel.js';
+import {
+  formatCalendarDate,
+  parseCalendarDateString,
+  toIsoDay,
+  getGregorianDayKey,
+} from '../utils/ethiopianDate.js';
 
 const truncateCode = (code) => (code ? `${code.slice(0, 8)}...` : '—');
 
@@ -39,8 +46,31 @@ const getInitials = (name) =>
     .slice(0, 2)
     .toUpperCase();
 
+const getEmployeeLeaveState = (emp) => {
+  const profile = emp?.employeeProfile || {};
+  const todayKey = getGregorianDayKey(new Date());
+  const startKey = getGregorianDayKey(profile.leaveStartDate);
+  const returnKey = getGregorianDayKey(profile.leaveReturnDate);
+  const hasLeaveWindow = Boolean(startKey && returnKey);
+  const isOnLeave = hasLeaveWindow && todayKey >= startKey && todayKey < returnKey;
+
+  return {
+    isOnLeave,
+    hasLeaveWindow,
+    leaveDays: profile.leaveDays ?? null,
+    leaveStartDate: profile.leaveStartDate ?? null,
+    leaveReturnDate: profile.leaveReturnDate ?? null,
+  };
+};
+
+const formatLeaveInputValue = (calendarMode, value) => {
+  if (!value) return '';
+  return calendarMode === 'gregorian' ? toIsoDay(value) : formatCalendarDate(calendarMode, value);
+};
+
 const Employees = () => {
   const { t } = useTranslation();
+  const { calendarMode } = useCalendar();
 
   const [employeesList, setEmployeesList] = useState([]);
   const [pageMeta, setPageMeta] = useState({ page: 1, limit: 25, total: 0, totalPages: 1 });
@@ -62,6 +92,10 @@ const Employees = () => {
     position: '',
     employeeIdNumber: '',
     isActive: true,
+    staffType: 'Standard',
+    leaveDays: '',
+    leaveStartDate: '',
+    leaveReturnDate: '',
   });
   const [editError, setEditError] = useState('');
   const [editSuccess, setEditSuccess] = useState('');
@@ -198,13 +232,18 @@ const Employees = () => {
 
   const openEdit = (emp) => {
     setSelectedEmployee(emp);
+    const profile = emp.employeeProfile || {};
     setEditForm({
       name: emp.name || '',
       email: emp.email || '',
-      department: emp.employeeProfile?.department || '',
-      position: emp.employeeProfile?.position || '',
-      employeeIdNumber: emp.employeeProfile?.employeeIdNumber || '',
+      department: profile.department || '',
+      position: profile.position || '',
+      employeeIdNumber: profile.employeeIdNumber || '',
       isActive: emp.isActive !== false,
+      staffType: profile.staffType || 'Standard',
+      leaveDays: profile.leaveDays ?? '',
+      leaveStartDate: formatLeaveInputValue(calendarMode, profile.leaveStartDate),
+      leaveReturnDate: formatLeaveInputValue(calendarMode, profile.leaveReturnDate),
     });
     setEditError('');
     setEditSuccess('');
@@ -222,9 +261,45 @@ const Employees = () => {
     e.preventDefault();
     setEditError('');
     setEditSuccess('');
+
+    const hasAnyLeaveValue =
+      String(editForm.leaveDays || '').trim() ||
+      String(editForm.leaveStartDate || '').trim() ||
+      String(editForm.leaveReturnDate || '').trim();
+
+    if (hasAnyLeaveValue) {
+      if (!String(editForm.leaveDays || '').trim() || !String(editForm.leaveStartDate || '').trim() || !String(editForm.leaveReturnDate || '').trim()) {
+        setEditError(t('employees.leaveIncomplete'));
+        return;
+      }
+
+      const parsedDays = Number.parseInt(editForm.leaveDays, 10);
+      if (!Number.isFinite(parsedDays) || parsedDays <= 0) {
+        setEditError(t('employees.leaveDaysInvalid'));
+        return;
+      }
+
+      if (!parseCalendarDateString(calendarMode, editForm.leaveStartDate)) {
+        setEditError(t('employees.leaveStartInvalid'));
+        return;
+      }
+
+      if (!parseCalendarDateString(calendarMode, editForm.leaveReturnDate)) {
+        setEditError(t('employees.leaveReturnInvalid'));
+        return;
+      }
+    }
+
     setEditing(true);
     try {
-      const res = await api.put(`/employees/${selectedEmployee.id}`, editForm);
+      const payload = {
+        ...editForm,
+        leaveDays: String(editForm.leaveDays || '').trim() ? Number.parseInt(editForm.leaveDays, 10) : null,
+        leaveStartDate: parseCalendarDateString(calendarMode, editForm.leaveStartDate),
+        leaveReturnDate: parseCalendarDateString(calendarMode, editForm.leaveReturnDate),
+      };
+
+      const res = await api.put(`/employees/${selectedEmployee.id}`, payload);
       if (res.data.success) {
         setEditSuccess(t('employees.editSuccess', { name: editForm.name }));
         fetchEmployees();
@@ -321,6 +396,7 @@ const Employees = () => {
 
   const detailsCard = selectedEmployee?.qrCards?.[0];
   const detailsUuid = detailsCard?.cardCode || selectedEmployee?.id || '';
+  const detailsLeaveState = selectedEmployee ? getEmployeeLeaveState(selectedEmployee) : null;
 
   return (
     <div className="page-shell-compact">
@@ -449,7 +525,22 @@ const Employees = () => {
                 (Array.isArray(employeesList) ? employeesList : []).map((emp) => {
                   const cardCode = emp.qrCards?.[0]?.cardCode;
                   const isActive = emp.isActive !== false;
+                  const leaveState = getEmployeeLeaveState(emp);
                   const copyKey = `row-${emp.id}`;
+                  const statusLabel = !isActive
+                    ? t('common.inactive', { defaultValue: 'Inactive' })
+                    : leaveState.isOnLeave
+                      ? t('employees.onLeave')
+                      : leaveState.hasLeaveWindow
+                        ? t('employees.leaveScheduled')
+                        : t('common.active');
+                  const statusClass = !isActive
+                    ? 'badge'
+                    : leaveState.isOnLeave
+                      ? 'badge-warning'
+                      : leaveState.hasLeaveWindow
+                        ? 'badge-info'
+                        : 'badge-active';
 
                   return (
                     <tr key={emp.id}>
@@ -471,8 +562,8 @@ const Employees = () => {
                       </td>
                       <td>
                         <div className="flex flex-col gap-1.5">
-                          <span className={isActive ? 'badge-active' : 'badge'}>
-                            {isActive ? t('common.active') : t('common.no')}
+                          <span className={statusClass}>
+                            {statusLabel}
                           </span>
                           {cardCode ? (
                             <div className="copy-row">
@@ -581,7 +672,55 @@ const Employees = () => {
             <div className="detail-row">
               <span className="detail-label">{t('employees.joinDate')}</span>
               <span className="detail-value">
-                {new Date(selectedEmployee.createdAt).toLocaleDateString()}
+                {formatCalendarDate(calendarMode, selectedEmployee.createdAt)}
+              </span>
+            </div>
+
+            <div className="detail-row">
+              <span className="detail-label">{t('employees.leaveStatus')}</span>
+              <span
+                className={
+                  selectedEmployee.isActive === false
+                    ? 'badge'
+                    : detailsLeaveState?.isOnLeave
+                    ? 'badge-warning'
+                    : detailsLeaveState?.hasLeaveWindow
+                      ? 'badge-info'
+                      : 'badge-active'
+                }
+              >
+                {selectedEmployee.isActive === false
+                  ? t('common.inactive', { defaultValue: 'Inactive' })
+                  : detailsLeaveState?.isOnLeave
+                  ? t('employees.onLeave')
+                  : detailsLeaveState?.hasLeaveWindow
+                    ? t('employees.leaveScheduled')
+                    : t('common.active')}
+              </span>
+            </div>
+
+            <div className="detail-row">
+              <span className="detail-label">{t('employees.leaveDays')}</span>
+              <span className="detail-value">
+                {detailsLeaveState?.leaveDays || '—'}
+              </span>
+            </div>
+
+            <div className="detail-row">
+              <span className="detail-label">{t('employees.leaveStartDate')}</span>
+              <span className="detail-value">
+                {detailsLeaveState?.leaveStartDate
+                  ? formatCalendarDate(calendarMode, detailsLeaveState.leaveStartDate)
+                  : '—'}
+              </span>
+            </div>
+
+            <div className="detail-row">
+              <span className="detail-label">{t('employees.leaveReturnDate')}</span>
+              <span className="detail-value">
+                {detailsLeaveState?.leaveReturnDate
+                  ? formatCalendarDate(calendarMode, detailsLeaveState.leaveReturnDate)
+                  : '—'}
               </span>
             </div>
 
@@ -589,7 +728,7 @@ const Employees = () => {
               <span className="detail-label">{t('employees.fullQrUuid')}</span>
               <div className="copy-row">
                 <span className="detail-value font-mono text-sm break-all">
-                  {detailsUuid || '—'}
+                  {detailsUuid || '-'}
                 </span>
                 {detailsUuid && (
                   <button
@@ -929,6 +1068,57 @@ const Employees = () => {
                     />
                     <span className="text-sm text-app-secondary">{t('common.active')}</span>
                   </label>
+                </div>
+              </div>
+
+              <div className="rounded-xl border border-app-border bg-app-surface-2/40 p-4 space-y-4">
+                <div>
+                  <h4 className="text-sm font-semibold text-app-primary">
+                    {t('employees.leaveSectionTitle')}
+                  </h4>
+                  <p className="text-xs text-app-muted mt-1">
+                    {t('employees.leaveSectionHelp')}
+                  </p>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                  <div className="form-group">
+                    <label className="input-label">{t('employees.leaveDays')}</label>
+                    <input
+                      type="number"
+                      min="1"
+                      value={editForm.leaveDays}
+                      onChange={(e) => setEditForm({ ...editForm, leaveDays: e.target.value })}
+                      placeholder="30"
+                      className="glass-input text-xs"
+                    />
+                  </div>
+
+                  <div className="form-group">
+                    <label className="input-label">{t('employees.leaveStartDate')}</label>
+                    <input
+                      type={calendarMode === 'gregorian' ? 'date' : 'text'}
+                      value={editForm.leaveStartDate}
+                      onChange={(e) =>
+                        setEditForm({ ...editForm, leaveStartDate: e.target.value })
+                      }
+                      placeholder={calendarMode === 'gregorian' ? 'YYYY-MM-DD' : 'MM/DD/YYYY'}
+                      className="glass-input text-xs"
+                    />
+                  </div>
+
+                  <div className="form-group">
+                    <label className="input-label">{t('employees.leaveReturnDate')}</label>
+                    <input
+                      type={calendarMode === 'gregorian' ? 'date' : 'text'}
+                      value={editForm.leaveReturnDate}
+                      onChange={(e) =>
+                        setEditForm({ ...editForm, leaveReturnDate: e.target.value })
+                      }
+                      placeholder={calendarMode === 'gregorian' ? 'YYYY-MM-DD' : 'MM/DD/YYYY'}
+                      className="glass-input text-xs"
+                    />
+                  </div>
                 </div>
               </div>
 

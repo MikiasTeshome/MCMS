@@ -1,12 +1,15 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext.jsx';
+import { useCalendar } from '../context/CalendarContext.jsx';
 import { useTranslation } from 'react-i18next';
 import { getUsers, provisionUser } from '../services/user.service.js';
 import { PageHeader, PageSkeleton, getRoleBadgeClass } from '../components/ui/Page.jsx';
 import { Users as UsersIcon, Plus, CheckCircle, ShieldAlert, Key } from 'lucide-react';
+import { formatCalendarDate } from '../utils/ethiopianDate.js';
 
 const Users = () => {
   const { user } = useAuth();
+  const { calendarMode } = useCalendar();
   const { t } = useTranslation();
 
   const [usersList, setUsersList] = useState([]);
@@ -239,7 +242,7 @@ const Users = () => {
                         {usr.role}
                       </span>
                     </td>
-                    <td className="py-3 text-app-secondary">{new Date(usr.createdAt).toLocaleDateString()}</td>
+                    <td className="py-3 text-app-secondary">{formatCalendarDate(calendarMode, usr.createdAt)}</td>
                   </tr>
                 ))
               )}

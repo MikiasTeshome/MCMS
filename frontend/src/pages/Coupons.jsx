@@ -1,14 +1,17 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext.jsx';
+import { useCalendar } from '../context/CalendarContext.jsx';
 import { useTranslation } from 'react-i18next';
 import { getCoupons, issueCoupon, redeemCoupon } from '../services/coupon.service.js';
 import { getUsers } from '../services/user.service.js';
 import { getMeals } from '../services/meal.service.js';
 import { PageHeader, PageSkeleton } from '../components/ui/Page.jsx';
+import { formatCalendarDate, formatCalendarDateTime, parseCalendarDateString, toIsoDay } from '../utils/ethiopianDate.js';
 import { Ticket, Plus, CheckCircle, ShieldAlert, Calendar, User as UserIcon, Utensils, QrCode } from 'lucide-react';
 
 const Coupons = () => {
   const { user } = useAuth();
+  const { calendarMode } = useCalendar();
   const { t } = useTranslation();
 
   const [coupons, setCoupons] = useState([]);
@@ -74,10 +77,15 @@ const Coupons = () => {
     setProcessing(true);
 
     try {
+      const expiryDate = parseCalendarDateString(calendarMode, issueData.expiresAt);
+      if (!expiryDate) {
+        setActionError('Please enter a valid expiration date.');
+        return;
+      }
       const res = await issueCoupon(
         issueData.beneficiaryId,
         issueData.mealId,
-        issueData.expiresAt
+        toIsoDay(expiryDate)
       );
       if (res.success) {
         setActionSuccess(t('coupons.redeemSuccess')); // Standard success message
@@ -271,13 +279,13 @@ const Coupons = () => {
                   ) : (
                     coupons.map((coupon) => (
                       <tr key={coupon.id} className="text-app-secondary hover:bg-app-surface-2/10">
-                        <td className="py-3 font-semibold text-app-primary">{coupon.code}</td>
-                        <td className="py-3">{coupon.beneficiary?.name}</td>
-                        <td className="py-3">{localStorage.getItem('mcms_lang') === 'am' ? coupon.meal?.nameAm : coupon.meal?.nameEn}</td>
-                        <td className="py-3 text-app-secondary">
-                          {coupon.redeemedAt ? new Date(coupon.redeemedAt).toLocaleString() : '-'}
-                        </td>
-                      </tr>
+                      <td className="py-3 font-semibold text-app-primary">{coupon.code}</td>
+                      <td className="py-3">{coupon.beneficiary?.name}</td>
+                      <td className="py-3">{localStorage.getItem('mcms_lang') === 'am' ? coupon.meal?.nameAm : coupon.meal?.nameEn}</td>
+                      <td className="py-3 text-app-secondary">
+                          {coupon.redeemedAt ? formatCalendarDateTime(calendarMode, coupon.redeemedAt) : '-'}
+                      </td>
+                    </tr>
                     ))
                   )}
                 </tbody>
@@ -322,7 +330,7 @@ const Coupons = () => {
                       <span className="text-lg font-black text-app-primary tracking-wider block font-mono">{coupon.code}</span>
                       <span className="text-[10px] text-app-secondary flex items-center gap-1">
                         <Calendar className="w-3.5 h-3.5" />
-                        <span>Expires: {new Date(coupon.expiresAt).toLocaleDateString()}</span>
+                        <span>Expires: {formatCalendarDate(calendarMode, coupon.expiresAt)}</span>
                       </span>
                     </div>
 
@@ -379,9 +387,9 @@ const Coupons = () => {
                         {localStorage.getItem('mcms_lang') === 'am' ? coupon.meal?.nameAm : coupon.meal?.nameEn}
                       </td>
                       <td className="py-3">{getStatusBadge(coupon.status)}</td>
-                      <td className="py-3 text-app-secondary">{new Date(coupon.expiresAt).toLocaleDateString()}</td>
+                      <td className="py-3 text-app-secondary">{formatCalendarDate(calendarMode, coupon.expiresAt)}</td>
                       <td className="py-3 text-app-secondary">
-                        {coupon.redeemedAt ? new Date(coupon.redeemedAt).toLocaleString() : '-'}
+                        {coupon.redeemedAt ? formatCalendarDateTime(calendarMode, coupon.redeemedAt) : '-'}
                       </td>
                       <td className="py-3 text-app-secondary">{coupon.vendor?.name || '-'}</td>
                     </tr>
@@ -447,13 +455,25 @@ const Coupons = () => {
                 <label className="text-xs font-bold text-app-secondary uppercase tracking-wider block">
                   Expiration Date
                 </label>
-                <input
-                  type="date"
-                  required
-                  value={issueData.expiresAt}
-                  onChange={(e) => setIssueData({ ...issueData, expiresAt: e.target.value })}
-                  className="glass-input"
-                />
+                {calendarMode === 'gregorian' ? (
+                  <input
+                    type="date"
+                    required
+                    value={issueData.expiresAt}
+                    onChange={(e) => setIssueData({ ...issueData, expiresAt: e.target.value })}
+                    className="glass-input"
+                  />
+                ) : (
+                  <input
+                    type="text"
+                    inputMode="numeric"
+                    placeholder="MM/DD/YYYY"
+                    required
+                    value={issueData.expiresAt}
+                    onChange={(e) => setIssueData({ ...issueData, expiresAt: e.target.value })}
+                    className="glass-input"
+                  />
+                )}
               </div>
 
               {/* Form buttons */}
