@@ -11,13 +11,12 @@ import { errorHandler } from './middlewares/error.middleware.js';
 // Module routers imports
 import authRoutes from './modules/auth/auth.routes.js';
 import couponsRoutes from './modules/coupons/coupons.routes.js';
-import mealsRoutes from './modules/meals/meals.routes.js';
 import usersRoutes from './modules/users/users.routes.js';
 import auditRoutes from './modules/audit/audit.routes.js';
-import cafeRoutes from './modules/cafe/cafe.routes.js';
 import hrRoutes from './modules/hr/hr.routes.js';
 import employeesRoutes from './modules/employees/employees.routes.js';
-import selfCheckRoutes from './modules/self-check/self-check.routes.js';
+import holidaysRoutes from './modules/holidays/holidays.routes.js';
+import campusesRoutes from './modules/campuses/campuses.routes.js';
 import dashboardRoutes from './modules/dashboard/dashboard.routes.js';
 
 const app = express();
@@ -100,14 +99,13 @@ app.use('/api/', apiLimiter);
 // --- 3. BUSINESS MODULE ROUTES ---
 app.use(`/api/${config.apiVersion}/auth`, authRoutes);
 app.use(`/api/${config.apiVersion}/coupons`, couponsRoutes);
-app.use(`/api/${config.apiVersion}/meals`, mealsRoutes);
 app.use(`/api/${config.apiVersion}/users`, usersRoutes);
 app.use(`/api/${config.apiVersion}/audit`, auditRoutes);
-app.use(`/api/${config.apiVersion}/cafe`, cafeRoutes);
 app.use(`/api/${config.apiVersion}/hr`, hrRoutes);
 app.use(`/api/${config.apiVersion}/employees`, employeesRoutes);
+app.use(`/api/${config.apiVersion}/holidays`, holidaysRoutes);
+app.use(`/api/${config.apiVersion}/campuses`, campusesRoutes);
 app.use(`/api/${config.apiVersion}/dashboard`, dashboardRoutes);
-app.use(`/api/${config.apiVersion}/self-check`, selfCheckRoutes);
 
 // Root Endpoint
 app.get('/', (req, res) => {

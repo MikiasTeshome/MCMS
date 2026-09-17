@@ -27,6 +27,8 @@ export const protect = async (req, res, next) => {
         name: true,
         role: true,
         isActive: true,
+        campusId: true,
+        campus: { select: { id: true, name: true, code: true } },
       },
     });
 
@@ -38,6 +40,9 @@ export const protect = async (req, res, next) => {
     req.user = user;
     next();
   } catch (error) {
-    return errorResponse(res, 401, 'Unauthorized - Session token expired or invalid');
+    if (error.name === 'JsonWebTokenError' || error.name === 'TokenExpiredError' || error.name === 'NotBeforeError') {
+      return errorResponse(res, 401, 'Unauthorized - Session token expired or invalid');
+    }
+    return next(error);
   }
 };

@@ -1,8 +1,10 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import { useAuth } from '../context/AuthContext.jsx';
 import { useCalendar } from '../context/CalendarContext.jsx';
 import { PageHeader, PageSkeleton } from '../components/ui/Page.jsx';
 import { getCouponScanReport } from '../services/couponScan.service.js';
+import { downloadPaymentOrderFromReport } from '../utils/downloadPaymentOrder.js';
 import {
   formatCalendarDate,
   formatCalendarDateRange,
@@ -10,7 +12,7 @@ import {
   parseCalendarDateString,
   toIsoDay,
 } from '../utils/ethiopianDate.js';
-import { CalendarDays, Download, Printer, TrendingUp, ArrowUpRight, ArrowDownRight } from 'lucide-react';
+import { CalendarDays, Download, FileText, Printer, TrendingUp, ArrowUpRight, ArrowDownRight } from 'lucide-react';
 
 const PRESETS = [
   { key: 'today', label: 'Today' },
@@ -32,17 +34,23 @@ const CALENDARS = {
 
 const Reports = () => {
   const { t } = useTranslation();
+  const { user } = useAuth();
   const { calendarMode } = useCalendar();
   const chartRef = useRef(null);
   const [loading, setLoading] = useState(true);
   const [report, setReport] = useState(null);
   const [activeMetric, setActiveMetric] = useState('count');
-  const [activePreset, setActivePreset] = useState('thisMonth');
+  const [activePreset, setActivePreset] = useState(
+    user?.role === 'CAFE_STAFF' ? 'today' : 'thisMonth'
+  );
   const [customRange, setCustomRange] = useState({ startDate: '', endDate: '' });
   const [tableSort, setTableSort] = useState({ key: 'date', order: 'asc' });
   const [tablePage, setTablePage] = useState(1);
   const [tablePageSize, setTablePageSize] = useState(10);
   const [hoveredPoint, setHoveredPoint] = useState(null);
+  const [letterBusyKey, setLetterBusyKey] = useState('');
+  const [letterError, setLetterError] = useState('');
+  const [letterCafeKey, setLetterCafeKey] = useState('');
 
   const loadReport = async (params = {}) => {
     setLoading(true);
@@ -81,6 +89,15 @@ const Reports = () => {
   useEffect(() => {
     setTablePage(1);
   }, [activePreset, tableSort.key, tableSort.order]);
+
+  useEffect(() => {
+    const rows = report?.byCampus || [];
+    if (rows.length === 0) {
+      setLetterCafeKey('');
+      return;
+    }
+    setLetterCafeKey(`${rows[0].campusId || 'none'}-${rows[0].vendorId || 'none'}-0`);
+  }, [report]);
 
   const selectedRangeLabel = useMemo(() => {
     const startDate = report?.selectedRange?.startDate;
@@ -191,6 +208,26 @@ const Reports = () => {
 
   const exportPdf = () => window.print();
 
+  const handleDownloadPaymentLetter = async (row) => {
+    const key = `${row?.campusId || 'none'}-${row?.vendorId || 'none'}`;
+    setLetterBusyKey(key);
+    setLetterError('');
+    try {
+      await downloadPaymentOrderFromReport({
+        report,
+        row: row || (report?.byCampus || [])[0] || null,
+        calendarMode,
+      });
+    } catch (err) {
+      console.error(err);
+      setLetterError(err.message || t('reports.letterFailed'));
+    } finally {
+      setLetterBusyKey('');
+    }
+  };
+
+  const canWritePaymentLetter = ['ADMIN', 'HR', 'FINANCE'].includes(user?.role);
+
   const handlePresetClick = (presetKey) => {
     setActivePreset(presetKey);
   };
@@ -233,15 +270,35 @@ const Reports = () => {
     <div className="page-shell space-y-6 print:space-y-4">
       <div className="surface-card flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between print:border-0 print:p-0">
         <PageHeader
-          title={t('reports.title', { defaultValue: 'Coupon Scan Reports' })}
+          title={
+            user?.role === 'CAFE_STAFF'
+              ? t('reports.cafeTitle', { defaultValue: 'Your cafe scans' })
+              : t('reports.title', { defaultValue: 'Coupon Scan Reports' })
+          }
           subtitle={
             <span className="flex flex-wrap items-center gap-2">
               <CalendarDays className="w-4 h-4 text-app-secondary" />
               <span>{selectedRangeLabel}</span>
+              {user?.campus?.name && (
+                <span className="badge">{user.campus.name}</span>
+              )}
             </span>
           }
         />
         <div className="flex flex-wrap gap-2">
+          {canWritePaymentLetter && (
+            <button
+              type="button"
+              onClick={() => handleDownloadPaymentLetter((report?.byCampus || [])[0])}
+              className="btn-primary print:hidden"
+              disabled={!!letterBusyKey}
+            >
+              <FileText className="w-4 h-4" />
+              <span>
+                {letterBusyKey ? t('reports.letterPreparing') : t('reports.downloadWord')}
+              </span>
+            </button>
+          )}
           <button onClick={exportPdf} className="btn-secondary print:hidden">
             <Printer className="w-4 h-4" />
             <span>Export PDF</span>
@@ -276,19 +333,19 @@ const Reports = () => {
             <input
               type="text"
               inputMode="numeric"
-              placeholder="MM/DD/YYYY"
+              placeholder="DD/MM/YYYY"
               value={customRange.startDate}
               onChange={(e) => setCustomRange((value) => ({ ...value, startDate: e.target.value }))}
               className="glass-input"
             />
-            <p className="text-xs text-app-muted">Enter the {CALENDARS[calendarMode].toLowerCase()} date in MM/DD/YYYY format.</p>
+            <p className="text-xs text-app-muted">Enter the {CALENDARS[calendarMode].toLowerCase()} date in DD/MM/YYYY format.</p>
           </div>
           <div className="space-y-2">
             <label className="text-xs font-bold text-app-secondary uppercase tracking-wider">End Date</label>
             <input
               type="text"
               inputMode="numeric"
-              placeholder="MM/DD/YYYY"
+              placeholder="DD/MM/YYYY"
               value={customRange.endDate}
               onChange={(e) => setCustomRange((value) => ({ ...value, endDate: e.target.value }))}
               className="glass-input"
@@ -305,6 +362,121 @@ const Reports = () => {
           </div>
         </div>
       </div>
+
+      {canWritePaymentLetter && (
+        <div className="surface-card space-y-3 print:hidden">
+          <h3 className="text-lg font-semibold text-app-primary">{t('reports.paymentLetter')}</h3>
+          <p className="text-sm text-app-muted">{t('reports.letterHelp')}</p>
+          {letterError && <p className="alert-error text-sm">{letterError}</p>}
+          {(report?.byCampus || []).length === 0 ? (
+            <div className="space-y-3">
+              <p className="text-sm text-app-secondary">{t('reports.letterNeedScans')}</p>
+              <button
+                type="button"
+                className="btn-primary"
+                disabled={!!letterBusyKey}
+                onClick={() => handleDownloadPaymentLetter(null)}
+              >
+                <FileText className="w-4 h-4" />
+                {letterBusyKey ? t('reports.letterPreparing') : t('reports.downloadWord')}
+              </button>
+            </div>
+          ) : (
+            <div className="flex flex-col sm:flex-row gap-3 sm:items-end">
+              <div className="flex-1 space-y-2">
+                <label className="text-xs font-bold text-app-secondary uppercase tracking-wider">
+                  {t('reports.vendor')}
+                </label>
+                <select
+                  className="glass-input"
+                  value={letterCafeKey}
+                  onChange={(e) => setLetterCafeKey(e.target.value)}
+                >
+                  {(report.byCampus || []).map((row, index) => {
+                    const key = `${row.campusId || 'none'}-${row.vendorId || 'none'}-${index}`;
+                    return (
+                      <option key={key} value={key}>
+                        {row.vendorName} — {row.campusName} ({row.count.toLocaleString()})
+                      </option>
+                    );
+                  })}
+                </select>
+              </div>
+              <button
+                type="button"
+                className="btn-primary"
+                disabled={!!letterBusyKey}
+                onClick={() => {
+                  const rows = report.byCampus || [];
+                  const row =
+                    rows.find((item, index) => `${item.campusId || 'none'}-${item.vendorId || 'none'}-${index}` === letterCafeKey) ||
+                    rows[0];
+                  if (row) handleDownloadPaymentLetter(row);
+                }}
+              >
+                <FileText className="w-4 h-4" />
+                {letterBusyKey ? t('reports.letterPreparing') : t('reports.downloadWord')}
+              </button>
+            </div>
+          )}
+        </div>
+      )}
+
+      {(report?.byCampus || []).length > 0 && (
+        <div className="surface-card space-y-3">
+          <h3 className="text-lg font-semibold text-app-primary">
+            {user?.role === 'CAFE_STAFF'
+              ? t('reports.cafePayment')
+              : t('reports.paymentByCafe')}
+          </h3>
+          <p className="text-sm text-app-muted">
+            {user?.role === 'CAFE_STAFF'
+              ? t('reports.cafePaymentHelp')
+              : t('reports.paymentByCafeHelp')}
+          </p>
+          {letterError && <p className="alert-error text-sm">{letterError}</p>}
+          <div className="table-wrap">
+            <table className="table-modern">
+              <thead>
+                <tr>
+                  <th>{t('reports.kitchen')}</th>
+                  <th>{t('reports.vendor')}</th>
+                  <th>{t('reports.vouchers')}</th>
+                  <th>{t('reports.amount')}</th>
+                  {canWritePaymentLetter && (
+                    <th className="print:hidden">{t('reports.paymentLetter')}</th>
+                  )}
+                </tr>
+              </thead>
+              <tbody>
+                {report.byCampus.map((row, index) => (
+                  <tr key={`${row.campusId || 'none'}-${row.vendorId || 'none'}-${index}`}>
+                    <td>{row.campusName}</td>
+                    <td>{row.vendorName}</td>
+                    <td>{row.count.toLocaleString()}</td>
+                    <td>{row.amount.toLocaleString()} {t('common.birr')}</td>
+                    {canWritePaymentLetter && (
+                      <td className="print:hidden">
+                        <button
+                          type="button"
+                          className="btn-secondary !min-h-0 !py-1.5 !px-3 text-xs"
+                          disabled={letterBusyKey === `${row.campusId || 'none'}-${row.vendorId || 'none'}`}
+                          onClick={() => handleDownloadPaymentLetter(row)}
+                        >
+                          <FileText className="w-3.5 h-3.5" />
+                          {letterBusyKey === `${row.campusId || 'none'}-${row.vendorId || 'none'}`
+                            ? t('reports.letterPreparing')
+                            : t('reports.downloadWord')}
+                        </button>
+                      </td>
+                    )}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
 
       <div className="surface-card space-y-4">
         <div className="flex items-center justify-between gap-3">

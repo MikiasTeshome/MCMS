@@ -4,7 +4,7 @@ import { useCalendar } from '../../context/CalendarContext.jsx';
 import { useI18n } from '../../i18n/I18nProvider.jsx';
 import { useTranslation } from 'react-i18next';
 import { useTheme } from '../../context/ThemeContext.jsx';
-import { Languages, User as UserIcon, Menu, Search, Sun, Moon, ChevronDown, CalendarDays } from 'lucide-react';
+import { Languages, User as UserIcon, Menu, Sun, Moon, ChevronDown, CalendarDays } from 'lucide-react';
 
 const Header = ({ onMenuToggle }) => {
   const { user } = useAuth();
@@ -13,7 +13,6 @@ const Header = ({ onMenuToggle }) => {
   const { calendarMode, setCalendarMode } = useCalendar();
   const { isDark, toggleTheme } = useTheme();
   const [profileOpen, setProfileOpen] = useState(false);
-  const [searchQuery, setSearchQuery] = useState('');
   const profileRef = useRef(null);
 
   useEffect(() => {
@@ -32,20 +31,9 @@ const Header = ({ onMenuToggle }) => {
         <button onClick={onMenuToggle} className="lg:hidden btn-icon" aria-label="Open navigation menu">
           <Menu className="w-5 h-5" />
         </button>
-
-        <div className="hidden sm:flex flex-1">
-          <div className="relative w-full max-w-md">
-            <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-app-muted pointer-events-none" aria-hidden="true" />
-            <input
-              type="search"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder={t('common.search')}
-              aria-label={t('common.search')}
-              className="search-field w-full"
-            />
-          </div>
-        </div>
+        {user?.campus?.name && (
+          <p className="hidden sm:block text-sm text-app-secondary truncate">{user.campus.name}</p>
+        )}
       </div>
 
       <div className="flex items-center gap-1 sm:gap-2">

@@ -3,6 +3,7 @@ import auditService from '../audit/audit.service.js';
 import { isUuid } from '../../utils/uuid.js';
 import logger from '../../utils/logger.js';
 import { calculateExpiryDate } from '../../utils/expiry.js';
+import { getCafeDeskContext } from '../../utils/cafeDesk.js';
 
 
 const SCAN_SESSION_MINUTES = 15;
@@ -46,14 +47,28 @@ function isoWeekKey(date = new Date()) {
 }
 
 /**
- * Compute how many coupons an employee is entitled to ACCESS today
- * based on working-day accumulation (Mon=1, Tue=2, Wed=3, Thu=4, Fri=5).
+ * Unused weekdays already earned can be used in one visit on any later
+ * weekday this week (skip Monday → Tuesday can record 2). Future days stay locked.
  * Returns 0 on weekends.
  */
 function getDailyCap() {
   const day = new Date().getDay(); // 0=Sun … 6=Sat
   const capMap = { 1: 1, 2: 2, 3: 3, 4: 4, 5: 5 };
   return capMap[day] ?? 0;
+}
+
+async function isPublicHoliday(referenceDate = new Date()) {
+  const todayKey = getAddisDayKey(referenceDate);
+  if (!todayKey) return false;
+  const holidays = await prisma.holiday.findMany({ select: { date: true } });
+  return holidays.some((holiday) => getAddisDayKey(holiday.date) === todayKey);
+}
+
+async function getEffectiveDailyCap() {
+  const cap = getDailyCap();
+  if (cap === 0) return 0;
+  if (await isPublicHoliday()) return 0;
+  return cap;
 }
 
 function deviceInfoFromReq(req) {
@@ -240,12 +255,12 @@ class CouponsScanService {
    * Logic:
    *   - Count coupons created this week (ALLOCATED or CLAIMED) — these
    *     represent days the scheduler already ran.
-   *   - Today's cap = getDailyCap() (Mon=1, Tue=2 … Fri=5).
+   *   - Today's cap = earned days so far (Mon=1, Tue=2 … Fri=5).
    *   - If fewer coupons exist than the cap, allocate the difference.
    */
   async ensureWeeklyCoupons(employeeId) {
-    const cap = getDailyCap();
-    if (cap === 0) return; // weekend — nothing to do
+    const cap = await getEffectiveDailyCap();
+    if (cap === 0) return; // weekend or public holiday — nothing to do
 
     const weekStart = startOfWeek(new Date());
 
@@ -383,11 +398,9 @@ class CouponsScanService {
         ? allocated[0].expiresAt.toISOString().split('T')[0]
         : null;
 
-    // --- Step 2: Compute daily accumulation cap ---
-    // On Monday the cap is 1, Tuesday 2 … Friday 5.
-    // Coupons claimed earlier this week already consumed from the balance,
-    // so couponsRedeemableNow = min(dailyCap, availableCoupons).
-    const dailyCap = getDailyCap();
+    // Earned days so far this week (not Friday-only). Unused days sit in the
+    // wallet and can all be recorded in one visit today, up to dailyCap.
+    const dailyCap = await getEffectiveDailyCap();
     const couponsRedeemableNow = Math.min(dailyCap, availableCoupons);
 
     return {
@@ -544,6 +557,7 @@ class CouponsScanService {
       }
       throw error;
     }
+    const desk = await getCafeDeskContext(req.user);
     const { employee, leaveState } = employeeContext;
     const stats = await this.buildEmployeeCouponStats(employeeId);
 
@@ -566,8 +580,7 @@ class CouponsScanService {
     return {
       employeeId,
       fullName: employee.name,
-      department: profile?.department || 'N/A',
-      staffType: profile?.staffType || 'Standard',
+      employeeIdNumber: profile?.employeeIdNumber || '',
       couponValue: stats.couponValue,
       availableCoupons: stats.availableCoupons,
       expiredCoupons: stats.expiredCoupons,
@@ -581,6 +594,8 @@ class CouponsScanService {
       eligible:
         stats.couponsRedeemableNow > 0 &&
         !stats.claimedToday,
+      campus: { id: desk.campus.id, name: desk.campus.name, code: desk.campus.code },
+      vendor: { id: desk.vendor.id, name: desk.vendor.name },
     };
   }
 
@@ -595,8 +610,9 @@ class CouponsScanService {
     const issuedById = issuedByUser.id;
     const isAdmin = issuedByUser.role === 'ADMIN';
     const deviceInfo = deviceInfoFromReq(req);
+    const desk = await getCafeDeskContext(issuedByUser);
     const cleanOverrideReason =
-      typeof overrideReason === 'string' ? overrideReason.trim() : '';
+      isAdmin && typeof overrideReason === 'string' ? overrideReason.trim() : '';
 
     if (!employeeId || !isUuid(employeeId)) {
       throw new Error('Valid employeeId is required.');
@@ -647,7 +663,7 @@ class CouponsScanService {
       throw err;
     }
 
-    // Daily accumulation cap: employee may only redeem up to today's earned total.
+    // Employee may redeem unused days earned so far this week (not future days).
     if (stats.couponsRedeemableNow === 0 && !cleanOverrideReason) {
       await auditService.log({
         action: 'COUPON_BLOCKED',
@@ -723,6 +739,8 @@ class CouponsScanService {
                 couponId: coupon.id,
                 issuedById,
                 deviceInfo,
+                campusId: desk.campus.id,
+                vendorId: desk.vendor.id,
               },
               include: {
                 coupon: { select: { id: true, code: true, value: true } },
@@ -785,87 +803,6 @@ class CouponsScanService {
         name: employee.name,
       },
       remainingCoupons: stats.availableCoupons - claims.length,
-    };
-  }
-
-  /**
-   * GET /self-check/:employeeId — authenticated read-only balance view.
-   */
-  async selfCheck(scannedPayload, requester) {
-    const employeeId = await this.resolveEmployeeId(scannedPayload);
-
-    const canView =
-      requester?.id === employeeId ||
-      ['ADMIN', 'HR', 'CAFE_STAFF'].includes(requester?.role);
-    if (!canView) {
-      const err = new Error('You can only view your own self-check details.');
-      err.code = 'FORBIDDEN';
-      throw err;
-    }
-
-    const { employee, leaveState } = await this.validateEmployeeForScan(employeeId, {
-      allowLeave: true,
-      requireActiveCard: false,
-    });
-    const stats = await this.buildEmployeeCouponStats(employeeId, {
-      allowAccrual: !leaveState.isOnLeave,
-    });
-
-    const recentClaims = hasCouponClaimModel()
-      ? await prisma.couponClaim.findMany({
-          where: { employeeId },
-          orderBy: { issuedAt: 'desc' },
-          take: 10,
-          include: {
-            coupon: { select: { code: true, value: true } },
-          },
-        })
-      : await prisma.coupon
-          .findMany({
-            where: { employeeId, status: 'CLAIMED' },
-            orderBy: { claimedAt: 'desc' },
-            take: 10,
-            select: { code: true, value: true, claimedAt: true },
-          })
-          .then((rows) =>
-            rows.map((c) => ({
-              issuedAt: c.claimedAt,
-              coupon: { code: c.code, value: c.value },
-            }))
-          );
-
-    const now = new Date();
-    const holidays = await prisma.holiday.findMany({
-      where: { date: { gte: now } },
-      orderBy: { date: 'asc' },
-      take: 10,
-    });
-
-    const profile = employee.employeeProfile;
-
-    return {
-      employeeId,
-      fullName: employee.name,
-      department: profile?.department || 'N/A',
-      staffType: profile?.staffType || 'Standard',
-      availableCoupons: stats.availableCoupons,
-      expiredCoupons: stats.expiredCoupons,
-      expiryDate: stats.expiryDate,
-      claimedToday: stats.claimedToday,
-      lastClaimDate: stats.lastClaimDate,
-      weekBalance: stats.weekBalance,
-      dailyCap: stats.dailyCap,
-      couponsRedeemableNow: stats.couponsRedeemableNow,
-      leaveStatus: leaveState,
-      recentClaimHistory: recentClaims.map((c) => ({
-        couponCode: c.coupon.code,
-        value: Number(c.coupon.value),
-        issuedAt: c.issuedAt,
-      })),
-      holidays: holidays.map((h) => ({
-        date: h.date.toISOString().split('T')[0],
-        description: h.description,
-      })),
     };
   }
 }

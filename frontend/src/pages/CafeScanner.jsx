@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Search, Coffee, CheckCircle } from 'lucide-react';
+import { useAuth } from '../context/AuthContext.jsx';
+import { Coffee, CheckCircle } from 'lucide-react';
 import QRScanner from '../components/cafe/QRScanner.jsx';
 import EmployeeInfoCard from '../components/cafe/EmployeeInfoCard.jsx';
 import CouponIssuePanel from '../components/cafe/CouponIssuePanel.jsx';
@@ -10,7 +11,7 @@ import { scanEmployeeQr, issueCoupons } from '../services/couponScan.service.js'
 
 const CafeScanner = () => {
   const { t } = useTranslation();
-  const [manualCode, setManualCode] = useState('');
+  const { user } = useAuth();
   const [loading, setLoading] = useState(false);
   const [employee, setEmployee] = useState(null);
   const [apiError, setApiError] = useState('');
@@ -61,12 +62,6 @@ const CafeScanner = () => {
     }
   };
 
-  const handleManualSearch = (e) => {
-    e.preventDefault();
-    if (!manualCode.trim()) return;
-    handleScanPayload(manualCode.trim());
-  };
-
   const handleIssue = async (quantity) => {
     if (!employee?.employeeId) return;
 
@@ -77,7 +72,7 @@ const CafeScanner = () => {
     try {
       const res = await issueCoupons({
         employeeId: employee.employeeId,
-        quantity,
+        quantity: Number(quantity) || 1,
         overrideReason: employee.claimedToday ? overrideReason : undefined,
       });
       if (res.success) {
@@ -105,7 +100,6 @@ const CafeScanner = () => {
     setApiError('');
     setSuccessMsg('');
     setOverrideReason('');
-    setManualCode('');
   };
 
   const eligible =
@@ -120,34 +114,21 @@ const CafeScanner = () => {
           {t('cafe.title')}
         </h1>
         <p className="text-app-secondary text-sm font-medium">{t('cafe.subtitle')}</p>
+        {user?.campus?.name ? (
+          <p className="text-sm text-app-secondary mt-2">
+            {user.campus.name}
+            {employee?.vendor?.name ? ` · ${employee.vendor.name}` : ''}
+          </p>
+        ) : user?.role === 'CAFE_STAFF' ? (
+          <p className="alert-error mt-3">
+            {t('cafe.campusMissing')}
+          </p>
+        ) : null}
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
         <div className="lg:col-span-5 space-y-6">
           <QRScanner onScan={handleScanPayload} scanPaused={loading || submitting || showSuccessModal} />
-
-          <div className="glass-card p-6">
-            <h3 className="text-sm font-bold uppercase tracking-wider text-app-secondary mb-4 flex items-center gap-2">
-              <Search className="w-4 h-4 text-app-secondary" />
-              <span>{t('cafe.manualLookup')}</span>
-            </h3>
-            <form onSubmit={handleManualSearch} className="flex gap-2">
-              <input
-                type="text"
-                value={manualCode}
-                onChange={(e) => setManualCode(e.target.value)}
-                placeholder={t('cafe.uuidPlaceholder')}
-                className="glass-input flex-1 font-mono text-xs"
-              />
-              <button
-                type="submit"
-                disabled={loading}
-                className="btn-primary"
-              >
-                {loading ? '…' : t('common.search')}
-              </button>
-            </form>
-          </div>
         </div>
 
         <div className="lg:col-span-7 space-y-6">
@@ -193,7 +174,7 @@ const CafeScanner = () => {
                 <Coffee className="w-8 h-8" />
               </div>
               <div>
-                <h4 className="text-lg font-bold text-white ">{t('cafe.readyTitle')}</h4>
+                <h4 className="text-lg font-bold text-app-primary">{t('cafe.readyTitle')}</h4>
                 <p className="text-sm text-app-muted max-w-sm mt-1 mx-auto">
                   {t('cafe.readyBody')}
                 </p>

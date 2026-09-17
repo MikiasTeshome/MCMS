@@ -25,6 +25,7 @@ services:
     build:
       context: ./backend
       dockerfile: Dockerfile
+      network: host
     container_name: mcms-backend
     restart: always
     environment:
@@ -49,6 +50,7 @@ services:
     build:
       context: ./frontend
       dockerfile: Dockerfile
+      network: host
     container_name: mcms-frontend
     restart: always
     environment:

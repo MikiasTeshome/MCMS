@@ -4,8 +4,6 @@ import { useAuth } from '../../context/AuthContext.jsx';
 import { useTranslation } from 'react-i18next';
 import {
   LayoutDashboard,
-  Ticket,
-  Utensils,
   Users as UsersIcon,
   ShieldAlert,
   LogOut,
@@ -15,6 +13,8 @@ import {
   PanelLeftClose,
   PanelLeft,
   PieChart,
+  MapPin,
+  CalendarDays,
 } from 'lucide-react';
 
 const Sidebar = ({ isOpen, setIsOpen, collapsed, onToggleCollapse }) => {
@@ -22,12 +22,12 @@ const Sidebar = ({ isOpen, setIsOpen, collapsed, onToggleCollapse }) => {
   const { t } = useTranslation();
 
   const menuItems = [
-    { path: '/dashboard', label: t('common.dashboard'), icon: LayoutDashboard, roles: ['ADMIN', 'HR', 'FINANCE', 'CAFE_STAFF', 'EMPLOYEE'] },
-    { path: '/coupons', label: t('common.coupons'), icon: Ticket, roles: ['ADMIN', 'HR', 'FINANCE', 'CAFE_STAFF', 'EMPLOYEE'] },
-    { path: '/meals', label: t('common.meals'), icon: Utensils, roles: ['ADMIN', 'FINANCE'] },
-    { path: '/employees', label: t('common.employees'), icon: UserCheck, roles: ['ADMIN', 'HR'] },
+    { path: '/dashboard', label: t('common.dashboard'), icon: LayoutDashboard, roles: ['ADMIN', 'HR', 'FINANCE'] },
+    { path: '/employees', label: t('common.employees'), icon: UserCheck, roles: ['HR'] },
+    { path: '/cafes', label: t('common.cafes'), icon: MapPin, roles: ['HR'] },
+    { path: '/off-days', label: t('common.offDays'), icon: CalendarDays, roles: ['HR'] },
     { path: '/cafe-scanner', label: t('common.cafeScanner'), icon: QrCode, roles: ['ADMIN', 'CAFE_STAFF'] },
-    { path: '/users', label: t('common.users'), icon: UsersIcon, roles: ['ADMIN', 'HR'] },
+    { path: '/users', label: t('common.users'), icon: UsersIcon, roles: ['ADMIN'] },
     { path: '/reports', label: t('common.reports', { defaultValue: 'Reports' }), icon: PieChart, roles: ['ADMIN', 'HR', 'FINANCE', 'CAFE_STAFF'] },
     { path: '/audit-logs', label: t('common.auditLogs'), icon: ShieldAlert, roles: ['ADMIN'] },
   ];

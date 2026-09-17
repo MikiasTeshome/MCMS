@@ -43,7 +43,17 @@ class AuthService {
       name: user.name,
       role: user.role,
       isActive: user.isActive,
+      campusId: user.campusId || null,
+      campus: null,
     };
+
+    if (user.campusId) {
+      const campus = await prisma.campus.findUnique({
+        where: { id: user.campusId },
+        select: { id: true, name: true, code: true },
+      });
+      userSafe.campus = campus;
+    }
 
     // 4. Log the audit event for compliance
     await auditService.log({
@@ -74,6 +84,8 @@ class AuthService {
         name: true,
         role: true,
         isActive: true,
+        campusId: true,
+        campus: { select: { id: true, name: true, code: true } },
         createdAt: true,
       },
     });

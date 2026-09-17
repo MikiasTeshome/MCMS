@@ -9,9 +9,16 @@ class UsersService {
    * Provisions a new user account, hashes password, logs action
    */
   async createUser(data, actorId, req) {
-    const { email, password, name, role } = data;
+    const { email, password, name, role, campusId } = data;
 
-    // Hash user password
+    if (role === 'CAFE_STAFF' && !campusId) {
+      throw new Error('Cafe staff must be assigned to a campus');
+    }
+
+    if (role === 'EMPLOYEE') {
+      throw new Error('Create employees from the Employees page, not Users');
+    }
+
     const passwordHash = await bcrypt.hash(password || 'Password123!', 10);
 
     const user = await prisma.user.create({
@@ -19,13 +26,16 @@ class UsersService {
         email,
         passwordHash,
         name,
-        role: role || 'EMPLOYEE',
+        role: role || 'HR',
+        campusId: role === 'CAFE_STAFF' ? campusId : null,
       },
       select: {
         id: true,
         email: true,
         name: true,
         role: true,
+        campusId: true,
+        campus: { select: { id: true, name: true, code: true } },
         createdAt: true,
       },
     });
@@ -36,6 +46,86 @@ class UsersService {
       entityId: user.id,
       actorId,
       newState: user,
+      req,
+    });
+
+    return user;
+  }
+
+  async resetPassword(userId, password, actorId, req) {
+    const nextPassword = String(password || '').trim();
+    if (nextPassword.length < 8) {
+      throw new Error('Password must be at least 8 characters');
+    }
+
+    const existing = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { id: true, email: true, name: true, role: true },
+    });
+    if (!existing) {
+      throw new Error('User not found');
+    }
+    if (existing.role === 'EMPLOYEE') {
+      throw new Error('Employees do not log in. Manage them on the Employees page.');
+    }
+
+    const passwordHash = await bcrypt.hash(nextPassword, 10);
+    await prisma.user.update({
+      where: { id: userId },
+      data: { passwordHash },
+    });
+
+    await auditService.log({
+      action: 'USER_PASSWORD_RESET',
+      entityType: 'User',
+      entityId: existing.id,
+      actorId,
+      newState: { email: existing.email, resetBy: actorId },
+      req,
+    });
+
+    return existing;
+  }
+
+  async updateUser(userId, data, actorId, req) {
+    const existing = await prisma.user.findUnique({ where: { id: userId } });
+    if (!existing) {
+      throw new Error('User not found');
+    }
+
+    const nextData = {};
+    if (typeof data.isActive === 'boolean') {
+      nextData.isActive = data.isActive;
+    }
+
+    if (existing.role === 'CAFE_STAFF' && data.campusId !== undefined) {
+      if (!data.campusId) {
+        throw new Error('Cafe staff must be assigned to a campus');
+      }
+      nextData.campusId = data.campusId;
+    }
+
+    const user = await prisma.user.update({
+      where: { id: userId },
+      data: nextData,
+      select: {
+        id: true,
+        email: true,
+        name: true,
+        role: true,
+        isActive: true,
+        campusId: true,
+        campus: { select: { id: true, name: true, code: true } },
+      },
+    });
+
+    await auditService.log({
+      action: 'USER_UPDATE',
+      entityType: 'User',
+      entityId: user.id,
+      actorId,
+      oldState: { campusId: existing.campusId, isActive: existing.isActive },
+      newState: { campusId: user.campusId, isActive: user.isActive },
       req,
     });
 
@@ -53,7 +143,11 @@ class UsersService {
     const sort = USER_SORT_FIELDS.has(filters.sort) ? filters.sort : 'name';
     const order = filters.order === 'desc' ? 'desc' : 'asc';
     const where = {};
-    if (role) where.role = role;
+    if (role && role !== 'EMPLOYEE') {
+      where.role = role;
+    } else {
+      where.role = { not: 'EMPLOYEE' };
+    }
     if (search) {
       where.OR = [
         { name: { contains: search, mode: 'insensitive' } },
@@ -69,6 +163,8 @@ class UsersService {
           email: true,
           name: true,
           role: true,
+          campusId: true,
+          campus: { select: { id: true, name: true, code: true } },
           createdAt: true,
         },
         orderBy: { [sort]: order },

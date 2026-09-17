@@ -30,6 +30,9 @@ export const scanCoupon = async (req, res, next) => {
     if (error.code === 'ON_LEAVE') {
       return errorResponse(res, 403, error.message);
     }
+    if (error.code === 'NO_CAMPUS' || error.code === 'NO_VENDOR') {
+      return errorResponse(res, 400, error.message);
+    }
     next(error);
   }
 };
@@ -46,13 +49,13 @@ export const issueScannedCoupon = async (req, res, next) => {
       req.user,
       req
     );
-    return successResponse(res, 200, 'Coupon(s) issued successfully', data);
+    return successResponse(res, 200, 'Meal(s) recorded successfully', data);
   } catch (error) {
     if (error.code === 'SCAN_REQUIRED') {
       return errorResponse(res, 400, 'QR scan required.');
     }
     if (error.code === 'NO_COUPONS') {
-      return errorResponse(res, 400, 'No available coupons.');
+      return errorResponse(res, 400, 'No unused meals this week.');
     }
     if (error.code === 'QR_INVALID') {
       return errorResponse(res, 400, 'QR card is invalid.');
@@ -67,28 +70,5 @@ export const issueScannedCoupon = async (req, res, next) => {
       return errorResponse(res, 403, error.message);
     }
     return errorResponse(res, 400, error.message);
-  }
-};
-
-export const selfCheckEmployee = async (req, res, next) => {
-  try {
-    const { employeeId } = req.params;
-    if (!employeeId) {
-      return errorResponse(res, 400, 'employeeId is required');
-    }
-
-    const data = await couponsScanService.selfCheck(employeeId, req.user);
-    return successResponse(res, 200, 'Self-check loaded', data);
-  } catch (error) {
-    if (error.code === 'FORBIDDEN') {
-      return errorResponse(res, 403, error.message);
-    }
-    if (error.code === 'QR_INVALID') {
-      return errorResponse(res, 400, 'QR card is invalid.');
-    }
-    if (error.message === 'Invalid QR code.') {
-      return errorResponse(res, 400, 'Invalid QR code.');
-    }
-    return errorResponse(res, 404, error.message);
   }
 };

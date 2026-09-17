@@ -23,17 +23,23 @@ import {
   Trash2,
 } from 'lucide-react';
 import { PageHeader, PageSkeleton, ProgressBar, EmptyState } from '../components/ui/Page.jsx';
+import { ModalOverlay } from '../components/ui/Modal.jsx';
+import CalendarDatePicker from '../components/ui/CalendarDatePicker.jsx';
 import api from '../services/api.js';
 import {
   exportEmployeesToExcel,
   downloadEmployeeTemplate,
   parseEmployeeExcelFile,
 } from '../utils/employeeExcel.js';
+import { getPrintCards } from '../services/campus.service.js';
 import {
   formatCalendarDate,
   parseCalendarDateString,
-  toIsoDay,
   getGregorianDayKey,
+  countWorkingDays,
+  buildHolidayKeySet,
+  shiftUtcDays,
+  DATE_INPUT_FORMAT,
 } from '../utils/ethiopianDate.js';
 
 const truncateCode = (code) => (code ? `${code.slice(0, 8)}...` : '—');
@@ -65,12 +71,18 @@ const getEmployeeLeaveState = (emp) => {
 
 const formatLeaveInputValue = (calendarMode, value) => {
   if (!value) return '';
-  return calendarMode === 'gregorian' ? toIsoDay(value) : formatCalendarDate(calendarMode, value);
+  return formatCalendarDate(calendarMode, value);
+};
+
+const convertLeaveInputValue = (fromMode, toMode, value) => {
+  const parsed = parseCalendarDateString(fromMode, value);
+  return parsed ? formatLeaveInputValue(toMode, parsed) : '';
 };
 
 const Employees = () => {
   const { t } = useTranslation();
   const { calendarMode } = useCalendar();
+  const previousCalendarMode = useRef(calendarMode);
 
   const [employeesList, setEmployeesList] = useState([]);
   const [pageMeta, setPageMeta] = useState({ page: 1, limit: 25, total: 0, totalPages: 1 });
@@ -79,6 +91,8 @@ const Employees = () => {
 
   const [showAddModal, setShowAddModal] = useState(false);
   const [showPrintModal, setShowPrintModal] = useState(false);
+  const [printCards, setPrintCards] = useState(null);
+  const [bulkPrinting, setBulkPrinting] = useState(false);
   const [showDetailsModal, setShowDetailsModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
   const [selectedEmployee, setSelectedEmployee] = useState(null);
@@ -87,12 +101,8 @@ const Employees = () => {
 
   const [editForm, setEditForm] = useState({
     name: '',
-    email: '',
-    department: '',
-    position: '',
     employeeIdNumber: '',
     isActive: true,
-    staffType: 'Standard',
     leaveDays: '',
     leaveStartDate: '',
     leaveReturnDate: '',
@@ -102,13 +112,8 @@ const Employees = () => {
   const [editing, setEditing] = useState(false);
 
   const [employeeForm, setEmployeeForm] = useState({
-    email: '',
-    password: '',
     name: '',
-    department: '',
-    position: '',
     employeeIdNumber: '',
-    staffType: 'Standard',
   });
   const [actionError, setActionError] = useState('');
   const [actionSuccess, setActionSuccess] = useState('');
@@ -119,6 +124,7 @@ const Employees = () => {
   const [importResults, setImportResults] = useState(null);
   const [importing, setImporting] = useState(false);
   const fileInputRef = useRef(null);
+  const [holidays, setHolidays] = useState([]);
 
   const fetchEmployees = async (page = pageMeta.page, limit = pageMeta.limit, nextFilters = filters) => {
     try {
@@ -148,7 +154,28 @@ const Employees = () => {
 
   useEffect(() => {
     fetchEmployees(1, 25);
+    const fetchHolidays = async () => {
+      try {
+        const res = await api.get('/holidays');
+        setHolidays(Array.isArray(res.data?.data) ? res.data.data : []);
+      } catch (err) {
+        console.error('Failed to load holidays:', err);
+      }
+    };
+    fetchHolidays();
   }, []);
+
+  useEffect(() => {
+    const fromMode = previousCalendarMode.current;
+    if (fromMode === calendarMode) return;
+    previousCalendarMode.current = calendarMode;
+    if (!showEditModal) return;
+    setEditForm((form) => ({
+      ...form,
+      leaveStartDate: convertLeaveInputValue(fromMode, calendarMode, form.leaveStartDate),
+      leaveReturnDate: convertLeaveInputValue(fromMode, calendarMode, form.leaveReturnDate),
+    }));
+  }, [calendarMode, showEditModal]);
 
   const copyText = async (text, fieldKey) => {
     if (!text) return;
@@ -168,18 +195,16 @@ const Employees = () => {
     setProcessing(true);
 
     try {
-      const res = await api.post('/employees', employeeForm);
+      const res = await api.post('/employees', {
+        name: employeeForm.name,
+        employeeIdNumber: employeeForm.employeeIdNumber,
+      });
       if (res.data.success) {
         setActionSuccess(t('employees.provisionSuccess', { name: res.data?.data?.user?.name || employeeForm.name }));
         setShowAddModal(false);
         setEmployeeForm({
-          email: '',
-          password: '',
           name: '',
-          department: '',
-          position: '',
           employeeIdNumber: '',
-          staffType: 'Standard',
         });
         fetchEmployees();
       }
@@ -193,6 +218,9 @@ const Employees = () => {
   const handleGenerateQR = async (emp) => {
     setActionError('');
     setActionSuccess('');
+    if (emp.qrCards?.[0] && !window.confirm(t('employees.reprintConfirm', { name: emp.name }))) {
+      return;
+    }
 
     try {
       const res = await generateQR(emp.id);
@@ -200,6 +228,7 @@ const Employees = () => {
         setActionSuccess(t('employees.qrSuccess', { name: emp.name }));
         setSelectedEmployee(emp);
         setSelectedCardCode(res.data.cardCode);
+        setPrintCards(null);
         setShowPrintModal(true);
         fetchEmployees();
       }
@@ -214,7 +243,8 @@ const Employees = () => {
       return;
     }
     setSelectedEmployee(emp);
-    setSelectedCardCode(emp.id);
+    setSelectedCardCode(emp.qrCards[0].cardCode);
+    setPrintCards(null);
     setShowPrintModal(true);
   };
 
@@ -235,12 +265,8 @@ const Employees = () => {
     const profile = emp.employeeProfile || {};
     setEditForm({
       name: emp.name || '',
-      email: emp.email || '',
-      department: profile.department || '',
-      position: profile.position || '',
       employeeIdNumber: profile.employeeIdNumber || '',
       isActive: emp.isActive !== false,
-      staffType: profile.staffType || 'Standard',
       leaveDays: profile.leaveDays ?? '',
       leaveStartDate: formatLeaveInputValue(calendarMode, profile.leaveStartDate),
       leaveReturnDate: formatLeaveInputValue(calendarMode, profile.leaveReturnDate),
@@ -256,6 +282,22 @@ const Employees = () => {
     setEditError('');
     setEditSuccess('');
   };
+
+  const applyLeaveDate = (field, nextValue) => {
+    setEditForm((prev) => {
+      const next = { ...prev, [field]: nextValue };
+      const start = parseCalendarDateString(calendarMode, next.leaveStartDate);
+      const end = parseCalendarDateString(calendarMode, next.leaveReturnDate);
+      const days = countWorkingDays(start, end, buildHolidayKeySet(holidays));
+      if (days !== null && start && end) {
+        next.leaveDays = String(days);
+      }
+      return next;
+    });
+  };
+
+  const leaveStartDate = parseCalendarDateString(calendarMode, editForm.leaveStartDate);
+  const leaveReturnDate = parseCalendarDateString(calendarMode, editForm.leaveReturnDate);
 
   const handleEditSubmit = async (e) => {
     e.preventDefault();
@@ -329,6 +371,26 @@ const Employees = () => {
     const next = { ...filters, ...patch };
     setFilters(next);
     fetchEmployees(1, pageMeta.limit, next);
+  };
+
+  const handleBulkPrint = async () => {
+    setActionError('');
+    setBulkPrinting(true);
+    try {
+      const res = await getPrintCards();
+      const cards = res.data || [];
+      if (!cards.length) {
+        setActionError(t('employees.bulkPrintEmpty'));
+        return;
+      }
+      setPrintCards(cards);
+      setSelectedEmployee(null);
+      setShowPrintModal(true);
+    } catch (err) {
+      setActionError(err.response?.data?.message || t('employees.bulkPrintFailed'));
+    } finally {
+      setBulkPrinting(false);
+    }
   };
 
   const handleExport = () => {
@@ -405,6 +467,14 @@ const Employees = () => {
         subtitle={t('employees.subtitle')}
         actions={
           <>
+            <button
+              onClick={handleBulkPrint}
+              disabled={bulkPrinting}
+              className="btn-secondary"
+            >
+              <Printer className="w-4 h-4" />
+              <span>{bulkPrinting ? t('common.loading') : t('employees.bulkPrint')}</span>
+            </button>
             <button
               onClick={handleExport}
               disabled={employeesList.length === 0}
@@ -498,8 +568,7 @@ const Employees = () => {
               <tr>
                 <th className="w-16">{t('employees.tableAvatar')}</th>
                 <th>{t('employees.tableName')}</th>
-                <th>{t('employees.tableDepartment')}</th>
-                <th>{t('employees.tablePosition')}</th>
+                <th>{t('employees.tableEmployeeId')}</th>
                 <th>{t('employees.tableStatus')}</th>
                 <th className="text-right">{t('employees.tableActions')}</th>
               </tr>
@@ -507,7 +576,7 @@ const Employees = () => {
             <tbody>
               {(Array.isArray(employeesList) ? employeesList : []).length === 0 ? (
                 <tr>
-                  <td colSpan="6">
+                  <td colSpan="5">
                     <EmptyState
                       icon={UsersIcon}
                       title={t('employees.noEmployees')}
@@ -552,12 +621,7 @@ const Employees = () => {
                       </td>
                       <td>
                         <div className="cell-secondary">
-                          {emp.employeeProfile?.department || '—'}
-                        </div>
-                      </td>
-                      <td>
-                        <div className="cell-secondary">
-                          {emp.employeeProfile?.position || '—'}
+                          {emp.employeeProfile?.employeeIdNumber || '—'}
                         </div>
                       </td>
                       <td>
@@ -642,7 +706,7 @@ const Employees = () => {
 
       {/* Details modal */}
       {showDetailsModal && selectedEmployee && (
-        <div className="modal-overlay" onClick={closeDetails}>
+        <ModalOverlay onClose={closeDetails}>
           <div className="modal-content" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center justify-between mb-6">
               <div className="flex items-center gap-3 min-w-0">
@@ -662,11 +726,6 @@ const Employees = () => {
               >
                 <X className="w-5 h-5" />
               </button>
-            </div>
-
-            <div className="detail-row">
-              <span className="detail-label">{t('employees.emailAddress')}</span>
-              <span className="detail-value">{selectedEmployee.email}</span>
             </div>
 
             <div className="detail-row">
@@ -753,13 +812,13 @@ const Employees = () => {
               </button>
             </div>
           </div>
-        </div>
+        </ModalOverlay>
       )}
 
       {/* Provision modal */}
       {showAddModal && (
-        <div className="modal-overlay">
-          <div className="modal-content">
+        <ModalOverlay onClose={() => setShowAddModal(false)}>
+          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
             <h3 className="modal-title mb-6">
               <UserCheck className="w-5 h-5 icon-accent" />
               <span>{t('employees.addModalTitle')}</span>
@@ -783,7 +842,6 @@ const Employees = () => {
                   <label className="input-label">{t('employees.employeeId')}</label>
                   <input
                     type="text"
-                    required
                     value={employeeForm.employeeIdNumber}
                     onChange={(e) =>
                       setEmployeeForm({ ...employeeForm, employeeIdNumber: e.target.value })
@@ -792,69 +850,6 @@ const Employees = () => {
                     className="glass-input text-xs"
                   />
                 </div>
-
-                <div className="form-group">
-                  <label className="input-label">{t('employees.emailAddress')}</label>
-                  <input
-                    type="email"
-                    required
-                    value={employeeForm.email}
-                    onChange={(e) => setEmployeeForm({ ...employeeForm, email: e.target.value })}
-                    placeholder="email@system.com"
-                    className="glass-input text-xs"
-                  />
-                </div>
-
-                <div className="form-group">
-                  <label className="input-label">{t('employees.password')}</label>
-                  <input
-                    type="password"
-                    required
-                    value={employeeForm.password}
-                    onChange={(e) => setEmployeeForm({ ...employeeForm, password: e.target.value })}
-                    placeholder="••••••••"
-                    className="glass-input text-xs"
-                  />
-                </div>
-
-                <div className="form-group">
-                  <label className="input-label">{t('employees.department')}</label>
-                  <input
-                    type="text"
-                    required
-                    value={employeeForm.department}
-                    onChange={(e) =>
-                      setEmployeeForm({ ...employeeForm, department: e.target.value })
-                    }
-                    placeholder="E.g., Engineering"
-                    className="glass-input text-xs"
-                  />
-                </div>
-
-                <div className="form-group">
-                  <label className="input-label">{t('employees.position')}</label>
-                  <input
-                    type="text"
-                    required
-                    value={employeeForm.position}
-                    onChange={(e) => setEmployeeForm({ ...employeeForm, position: e.target.value })}
-                    placeholder="E.g., Senior Developer"
-                    className="glass-input text-xs"
-                  />
-                </div>
-              </div>
-
-              <div className="form-group pt-2">
-                <label className="input-label">{t('employees.staffType')}</label>
-                <input
-                  type="text"
-                  value={employeeForm.staffType}
-                  onChange={(e) =>
-                    setEmployeeForm({ ...employeeForm, staffType: e.target.value })
-                  }
-                  placeholder="Standard"
-                  className="glass-input text-xs"
-                />
               </div>
 
               <p className="text-[11px] text-app-muted pt-1">{t('employees.qrAutoNote')}</p>
@@ -877,13 +872,13 @@ const Employees = () => {
               </div>
             </form>
           </div>
-        </div>
+        </ModalOverlay>
       )}
 
       {/* Import modal */}
       {showImportModal && (
-        <div className="modal-overlay">
-          <div className="modal-content">
+        <ModalOverlay onClose={closeImportModal}>
+          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center justify-between mb-6">
               <h3 className="modal-title">
                 <FileSpreadsheet className="w-5 h-5 icon-accent" />
@@ -971,13 +966,13 @@ const Employees = () => {
               </button>
             </div>
           </div>
-        </div>
+        </ModalOverlay>
       )}
 
       {/* ── Edit Modal ── */}
       {showEditModal && selectedEmployee && (
-        <div className="modal-overlay" onClick={closeEdit}>
-          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+        <ModalOverlay onClose={closeEdit}>
+          <div className="modal-content !max-w-2xl" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center justify-between mb-6">
               <h3 className="modal-title">
                 <Pencil className="w-5 h-5 icon-accent" />
@@ -1024,39 +1019,6 @@ const Employees = () => {
                   />
                 </div>
 
-                <div className="form-group">
-                  <label className="input-label">{t('employees.emailAddress')}</label>
-                  <input
-                    type="email"
-                    required
-                    value={editForm.email}
-                    onChange={(e) => setEditForm({ ...editForm, email: e.target.value })}
-                    className="glass-input text-xs"
-                  />
-                </div>
-
-                <div className="form-group">
-                  <label className="input-label">{t('employees.department')}</label>
-                  <input
-                    type="text"
-                    required
-                    value={editForm.department}
-                    onChange={(e) => setEditForm({ ...editForm, department: e.target.value })}
-                    className="glass-input text-xs"
-                  />
-                </div>
-
-                <div className="form-group">
-                  <label className="input-label">{t('employees.position')}</label>
-                  <input
-                    type="text"
-                    required
-                    value={editForm.position}
-                    onChange={(e) => setEditForm({ ...editForm, position: e.target.value })}
-                    className="glass-input text-xs"
-                  />
-                </div>
-
                 <div className="form-group flex flex-col justify-center">
                   <label className="input-label">{t('common.status')}</label>
                   <label className="flex items-center gap-2 cursor-pointer pt-1">
@@ -1096,27 +1058,25 @@ const Employees = () => {
 
                   <div className="form-group">
                     <label className="input-label">{t('employees.leaveStartDate')}</label>
-                    <input
-                      type={calendarMode === 'gregorian' ? 'date' : 'text'}
+                    <CalendarDatePicker
+                      calendarMode={calendarMode}
                       value={editForm.leaveStartDate}
-                      onChange={(e) =>
-                        setEditForm({ ...editForm, leaveStartDate: e.target.value })
-                      }
-                      placeholder={calendarMode === 'gregorian' ? 'YYYY-MM-DD' : 'MM/DD/YYYY'}
-                      className="glass-input text-xs"
+                      onChange={(nextValue) => applyLeaveDate('leaveStartDate', nextValue)}
+                      maxDate={leaveReturnDate ? shiftUtcDays(leaveReturnDate, -1) : null}
+                      holidays={holidays}
+                      placeholder={DATE_INPUT_FORMAT}
                     />
                   </div>
 
                   <div className="form-group">
                     <label className="input-label">{t('employees.leaveReturnDate')}</label>
-                    <input
-                      type={calendarMode === 'gregorian' ? 'date' : 'text'}
+                    <CalendarDatePicker
+                      calendarMode={calendarMode}
                       value={editForm.leaveReturnDate}
-                      onChange={(e) =>
-                        setEditForm({ ...editForm, leaveReturnDate: e.target.value })
-                      }
-                      placeholder={calendarMode === 'gregorian' ? 'YYYY-MM-DD' : 'MM/DD/YYYY'}
-                      className="glass-input text-xs"
+                      onChange={(nextValue) => applyLeaveDate('leaveReturnDate', nextValue)}
+                      minDate={leaveStartDate ? shiftUtcDays(leaveStartDate, 1) : null}
+                      holidays={holidays}
+                      placeholder={DATE_INPUT_FORMAT}
                     />
                   </div>
                 </div>
@@ -1132,17 +1092,19 @@ const Employees = () => {
               </div>
             </form>
           </div>
-        </div>
+        </ModalOverlay>
       )}
 
-      {showPrintModal && selectedEmployee && (
+      {showPrintModal && (printCards || selectedEmployee) && (
         <QRPrintCard
           employee={selectedEmployee}
           cardCode={selectedCardCode}
+          cards={printCards}
           onClose={() => {
             setShowPrintModal(false);
             setSelectedEmployee(null);
             setSelectedCardCode('');
+            setPrintCards(null);
           }}
         />
       )}

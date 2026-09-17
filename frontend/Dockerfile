@@ -2,7 +2,7 @@
 FROM node:18-alpine AS base
 WORKDIR /app
 COPY package*.json ./
-RUN npm ci
+RUN npm install
 
 # Development Stage
 FROM base AS development

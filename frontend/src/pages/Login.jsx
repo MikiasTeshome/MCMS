@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { homePathForRole } from '../utils/roleHome.js';
 import { useAuth } from '../context/AuthContext.jsx';
 import { useTranslation } from 'react-i18next';
 import { Mail, Lock, Languages, ShieldCheck, Sun, Moon } from 'lucide-react';
@@ -25,9 +26,9 @@ const Login = () => {
     setSubmitting(true);
     try {
       const res = await login(email, password);
-      if (res.success) navigate('/dashboard');
-    } catch {
-      setErrorMsg(t('login.error'));
+      if (res.success) navigate(homePathForRole(res.user?.role));
+    } catch (err) {
+      setErrorMsg(err.message || t('login.error'));
     } finally {
       setSubmitting(false);
     }

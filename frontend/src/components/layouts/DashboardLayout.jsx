@@ -29,7 +29,7 @@ const DashboardLayout = () => {
         <Header onMenuToggle={() => setSidebarOpen(true)} />
 
         <main className="flex-1 overflow-x-hidden overflow-y-auto p-6 bg-app-bg">
-          <div className="content-container page-shell">
+          <div className="content-container">
             <Outlet />
           </div>
         </main>

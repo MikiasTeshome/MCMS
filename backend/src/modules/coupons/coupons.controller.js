@@ -1,62 +1,36 @@
 import couponsService from './coupons.service.js';
 import { successResponse, errorResponse } from '../../utils/response.js';
 
-export const getCoupons = async (req, res, next) => {
-  try {
-    const filters = {
-      beneficiaryId: req.query.beneficiaryId,
-      vendorId: req.query.vendorId,
-      status: req.query.status,
-    };
-    
-    const result = await couponsService.getCoupons({ ...filters, ...req.query }, req.user);
-    return successResponse(res, 200, 'Coupons retrieved successfully', result);
-  } catch (error) {
-    next(error);
-  }
-};
-
 export const getCouponScanReport = async (req, res, next) => {
   try {
-    const result = await couponsService.getCouponScanReport(req.query);
+    const result = await couponsService.getCouponScanReport(req.query, req.user);
     return successResponse(res, 200, 'Coupon scan report retrieved successfully', result);
   } catch (error) {
     next(error);
   }
 };
 
-export const createCoupon = async (req, res, next) => {
+export const downloadPaymentOrder = async (req, res, next) => {
   try {
-    const { beneficiaryId, mealId, expiresAt } = req.body;
-
-    if (!beneficiaryId || !mealId || !expiresAt) {
-      return errorResponse(res, 400, 'Please provide beneficiaryId, mealId and expiresAt');
-    }
-
-    const coupon = await couponsService.createCoupon(req.body, req.user.id, req);
-    return successResponse(res, 201, 'Coupon issued successfully', coupon);
+    const { buffer, filename } = await couponsService.buildPaymentOrderDocx(
+      req.query,
+      req.user
+    );
+    res.setHeader(
+      'Content-Type',
+      'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+    );
+    res.setHeader(
+      'Content-Disposition',
+      `attachment; filename="${filename.replace(/"/g, '')}"; filename*=UTF-8''${encodeURIComponent(filename)}`
+    );
+    return res.send(buffer);
   } catch (error) {
-    next(error);
-  }
-};
-
-export const redeemCoupon = async (req, res, next) => {
-  try {
-    const { code } = req.body;
-
-    if (!code) {
-      return errorResponse(res, 400, 'Please provide coupon code to redeem');
-    }
-
-    const coupon = await couponsService.redeemCoupon(code, req.user.id, req);
-    return successResponse(res, 200, 'Coupon redeemed successfully', coupon);
-  } catch (error) {
-    if (
-      error.message === 'Coupon not found' || 
-      error.message.includes('cannot be redeemed') || 
-      error.message === 'Coupon has expired'
-    ) {
+    if (error.statusCode === 400) {
       return errorResponse(res, 400, error.message);
+    }
+    if (error.statusCode === 403) {
+      return errorResponse(res, 403, error.message);
     }
     next(error);
   }

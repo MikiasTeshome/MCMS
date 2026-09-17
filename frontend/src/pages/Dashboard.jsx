@@ -3,7 +3,7 @@ import { useAuth } from '../context/AuthContext.jsx';
 import { useTranslation } from 'react-i18next';
 import { getDashboardStats } from '../services/dashboard.service.js';
 import { getCouponScanReport } from '../services/couponScan.service.js';
-import { Ticket, Utensils, ShieldAlert, CheckCircle, Clock, CalendarDays, BarChart3, Wallet } from 'lucide-react';
+import { Utensils, ShieldAlert, CalendarDays, BarChart3, Wallet, Clock } from 'lucide-react';
 import { PageHeader, PageSkeleton } from '../components/ui/Page.jsx';
 
 const Dashboard = () => {
@@ -18,7 +18,7 @@ const Dashboard = () => {
       try {
         const statsRes = await getDashboardStats();
         setStats(statsRes.data);
-        const canViewScanReport = ['ADMIN', 'HR', 'FINANCE', 'CAFE_STAFF'].includes(user?.role);
+        const canViewScanReport = ['ADMIN', 'HR', 'FINANCE'].includes(user?.role);
         if (canViewScanReport) {
           const reportRes = await getCouponScanReport();
           setScanReport(reportRes.data);
@@ -35,10 +35,8 @@ const Dashboard = () => {
   if (loading || !stats) return <PageSkeleton />;
 
   const cards = [
-    { title: t('dashboard.totalCoupons'), value: stats.totalCoupons, icon: Ticket, roles: ['ADMIN', 'HR', 'FINANCE', 'EMPLOYEE'] },
-    { title: t('dashboard.redeemedCoupons', { defaultValue: 'Claimed Coupons' }), value: stats.claimedCoupons, icon: CheckCircle, roles: ['ADMIN', 'HR', 'FINANCE', 'CAFE_STAFF', 'EMPLOYEE'] },
     { title: t('dashboard.activeEmployees', { defaultValue: 'Active Employees' }), value: stats.activeEmployees, icon: Utensils, roles: ['ADMIN', 'HR', 'FINANCE'] },
-    { title: t('dashboard.todayClaims', { defaultValue: 'Today Claims' }), value: stats.todayClaims, icon: ShieldAlert, highlight: true, roles: ['ADMIN'] },
+    { title: t('dashboard.todayClaims', { defaultValue: 'Today Claims' }), value: stats.todayClaims, icon: ShieldAlert, highlight: true, roles: ['ADMIN', 'HR', 'FINANCE'] },
   ];
 
   const activeCards = cards.filter((c) => c.roles.includes(user?.role));

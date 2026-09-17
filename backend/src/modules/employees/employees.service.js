@@ -65,10 +65,9 @@ class EmployeesService {
    */
   prepareImportRow(row, nextIdRef) {
     const name = row.name?.trim();
-    const department = row.department?.trim();
 
-    if (!name || !department) {
-      return { error: 'Full Name and Department are required' };
+    if (!name) {
+      return { error: 'Full Name is required' };
     }
 
     let employeeIdNumber = row.employeeIdNumber?.trim();
@@ -78,7 +77,8 @@ class EmployeesService {
     }
 
     const email = row.email?.trim() || `${employeeIdNumber.toLowerCase()}@employees.local`;
-    const position = row.position?.trim() || 'Staff';
+    const department = row.department?.trim() || '-';
+    const position = row.position?.trim() || '-';
     const staffType = row.staffType?.trim() || 'Standard';
 
     let joinedDate = null;
@@ -108,13 +108,23 @@ class EmployeesService {
    * provisions user as EMPLOYEE + EmployeeProfile + optional QRCard in a transaction
    */
   async createEmployee(data, actorId, req) {
+    const name = String(data.name || '').trim();
+    if (!name) {
+      throw new Error('Full name is required');
+    }
+
+    let employeeIdNumber = String(data.employeeIdNumber || '').trim();
+    if (!employeeIdNumber) {
+      const max = await this.getMaxEmployeeIdNumber();
+      employeeIdNumber = `${EMP_ID_PREFIX}${max + 1}`;
+    }
+
+    const email =
+      String(data.email || '').trim() || `${employeeIdNumber.toLowerCase()}@employees.local`;
+    const department = String(data.department || '').trim() || '-';
+    const position = String(data.position || '').trim() || '-';
     const {
-      email,
       password,
-      name,
-      department,
-      position,
-      employeeIdNumber,
       staffType,
       joinedDate,
       leaveDays,
@@ -269,6 +279,36 @@ class EmployeesService {
       prisma.user.count({ where: { role: 'EMPLOYEE' } }),
     ]);
     return { activeEmployees, totalEmployees };
+  }
+
+  async getPrintCards() {
+    const employees = await prisma.user.findMany({
+      where: { role: 'EMPLOYEE', isActive: true },
+      select: {
+        id: true,
+        name: true,
+        employeeProfile: {
+          select: {
+            employeeIdNumber: true,
+            department: true,
+            position: true,
+          },
+        },
+        qrCards: {
+          where: { status: 'ACTIVE' },
+          select: QR_CARD_SELECT,
+          take: 1,
+        },
+      },
+      orderBy: { name: 'asc' },
+    });
+
+    return employees
+      .filter((emp) => emp.qrCards?.[0]?.cardCode)
+      .map((emp) => ({
+        employee: emp,
+        cardCode: emp.qrCards[0].cardCode,
+      }));
   }
 
   async getAllEmployees() {

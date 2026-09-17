@@ -3,6 +3,8 @@ import { Prisma } from '@prisma/client';
 import crypto from 'crypto';
 import auditService from '../audit/audit.service.js';
 import { calculateExpiryDate } from '../../utils/expiry.js'; // helper to compute working days
+import { birrToAmharicWords, formatGroupedInt, formatMoney } from '../../utils/amharicAmountWords.js';
+import { renderPaymentOrderDocx } from '../../utils/paymentOrderDocx.js';
 
 const STANDARD_COUPON_VALUE = 40;
 const COUPON_SORT_FIELDS = new Set(['updatedAt', 'createdAt', 'expiresAt', 'code', 'claimedAt']);
@@ -570,10 +572,15 @@ class CouponsService {
     };
   }
 
-  async getCouponScanReport(filters = {}) {
+  async getCouponScanReport(filters = {}, user = null) {
     const now = new Date();
     const rangeType = filters.range || 'thisMonth';
     const calendarMode = getCalendarMode(filters.calendarMode);
+    let campusId = filters.campusId || null;
+    let vendorId = filters.vendorId || null;
+    if (user?.role === 'CAFE_STAFF') {
+      campusId = user.campusId || campusId;
+    }
     let startDate = filters.startDate ? startOfEthiopiaDayUtc(parseCalendarDate(calendarMode, filters.startDate)) : null;
     let endDate = filters.endDate ? endOfEthiopiaDayUtc(parseCalendarDate(calendarMode, filters.endDate)) : null;
 
@@ -655,6 +662,8 @@ class CouponsService {
     const rangeLabel = `${formatCalendarDate(calendarMode, startDate)} -> ${formatCalendarDate(calendarMode, endDate)}`;
 
     const aggregateRange = async (from, to) => {
+      const campusClause = campusId ? Prisma.sql`AND cc."campusId" = ${campusId}` : Prisma.empty;
+      const vendorClause = vendorId ? Prisma.sql`AND cc."vendorId" = ${vendorId}` : Prisma.empty;
       const rows = await prisma.$queryRaw`
         SELECT
           DATE_TRUNC('day', cc."issuedAt" + INTERVAL '3 hours')::date AS day,
@@ -663,6 +672,8 @@ class CouponsService {
         FROM "CouponClaim" cc
         INNER JOIN "Coupon" c ON c."id" = cc."couponId"
         WHERE cc."issuedAt" >= ${from} AND cc."issuedAt" <= ${to}
+        ${campusClause}
+        ${vendorClause}
         GROUP BY 1
         ORDER BY 1 ASC
       `;
@@ -672,6 +683,25 @@ class CouponsService {
         amount: Number(row.amount || 0),
       }));
     };
+
+    const breakdownRows = await prisma.$queryRaw`
+      SELECT
+        cc."campusId" AS "campusId",
+        camp.name AS "campusName",
+        cc."vendorId" AS "vendorId",
+        vend.name AS "vendorName",
+        COUNT(*)::int AS count,
+        COALESCE(SUM(c."value"), 0)::numeric AS amount
+      FROM "CouponClaim" cc
+      INNER JOIN "Coupon" c ON c."id" = cc."couponId"
+      LEFT JOIN "Campus" camp ON camp."id" = cc."campusId"
+      LEFT JOIN "Vendor" vend ON vend."id" = cc."vendorId"
+      WHERE cc."issuedAt" >= ${startDate} AND cc."issuedAt" <= ${endDate}
+      ${campusId ? Prisma.sql`AND cc."campusId" = ${campusId}` : Prisma.empty}
+      ${vendorId ? Prisma.sql`AND cc."vendorId" = ${vendorId}` : Prisma.empty}
+      GROUP BY 1, 2, 3, 4
+      ORDER BY amount DESC
+    `;
 
     const [selectedRows, previousRows] = await Promise.all([
       aggregateRange(startDate, endDate),
@@ -735,7 +765,84 @@ class CouponsService {
         previousCount,
         previousAmount,
       },
+      byCampus: (breakdownRows || []).map((row) => ({
+        campusId: row.campusId,
+        campusName: row.campusName || 'Unassigned',
+        vendorId: row.vendorId,
+        vendorName: row.vendorName || 'Unassigned',
+        count: Number(row.count || 0),
+        amount: Number(row.amount || 0),
+      })),
     };
+  }
+
+  formatPaymentLetterDate(calendarMode, value) {
+    const pad = (n) => String(n).padStart(2, '0');
+    if (getCalendarMode(calendarMode) === 'gregorian') {
+      const { year, month, day } = getGregorianParts(value);
+      if (!year || !month || !day) return '';
+      return `${pad(day)}/${pad(month)}/${year}`;
+    }
+    const { year, month, day } = getEthiopianParts(value);
+    if (!year || !month || !day) return '';
+    return `${pad(day)}/${pad(month)}/${String(year).slice(-2)}`;
+  }
+
+  /**
+   * Editable Word payment order for Finance. Totals come from scans
+   * for the selected period and cafe vendor; HR still signs and sends it.
+   */
+  async buildPaymentOrderDocx(filters = {}, user = null) {
+    if (user?.role === 'CAFE_STAFF') {
+      const err = new Error('Payment letters are prepared by HR.');
+      err.statusCode = 403;
+      throw err;
+    }
+
+    const report = await this.getCouponScanReport(filters, user);
+    const rows = report.byCampus || [];
+    const vendorId = filters.vendorId || null;
+    const campusId = filters.campusId || null;
+
+    let row = null;
+    if (vendorId) {
+      row = rows.find(
+        (item) =>
+          item.vendorId === vendorId && (!campusId || item.campusId === campusId)
+      );
+    }
+    if (!row && rows.length === 1) {
+      row = rows[0];
+    }
+    if (!row) {
+      const err = new Error(
+        'Select the cafe vendor this letter is paying. Open Reports, pick the period, then download from that cafe row.'
+      );
+      err.statusCode = 400;
+      throw err;
+    }
+
+    const calendarMode = report.selectedRange.calendarMode;
+    const vars = {
+      date: this.formatPaymentLetterDate(calendarMode, new Date()),
+      start_date: this.formatPaymentLetterDate(calendarMode, report.selectedRange.startDate),
+      end_date: this.formatPaymentLetterDate(calendarMode, report.selectedRange.endDate),
+      total_days: String(report.chartSeries?.length || 0),
+      total_scans: formatGroupedInt(row.count),
+      rate_per_coupon: formatMoney(report.metrics.rate),
+      total_amount: formatMoney(row.amount),
+      total_amount_words: birrToAmharicWords(row.amount),
+      cafe_name: row.vendorName,
+    };
+
+    const buffer = await renderPaymentOrderDocx(vars);
+    const safeVendor = String(row.vendorName || 'cafe')
+      .replace(/[^\p{L}\p{N}]+/gu, '-')
+      .replace(/^-|-$/g, '')
+      .slice(0, 40);
+    const filename = `payment-order-${safeVendor || 'cafe'}-${vars.start_date.replace(/\//g, '-')}-${vars.end_date.replace(/\//g, '-')}.docx`;
+
+    return { buffer, filename, vars };
   }
 
   async getCoupons(filters = {}, user) {

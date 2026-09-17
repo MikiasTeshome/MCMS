@@ -16,11 +16,33 @@ async function main() {
   await prisma.employeeProfile.deleteMany();
   await prisma.holiday.deleteMany();
   await prisma.user.deleteMany();
+  await prisma.campusVendorAssignment.deleteMany();
+  await prisma.vendor.deleteMany();
+  await prisma.campus.deleteMany();
 
   console.log('🧹 Cleaned existing tables.');
 
   // 2. Hash default seed passwords
   const passwordHash = await bcrypt.hash('Password123!', 10);
+
+  const mainCampus = await prisma.campus.create({
+    data: { name: 'Main Campus', code: 'MAIN' },
+  });
+  const secondCampus = await prisma.campus.create({
+    data: { name: 'Second Campus', code: 'SECOND' },
+  });
+  const mainVendor = await prisma.vendor.create({
+    data: { name: 'Main Campus Cafe Vendor' },
+  });
+  const secondVendor = await prisma.vendor.create({
+    data: { name: 'Second Campus Cafe Vendor' },
+  });
+  await prisma.campusVendorAssignment.createMany({
+    data: [
+      { campusId: mainCampus.id, vendorId: mainVendor.id },
+      { campusId: secondCampus.id, vendorId: secondVendor.id },
+    ],
+  });
 
   // 3. Create core role accounts
   const admin = await prisma.user.create({
@@ -56,6 +78,7 @@ async function main() {
       passwordHash,
       name: 'Central Cafe cashier',
       role: 'CAFE_STAFF',
+      campusId: mainCampus.id,
     },
   });
 

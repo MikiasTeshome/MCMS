@@ -19,8 +19,46 @@ export const getCouponScanReport = async (params = {}) => {
   return response.data;
 };
 
-/** Authenticated self-check */
-export const selfCheckEmployee = async (employeeId) => {
-  const response = await api.get(`/self-check/${encodeURIComponent(employeeId)}`);
-  return response.data;
+const filenameFromDisposition = (header) => {
+  if (!header) return 'payment-order.docx';
+  const utf = header.match(/filename\*=UTF-8''([^;]+)/i);
+  if (utf?.[1]) return decodeURIComponent(utf[1]);
+  const plain = header.match(/filename="?([^";]+)"?/i);
+  return plain?.[1] || 'payment-order.docx';
+};
+
+export const downloadPaymentOrder = async (params = {}) => {
+  try {
+    const response = await api.get('/coupons/reports/payment-order', {
+      params,
+      responseType: 'blob',
+    });
+    const blob = new Blob([response.data], {
+      type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    });
+    const url = window.URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = filenameFromDisposition(response.headers['content-disposition']);
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    window.URL.revokeObjectURL(url);
+  } catch (err) {
+    const data = err.response?.data;
+    if (data instanceof Blob) {
+      const text = await data.text();
+      try {
+        const json = JSON.parse(text);
+        const error = new Error(json.message || 'Could not generate the payment letter.');
+        throw error;
+      } catch (parseErr) {
+        if (parseErr instanceof SyntaxError) {
+          throw new Error('Could not generate the payment letter.');
+        }
+        throw parseErr;
+      }
+    }
+    throw err;
+  }
 };

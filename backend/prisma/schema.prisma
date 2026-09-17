@@ -54,6 +54,8 @@ model User {
   couponClaimsReceived CouponClaim[] @relation("EmployeeClaims")
   cafeScansAsStaff CafeScanSession[] @relation("StaffScanSessions")
   cafeScansAsEmployee CafeScanSession[] @relation("EmployeeScanSessions")
+  campusId      String?
+  campus        Campus?     @relation(fields: [campusId], references: [id], onDelete: SetNull)
   
   createdAt     DateTime    @default(now())
   updatedAt     DateTime    @updatedAt
@@ -113,12 +115,49 @@ model CouponConfig {
   updatedAt          DateTime @updatedAt
 }
 
-// Calendar Holidays (excluding working days expiry)
+// Calendar off days (public holidays and HR-declared closures)
 model Holiday {
   id          String   @id @default(uuid())
   date        DateTime @unique // Clean date (Y-M-D) indicating public holiday
   description String
   createdAt   DateTime @default(now())
+}
+
+// Physical college location. Stable even when the cafe operator changes.
+model Campus {
+  id          String   @id @default(uuid())
+  name        String
+  code        String   @unique
+  isActive    Boolean  @default(true)
+  staff       User[]
+  assignments CampusVendorAssignment[]
+  claims      CouponClaim[]
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+// External cafe operator. One vendor can replace another at a campus.
+model Vendor {
+  id          String   @id @default(uuid())
+  name        String
+  isActive    Boolean  @default(true)
+  assignments CampusVendorAssignment[]
+  claims      CouponClaim[]
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+// Which vendor is (or was) operating a campus cafe.
+model CampusVendorAssignment {
+  id        String    @id @default(uuid())
+  campusId  String
+  campus    Campus    @relation(fields: [campusId], references: [id], onDelete: Cascade)
+  vendorId  String
+  vendor    Vendor    @relation(fields: [vendorId], references: [id], onDelete: Restrict)
+  startedAt DateTime  @default(now())
+  endedAt   DateTime?
+
+  @@index([campusId, endedAt])
 }
 
 // Core Coupon Allocation Voucher ledger
@@ -216,8 +255,14 @@ model CouponClaim {
   issuedBy   User     @relation("IssuedByClaims", fields: [issuedById], references: [id], onDelete: Restrict)
   issuedAt   DateTime @default(now())
   deviceInfo String?
+  campusId   String?
+  campus     Campus?  @relation(fields: [campusId], references: [id], onDelete: SetNull)
+  vendorId   String?
+  vendor     Vendor?  @relation(fields: [vendorId], references: [id], onDelete: SetNull)
 
   @@index([employeeId])
   @@index([couponId])
   @@index([issuedAt])
+  @@index([campusId, issuedAt])
+  @@index([vendorId, issuedAt])
 }

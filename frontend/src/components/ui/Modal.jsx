@@ -1,11 +1,23 @@
 import React from 'react';
+import { createPortal } from 'react-dom';
 import { X } from 'lucide-react';
+
+export const ModalOverlay = ({ children, onClose }) => {
+  if (typeof document === 'undefined') return null;
+
+  return createPortal(
+    <div className="modal-overlay" onClick={onClose} role="presentation">
+      {children}
+    </div>,
+    document.body
+  );
+};
 
 const Modal = ({ open, onClose, title, icon: Icon, children, maxWidth = 'max-w-lg' }) => {
   if (!open) return null;
 
   return (
-    <div className="modal-overlay" onClick={onClose}>
+    <ModalOverlay onClose={onClose}>
       <div
         className={`modal-content ${maxWidth}`}
         onClick={(e) => e.stopPropagation()}
@@ -15,13 +27,13 @@ const Modal = ({ open, onClose, title, icon: Icon, children, maxWidth = 'max-w-l
             {Icon && <Icon className="w-5 h-5 icon-muted" />}
             <span>{title}</span>
           </h3>
-          <button onClick={onClose} className="btn-icon">
+          <button type="button" onClick={onClose} className="btn-icon">
             <X className="w-5 h-5" />
           </button>
         </div>
         {children}
       </div>
-    </div>
+    </ModalOverlay>
   );
 };
 

@@ -6,6 +6,7 @@ import { ThemeProvider } from './context/ThemeContext.jsx';
 import { ToastProvider } from './context/ToastContext.jsx';
 import { I18nProvider } from './i18n/I18nProvider.jsx';
 import AppRoutes from './routes/AppRoutes.jsx';
+import AppErrorBoundary from './components/AppErrorBoundary.jsx';
 import './i18n/index.js';
 
 function App() {
@@ -16,7 +17,9 @@ function App() {
           <AuthProvider>
             <CalendarProvider>
               <ToastProvider>
-                <AppRoutes />
+                <AppErrorBoundary>
+                  <AppRoutes />
+                </AppErrorBoundary>
               </ToastProvider>
             </CalendarProvider>
           </AuthProvider>

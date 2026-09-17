@@ -75,17 +75,12 @@ const EmployeeInfoCard = ({ employee, eligible }) => {
             <AlertTriangle className="w-5 h-5" aria-hidden="true" />
           )}
           <span className="font-semibold text-sm uppercase tracking-wider">
-            {canIssue ? t('cafe.clearToIssue') : t('cafe.verifyBlocked')}
+            {canIssue ? t('cafe.clearToRecord') : t('cafe.verifyBlocked')}
           </span>
         </div>
-        <div className="flex items-center gap-2">
-          <span className="badge">
-            {t('cafe.redeemableToday')}: {redeemableNow}
-          </span>
-          <span className="text-[10px] text-current opacity-70">
-            ({t('cafe.availableCount', { count: employee.availableCoupons })})
-          </span>
-        </div>
+        <span className="badge">
+          {t('cafe.unusedThisWeek')}: {redeemableNow}
+        </span>
       </div>
 
       <div className="p-6 space-y-5">
@@ -96,31 +91,16 @@ const EmployeeInfoCard = ({ employee, eligible }) => {
           </div>
           <div className="grid grid-cols-2 gap-4 flex-1">
             <Field label={t('cafe.fullName')} value={employee.fullName} bold />
-            <Field label={t('cafe.department')} value={employee.department} />
-            <Field label={t('cafe.staffType')} value={employee.staffType} />
+            <Field label={t('employees.employeeId')} value={employee.employeeIdNumber || '—'} />
             <Field
-              label={t('cafe.couponValue')}
-              value={
-                employee.couponValue != null
-                  ? `${employee.couponValue} ${t('common.birr')}`
-                  : '—'
-              }
+              label={t('cafe.unusedThisWeek')}
+              value={String(redeemableNow ?? 0)}
             />
-            <Field label={t('cafe.expiryDate')} value={employee.expiryDate || '—'} />
             <Field
               label={t('cafe.claimedToday')}
               value={employee.claimedToday ? t('common.yes') : t('common.no')}
               highlight={employee.claimedToday ? 'warn' : 'ok'}
             />
-            {employee.lastClaimDate && (
-              <Field label={t('cafe.lastClaim')} value={employee.lastClaimDate} />
-            )}
-            {employee.expiredCoupons != null && (
-              <Field
-                label={t('cafe.expiredTotal')}
-                value={String(employee.expiredCoupons)}
-              />
-            )}
           </div>
         </div>
 

@@ -1,6 +1,15 @@
 import employeesService from './employees.service.js';
 import { successResponse, errorResponse } from '../../utils/response.js';
 
+export const getPrintCards = async (req, res, next) => {
+  try {
+    const cards = await employeesService.getPrintCards();
+    return successResponse(res, 200, 'Print cards retrieved', cards);
+  } catch (error) {
+    next(error);
+  }
+};
+
 export const getEmployees = async (req, res, next) => {
   try {
     const result = await employeesService.getEmployees(req.query);
@@ -12,11 +21,11 @@ export const getEmployees = async (req, res, next) => {
 
 export const createEmployee = async (req, res, next) => {
   try {
-    const { email, name, department, position, employeeIdNumber } = req.body;
+    const { name } = req.body;
 
     // Strict validation
-    if (!email || !name || !department || !position || !employeeIdNumber) {
-      return errorResponse(res, 400, 'Please provide email, name, department, position, and employeeIdNumber');
+    if (!name) {
+      return errorResponse(res, 400, 'Please provide the employee full name');
     }
 
     const employee = await employeesService.createEmployee(req.body, req.user.id, req);

@@ -1,4 +1,4 @@
-const TEMPLATE_HEADERS = ['Full Name', 'Department'];
+const TEMPLATE_HEADERS = ['Full Name', 'Employee ID Number'];
 
 const EXPORT_HEADERS = [
   'Employee ID Number',
@@ -121,8 +121,8 @@ export function downloadEmployeeTemplate(filename = 'employee_import_template.xl
   return loadXlsx().then((XLSX) => {
     const worksheet = XLSX.utils.aoa_to_sheet([
       TEMPLATE_HEADERS,
-      ['John Doe', 'Engineering'],
-      ['Jane Worker', 'Marketing'],
+      ['John Doe', 'EMP-10024'],
+      ['Jane Worker', 'EMP-10025'],
     ]);
     const workbook = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(workbook, worksheet, 'Template');

@@ -42,7 +42,7 @@ export const AuthProvider = ({ children }) => {
         setUser(loggedUser);
         localStorage.setItem('mcms_token', token);
         localStorage.setItem('mcms_user', JSON.stringify(loggedUser));
-        return { success: true };
+        return { success: true, user: loggedUser };
       }
     } catch (error) {
       setUser(null);

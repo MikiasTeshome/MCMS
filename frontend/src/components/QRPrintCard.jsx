@@ -1,21 +1,17 @@
-import React, { useRef } from 'react';
+import React, { useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { QRCodeSVG } from 'qrcode.react';
-import { Printer, X } from 'lucide-react';
+import { Printer, X, Download, Loader } from 'lucide-react';
+import { jsPDF } from 'jspdf';
+import { CR80_H, CR80_W, canvasToJpeg, renderIdCardCanvas } from '../utils/idCardCanvas.js';
+const CR80_W_MM = `${CR80_W}mm`;
+const CR80_H_MM = `${CR80_H}mm`;
+const QR_SIZE = 172;
 
-const CR80_PORTRAIT_WIDTH = '53.98mm';
-const CR80_PORTRAIT_HEIGHT = '85.60mm';
-const QR_SIZE = 200;
-
-/* ─────────────────────────────────────────────────────
-   Inline styles scoped exclusively to the ID card.
-   Tailwind is kept only for the modal shell & buttons.
-───────────────────────────────────────────────────── */
 const cardStyles = {
-  /* ── Outer card shell ── */
   card: {
-    width: CR80_PORTRAIT_WIDTH,
-    height: CR80_PORTRAIT_HEIGHT,
+    width: CR80_W_MM,
+    height: CR80_H_MM,
     boxSizing: 'border-box',
     borderRadius: '10px',
     overflow: 'hidden',
@@ -28,8 +24,6 @@ const cardStyles = {
     flexDirection: 'column',
     userSelect: 'none',
   },
-
-  /* ── Watermark / security overlay ── */
   watermarkLayer: {
     position: 'absolute',
     inset: 0,
@@ -55,8 +49,6 @@ const cardStyles = {
     filter: 'grayscale(1)',
     transform: 'rotate(-8deg)',
   },
-
-  /* ── Top gradient accent strip ── */
   topStrip: {
     position: 'absolute',
     top: 0,
@@ -66,59 +58,68 @@ const cardStyles = {
     background: 'linear-gradient(90deg, #003d7a 0%, #005BAC 40%, #0077d4 80%, #003d7a 100%)',
     zIndex: 10,
   },
-
-  /* ── HEADER ── */
   header: {
     position: 'relative',
     zIndex: 5,
     display: 'flex',
     alignItems: 'center',
     gap: '5px',
-    padding: '5px 7px 4px 7px',
+    padding: '7px 6px 7px 7px',
+    minHeight: '13mm',
     borderBottom: '1px solid rgba(0,91,172,0.12)',
     background: 'linear-gradient(135deg, #f8fbff 0%, #eaf4ff 100%)',
+    flexShrink: 0,
   },
-  /* Plain logo — no circular clip, 18% larger */
   logoImg: {
-    width: '30px',
-    height: '30px',
+    width: '26px',
+    height: '26px',
     objectFit: 'contain',
     flexShrink: 0,
   },
   headerDivider: {
     width: '1px',
-    height: '23px',
+    height: '24px',
     background: 'rgba(0,91,172,0.18)',
     flexShrink: 0,
   },
   headerTextGroup: {
     display: 'flex',
     flexDirection: 'column',
-    lineHeight: 1.25,
+    alignItems: 'center',
+    justifyContent: 'center',
+    textAlign: 'center',
+    lineHeight: 1.2,
     overflow: 'hidden',
     minWidth: 0,
+    flex: 1,
+    paddingRight: '2px',
   },
   collegeName: {
-    fontSize: '6.4px',
-    fontWeight: 800,
+    fontSize: '8px',
+    fontWeight: 700,
     color: '#0a2540',
-    letterSpacing: '0.03em',
+    letterSpacing: '0',
     textTransform: 'uppercase',
-    whiteSpace: 'nowrap',
+    lineHeight: 1.15,
+    width: '100%',
+    textAlign: 'center',
     overflow: 'hidden',
-    textOverflow: 'ellipsis',
+    display: '-webkit-box',
+    WebkitLineClamp: 2,
+    WebkitBoxOrient: 'vertical',
   },
   collegeNameAm: {
-    fontSize: '7px',
-    fontWeight: 700,
+    fontSize: '11px',
+    fontWeight: 800,
     color: '#005BAC',
-    letterSpacing: '0.01em',
+    letterSpacing: '0',
+    lineHeight: 1.2,
+    width: '100%',
+    textAlign: 'center',
     whiteSpace: 'nowrap',
     overflow: 'hidden',
     textOverflow: 'ellipsis',
   },
-
-  /* ── BODY ── */
   body: {
     position: 'relative',
     zIndex: 5,
@@ -126,106 +127,97 @@ const cardStyles = {
     display: 'flex',
     flexDirection: 'column',
     alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: '2px',
-    padding: '3px 5px',
+    justifyContent: 'flex-start',
     minHeight: 0,
+    overflow: 'hidden',
   },
-
-  /* QR column */
   qrWrap: {
-    flexShrink: 0,
+    flex: '1 1 auto',
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
+    minHeight: 0,
+    maxHeight: '50mm',
+    width: '100%',
+    padding: '3px 4px 1px',
   },
   qrInner: {
-    padding: '3px',
+    padding: '2px',
     background: '#ffffff',
     border: '1px solid rgba(0,91,172,0.22)',
-    borderRadius: '7px',
-    boxShadow: '0 3px 12px rgba(0,61,122,0.16), inset 0 0 0 2px #ffffff',
+    borderRadius: '6px',
+    boxShadow: '0 2px 8px rgba(0,61,122,0.14), inset 0 0 0 2px #ffffff',
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
+    lineHeight: 0,
   },
-
-  /* Vertical separator */
-  bodySep: {
-    width: '100%',
-    height: '1px',
-    background: 'linear-gradient(to right, transparent, rgba(0,91,172,0.14) 20%, rgba(0,91,172,0.14) 80%, transparent)',
-    flexShrink: 0,
-    margin: '1px 0',
-  },
-
-  /* Info column — gap increased for breathing room */
   info: {
     width: '100%',
     display: 'flex',
     flexDirection: 'column',
     gap: '2px',
-    overflow: 'hidden',
     justifyContent: 'center',
     textAlign: 'center',
+    flexShrink: 0,
+    position: 'relative',
+    zIndex: 6,
+    padding: '4px 6px 5px',
+    background: 'linear-gradient(180deg, #f4f9ff 0%, #ffffff 100%)',
+    borderTop: '1px solid rgba(0,91,172,0.10)',
   },
   fieldLabel: {
-    fontSize: '5.4px',
+    fontSize: '6.4px',
     fontWeight: 700,
     color: '#6e87a7',
     textTransform: 'uppercase',
-    letterSpacing: '0.07em',
-    lineHeight: 1,
-    marginBottom: 0,
-    paddingLeft: 0,
+    letterSpacing: '0',
+    lineHeight: 1.1,
   },
   nameValue: {
-    fontSize: '9.7px',
+    fontSize: '11.5px',
     fontWeight: 800,
     color: '#0a2540',
-    lineHeight: 1.2,
-    letterSpacing: '-0.01em',
-    whiteSpace: 'nowrap',
+    lineHeight: 1.15,
     overflow: 'hidden',
-    textOverflow: 'ellipsis',
+    display: '-webkit-box',
+    WebkitLineClamp: 2,
+    WebkitBoxOrient: 'vertical',
+    whiteSpace: 'normal',
   },
   idValue: {
-    fontSize: '8.4px',
+    fontSize: '10.5px',
     fontWeight: 700,
     color: '#005BAC',
-    lineHeight: 1,
-    letterSpacing: '0.04em',
+    lineHeight: 1.15,
     fontVariantNumeric: 'tabular-nums',
   },
-  /* Plain text — same look as name/id, no pill */
   metaValue: {
-    fontSize: '7.2px',
+    fontSize: '6.6px',
     fontWeight: 600,
     color: '#1e3a5f',
-    lineHeight: 1.2,
+    lineHeight: 1.15,
     whiteSpace: 'nowrap',
     overflow: 'hidden',
     textOverflow: 'ellipsis',
   },
-
-  /* ── FOOTER — 10% shorter padding ── */
   footer: {
     position: 'relative',
     zIndex: 5,
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
-    padding: '3px 12px 4px 12px',
-    minHeight: '14px',
+    padding: '3px 10px 4px',
+    minHeight: '13px',
     flexShrink: 0,
     borderTop: '1px solid rgba(0,91,172,0.10)',
     background: 'linear-gradient(135deg, #003d7a 0%, #005BAC 52%, #0077d4 100%)',
   },
   footerTitle: {
-    fontSize: '6.5px',
+    fontSize: '6.6px',
     fontWeight: 700,
     color: '#ffffff',
-    letterSpacing: '0.10em',
+    letterSpacing: '0',
     textTransform: 'uppercase',
     lineHeight: 1,
   },
@@ -239,243 +231,212 @@ const cardStyles = {
   },
 };
 
-/* ─────────────────────────────────────────────────── */
+const describe = (emp) => ({
+  name: emp?.name || 'N/A',
+  id: emp?.employeeProfile?.employeeIdNumber || emp?.employeeIdNumber || 'N/A',
+  department: emp?.employeeProfile?.department || emp?.department || 'N/A',
+  position: emp?.employeeProfile?.position || emp?.position || 'N/A',
+});
 
-const QRPrintCard = ({ employee, cardCode, onClose }) => {
+const IdCardFace = ({ employee, cardCode, collegeName, labels }) => {
+  const info = describe(employee);
+  return (
+    <div data-print-card style={cardStyles.card}>
+      <div style={cardStyles.watermarkLayer}>
+        <div style={cardStyles.securityGrid} />
+        <img src="/logo.png" alt="" style={cardStyles.watermarkImg} aria-hidden="true" />
+      </div>
+      <div style={cardStyles.topStrip} />
+      <div style={cardStyles.header}>
+        <img src="/logo.png" alt="TMPC Logo" style={cardStyles.logoImg} />
+        <div style={cardStyles.headerDivider} />
+        <div style={cardStyles.headerTextGroup}>
+          <span style={cardStyles.collegeNameAm}>ተፈሪ መኮንን ፖሊቴክኒክ ኮሌጅ</span>
+          <span style={cardStyles.collegeName}>{String(collegeName || '').toUpperCase()}</span>
+        </div>
+      </div>
+      <div style={cardStyles.body}>
+        <div style={cardStyles.qrWrap}>
+          <div style={cardStyles.qrInner}>
+            <QRCodeSVG
+              value={cardCode || 'N/A'}
+              size={QR_SIZE}
+              level="M"
+              includeMargin={false}
+              bgColor="#ffffff"
+              fgColor="#000000"
+            />
+          </div>
+        </div>
+        <div style={cardStyles.info}>
+          <div>
+            <div style={cardStyles.fieldLabel}>{labels.employeeName}</div>
+            <div style={cardStyles.nameValue}>{info.name}</div>
+          </div>
+          <div>
+            <div style={cardStyles.fieldLabel}>{labels.idNumber}</div>
+            <div style={cardStyles.idValue}>{info.id}</div>
+          </div>
+        </div>
+      </div>
+      <div style={cardStyles.footer}>
+        <span style={cardStyles.footerTitle}>{String(labels.footer || '').toUpperCase()}</span>
+        <div style={cardStyles.footerShimmer} />
+      </div>
+    </div>
+  );
+};
+
+const QRPrintCard = ({ employee, cardCode, cards, onClose }) => {
   const { t } = useTranslation();
-  const printRef = useRef(null);
+  const bulkRef = useRef(null);
+  const [busy, setBusy] = useState(null);
+  const [progress, setProgress] = useState({ current: 0, total: 0 });
+  const [error, setError] = useState('');
 
-  const employeeName =
-    employee?.name || 'N/A';
-  const employeeId =
-    employee?.employeeProfile?.employeeIdNumber ||
-    employee?.employeeIdNumber ||
-    'N/A';
-  const department =
-    employee?.employeeProfile?.department ||
-    employee?.department ||
-    'N/A';
-  const position =
-    employee?.employeeProfile?.position ||
-    employee?.position ||
-    'N/A';
+  const items =
+    Array.isArray(cards) && cards.length > 0
+      ? cards.map((card) => ({
+          employee: card.employee,
+          cardCode: card.cardCode,
+        }))
+      : [{ employee, cardCode }];
 
-  const handlePrint = () => {
-    /* Grab the rendered QR SVG so it prints pixel-perfectly */
-    const qrSvgEl = printRef.current?.querySelector('svg');
-    const qrSvgHTML = qrSvgEl ? qrSvgEl.outerHTML : '';
+  const preview = items[0] || {};
+  const isBulk = items.length > 1;
+  const labels = {
+    employeeName: t('qrCard.employeeName'),
+    idNumber: t('qrCard.idNumber'),
+    dept: t('qrCard.dept'),
+    pos: t('qrCard.pos'),
+    footer: t('qrCard.footer'),
+  };
+  const collegeName = t('qrCard.collegeName');
 
-    /*
-      CR80 universal ID card:  85.60 mm × 53.98 mm  =  3.375 in × 2.125 in
-      At 96 dpi screen:        323 px  ×  204 px
-      We set BOTH mm and px sizes so browsers that honour @page use mm,
-      and those that don't still render the correct pixel box.
-      A centred transform-origin ensures it sits perfectly on any paper.
-    */
+  const cardNodes = () => [...(bulkRef.current?.querySelectorAll('[data-print-card]') || [])];
+
+  const handlePrint = async () => {
+    setError('');
+    const sources = cardNodes();
+    if (!sources.length) {
+      setError(t('qrCard.exportFailed'));
+      return;
+    }
+
+    const markup = sources.map((node) => node.outerHTML).join('\n');
     const html = `<!DOCTYPE html>
 <html>
 <head>
 <meta charset="utf-8"/>
+<base href="${window.location.origin}/"/>
 <title>TMPC ID Card — CR80</title>
 <style>
-  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap');
-
-  /* ── Page setup: CR80 exactly ── */
-  @page {
-    size: ${CR80_PORTRAIT_WIDTH} ${CR80_PORTRAIT_HEIGHT};
-    margin: 0mm;
-  }
-
-  * {
-    box-sizing: border-box;
-    margin: 0; padding: 0;
-    -webkit-print-color-adjust: exact;
-    print-color-adjust: exact;
-  }
-
-  html, body {
-    width: ${CR80_PORTRAIT_WIDTH};
-    height: ${CR80_PORTRAIT_HEIGHT};
-    overflow: hidden;
-    background: #fff;
-    font-family: 'Inter', 'Segoe UI', sans-serif;
-  }
-
-  /*
-    .card is sized in BOTH mm (for @page-aware renderers) and px
-    (as a fallback). The transform centres it on larger paper
-    if the OS ignores @page size.
-  */
-  .card {
-    width: ${CR80_PORTRAIT_WIDTH};
-    height: ${CR80_PORTRAIT_HEIGHT};
-    position: relative;
-    display: flex;
-    flex-direction: column;
-    background: linear-gradient(180deg, #ffffff 0%, #f7fbff 54%, #ffffff 100%);
-    border: .26mm solid #bfd3ee;
-    border-radius: 2.65mm;
-    overflow: hidden;
+  @page { size: ${CR80_W_MM} ${CR80_H_MM}; margin: 0; }
+  * { box-sizing: border-box; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  html, body { margin: 0; padding: 0; background: #fff; }
+  [data-print-card] {
+    page-break-after: always;
+    break-after: page;
     page-break-inside: avoid;
     break-inside: avoid;
-  }
-
-  /* ── Security grid ── */
-  .grid-bg {
-    position: absolute; inset: 0; z-index: 0; pointer-events: none;
-    background-image:
-      radial-gradient(circle at 50% 28%, rgba(0,119,212,.075), transparent 34mm),
-      repeating-linear-gradient(0deg, transparent, transparent 5px, rgba(0,91,172,.022) 5px, rgba(0,91,172,.022) 6px),
-      repeating-linear-gradient(90deg, transparent, transparent 5px, rgba(0,91,172,.022) 5px, rgba(0,91,172,.022) 6px);
-  }
-
-  /* ── Watermark ── */
-  .watermark {
-    position: absolute; bottom: -6mm; right: -5mm;
-    width: 45mm; opacity: .045; filter: grayscale(1);
-    transform: rotate(-8deg); z-index: 0; pointer-events: none;
-  }
-
-  /* ── Top accent strip ── */
-  .top-strip {
-    position: absolute; top: 0; left: 0; right: 0; height: 4px; z-index: 10;
-    background: linear-gradient(90deg, #003d7a 0%, #005BAC 40%, #0077d4 80%, #003d7a 100%);
-  }
-
-  /* ── Header ── */
-  .header {
-    position: relative; z-index: 5;
-    display: flex; align-items: center; gap: 5px;
-    padding: 5px 7px 4px 7px;
-    border-bottom: 1px solid rgba(0,91,172,.12);
-    background: linear-gradient(135deg, #f8fbff 0%, #eaf4ff 100%);
-  }
-  .logo  { width: 30px; height: 30px; object-fit: contain; flex-shrink: 0; }
-  .hdiv  { width: 1px; height: 23px; background: rgba(0,91,172,.18); flex-shrink: 0; }
-  .header-text { min-width: 0; overflow: hidden; }
-  .college-en {
-    font-size: 6.4px; font-weight: 800; color: #0a2540;
-    letter-spacing: .03em; text-transform: uppercase; white-space: nowrap;
-    overflow: hidden; text-overflow: ellipsis;
-  }
-  .college-am {
-    font-size: 7px; font-weight: 700; color: #005BAC;
-    letter-spacing: .01em; white-space: nowrap;
-    overflow: hidden; text-overflow: ellipsis;
-  }
-
-  /* ── Body ── */
-  .body {
-    position: relative; z-index: 5; flex: 1;
-    display: flex; flex-direction: column; align-items: center; justify-content: space-between;
-    gap: 2px; padding: 3px 5px; min-height: 0;
-  }
-  .qr-box {
-    flex-shrink: 0; padding: 3px; background: #fff;
-    border: 1px solid rgba(0,91,172,.22); border-radius: 7px;
-    box-shadow: 0 3px 12px rgba(0,61,122,.16), inset 0 0 0 2px #fff;
-    display: flex; align-items: center; justify-content: center;
-  }
-  .qr-box svg {
-    width: ${QR_SIZE}px;
-    height: ${QR_SIZE}px;
-    display: block;
-  }
-  .vsep {
-    width: 100%; height: 1px; margin: 1px 0; flex-shrink: 0;
-    background: linear-gradient(to right, transparent, rgba(0,91,172,.14) 20%, rgba(0,91,172,.14) 80%, transparent);
-  }
-  .info {
-    width: 100%; display: flex; flex-direction: column; gap: 2px;
-    overflow: hidden; justify-content: center; text-align: center;
-  }
-  .lbl {
-    font-size: 5.4px; font-weight: 700; color: #6e87a7;
-    text-transform: uppercase; letter-spacing: .07em; line-height: 1; margin-bottom: 0;
-  }
-  .val-name {
-    font-size: 9.7px; font-weight: 800; color: #0a2540; line-height: 1.2;
-    letter-spacing: -.01em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
-  }
-  .val-id {
-    font-size: 8.4px; font-weight: 700; color: #005BAC;
-    line-height: 1; letter-spacing: .04em;
-  }
-  .val-meta {
-    font-size: 7.2px; font-weight: 600; color: #1e3a5f; line-height: 1.2;
-    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
-  }
-
-  /* ── Footer ── */
-  .footer {
-    position: relative; z-index: 5;
-    display: flex; align-items: center; justify-content: center;
-    padding: 3px 12px 4px 12px;
-    min-height: 14px;
-    flex-shrink: 0;
-    border-top: 1px solid rgba(0,91,172,.10);
-    background: linear-gradient(135deg, #003d7a 0%, #005BAC 52%, #0077d4 100%);
-  }
-  .footer-title {
-    font-size: 6.5px; font-weight: 700; color: #fff;
-    letter-spacing: .10em; text-transform: uppercase;
-  }
-  .shimmer {
-    position: absolute; bottom: 0; left: 0; right: 0; height: 2px;
-    background: linear-gradient(90deg, rgba(255,255,255,.12) 0%, rgba(255,255,255,.50) 50%, rgba(255,255,255,.12) 100%);
+    box-shadow: none !important;
   }
 </style>
 </head>
 <body>
-<div class="card">
-  <div class="grid-bg"></div>
-  <img class="watermark" src="${window.location.origin}/logo.png" alt=""/>
-  <div class="top-strip"></div>
-
-  <div class="header">
-    <img class="logo" src="${window.location.origin}/logo.png" alt="TMPC Logo"/>
-    <div class="hdiv"></div>
-    <div class="header-text">
-      <div class="college-en">${t('qrCard.collegeName')}</div>
-      <div class="college-am">ተፈሪ መኮንን ፖሊቴክኒክ ኮሌጅ</div>
-    </div>
-  </div>
-
-  <div class="body">
-    <div class="qr-box">${qrSvgHTML}</div>
-    <div class="vsep"></div>
-    <div class="info">
-      <div><div class="lbl">${t('qrCard.employeeName')}</div><div class="val-name">${employeeName}</div></div>
-      <div><div class="lbl">${t('qrCard.idNumber')}</div><div class="val-id">${employeeId}</div></div>
-      <div><div class="lbl">${t('qrCard.dept')}</div><div class="val-meta">${department}</div></div>
-      <div><div class="lbl">${t('qrCard.pos')}</div><div class="val-meta">${position}</div></div>
-    </div>
-  </div>
-
-  <div class="footer">
-    <span class="footer-title">${t('qrCard.footer')}</span>
-    <div class="shimmer"></div>
-  </div>
-</div>
+${markup}
 <script>
   window.onload = function () {
-    window.print();
-    window.close();
+    setTimeout(function () { window.print(); window.close(); }, 250);
   };
 <\/script>
 </body></html>`;
 
     const win = window.open('', '_blank', 'width=420,height=640');
-    if (win) { win.document.write(html); win.document.close(); }
+    if (!win) {
+      setError(t('qrCard.popupBlocked'));
+      return;
+    }
+    win.document.write(html);
+    win.document.close();
   };
+
+  const withBusy = async (mode, work) => {
+    setError('');
+    setBusy(mode);
+    setProgress({ current: 0, total: items.length });
+    try {
+      await work();
+    } catch (err) {
+      setError(err.message || t('qrCard.exportFailed'));
+    } finally {
+      setBusy(null);
+      setProgress({ current: 0, total: 0 });
+    }
+  };
+
+  const handleExportCr80 = () =>
+    withBusy('cr80', async () => {
+      const pdf = new jsPDF({ unit: 'mm', format: [CR80_W, CR80_H], orientation: 'portrait' });
+      for (let i = 0; i < items.length; i += 1) {
+        setProgress({ current: i + 1, total: items.length });
+        const canvas = await renderIdCardCanvas({
+          info: describe(items[i].employee),
+          cardCode: items[i].cardCode,
+          labels,
+          collegeName,
+        });
+        if (i > 0) pdf.addPage([CR80_W, CR80_H], 'portrait');
+        pdf.addImage(canvasToJpeg(canvas), 'JPEG', 0, 0, CR80_W, CR80_H);
+      }
+      pdf.save(isBulk ? 'TMPC-ID-cards-CR80.pdf' : `TMPC-ID-${describe(preview.employee).id}.pdf`);
+    });
+
+  const handleExportA4 = () =>
+    withBusy('a4', async () => {
+      const pdf = new jsPDF({ unit: 'mm', format: 'a4', orientation: 'portrait' });
+      const cols = 2;
+      const rows = 3;
+      const perPage = cols * rows;
+      const gapX = 10;
+      const gapY = 8;
+      const gridW = cols * CR80_W + (cols - 1) * gapX;
+      const gridH = rows * CR80_H + (rows - 1) * gapY;
+      const originX = (210 - gridW) / 2;
+      const originY = (297 - gridH) / 2;
+
+      for (let i = 0; i < items.length; i += 1) {
+        setProgress({ current: i + 1, total: items.length });
+        const slot = i % perPage;
+        if (i > 0 && slot === 0) pdf.addPage('a4', 'portrait');
+        const col = slot % cols;
+        const row = Math.floor(slot / cols);
+        const canvas = await renderIdCardCanvas({
+          info: describe(items[i].employee),
+          cardCode: items[i].cardCode,
+          labels,
+          collegeName,
+        });
+        pdf.addImage(
+          canvasToJpeg(canvas),
+          'JPEG',
+          originX + col * (CR80_W + gapX),
+          originY + row * (CR80_H + gapY),
+          CR80_W,
+          CR80_H
+        );
+      }
+      pdf.save(isBulk ? 'TMPC-ID-cards-A4.pdf' : `TMPC-ID-${describe(preview.employee).id}-A4.pdf`);
+    });
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
-      <div className="w-full max-w-md bg-app-surface border border-app-border rounded-2xl shadow-2xl p-6 flex flex-col gap-6">
-
-        {/* Modal Header */}
+      <div className="w-full max-w-lg bg-app-surface border border-app-border rounded-2xl shadow-2xl p-6 flex flex-col gap-5 max-h-[92vh] overflow-y-auto">
         <div className="flex items-center justify-between border-b border-app-border pb-3">
-          <h3 className="text-lg font-bold text-white">{t('qrCard.title')}</h3>
+          <h3 className="text-lg font-bold text-white">
+            {t('qrCard.title')}
+            {isBulk ? ` (${items.length})` : ''}
+          </h3>
           <button
             onClick={onClose}
             className="text-app-secondary hover:text-app-primary hover:bg-app-surface-2/60 p-1.5 rounded-xl transition cursor-pointer"
@@ -484,96 +445,79 @@ const QRPrintCard = ({ employee, cardCode, onClose }) => {
           </button>
         </div>
 
-        {/* ── Card Preview ── */}
-        <div className="flex justify-center py-5 bg-app-surface-2/40 rounded-xl border border-app-border/50">
-          <div ref={printRef} id="print-area-root" style={cardStyles.card}>
+        {isBulk && (
+          <p className="text-sm text-app-muted">
+            {t('qrCard.bulkHelp', { count: items.length })}
+          </p>
+        )}
 
-            {/* Security / watermark layer (z-index 0) */}
-            <div style={cardStyles.watermarkLayer}>
-              <div style={cardStyles.securityGrid} />
-              <img src="/logo.png" alt="" style={cardStyles.watermarkImg} aria-hidden="true" />
-            </div>
-
-            {/* Top gradient accent strip */}
-            <div style={cardStyles.topStrip} />
-
-            {/* ── HEADER ── */}
-            <div style={cardStyles.header}>
-              {/* Plain logo, no circular frame */}
-              <img src="/logo.png" alt="TMPC Logo" style={cardStyles.logoImg} />
-              <div style={cardStyles.headerDivider} />
-              <div style={cardStyles.headerTextGroup}>
-                <span style={cardStyles.collegeName}>{t('qrCard.collegeName')}</span>
-                <span style={cardStyles.collegeNameAm}>ተፈሪ መኮንን ፖሊቴክኒክ ኮሌጅ</span>
-              </div>
-            </div>
-
-            {/* ── BODY ── */}
-            <div style={cardStyles.body}>
-              {/* QR Code — no verify badge */}
-              <div style={cardStyles.qrWrap}>
-                <div style={cardStyles.qrInner}>
-                  <QRCodeSVG
-                    value={cardCode || 'N/A'}
-                    size={QR_SIZE}
-                    level="H"
-                    includeMargin
-                    bgColor="#ffffff"
-                    fgColor="#000000"
-                  />
-                </div>
-              </div>
-
-              {/* Vertical rule */}
-              <div style={cardStyles.bodySep} />
-
-              {/* Employee info */}
-              <div style={cardStyles.info}>
-                <div>
-                  <div style={cardStyles.fieldLabel}>{t('qrCard.employeeName')}</div>
-                  <div style={cardStyles.nameValue}>{employeeName}</div>
-                </div>
-                <div>
-                  <div style={cardStyles.fieldLabel}>{t('qrCard.idNumber')}</div>
-                  <div style={cardStyles.idValue}>{employeeId}</div>
-                </div>
-                <div>
-                  <div style={cardStyles.fieldLabel}>{t('qrCard.dept')}</div>
-                  <div style={cardStyles.metaValue}>{department}</div>
-                </div>
-                <div>
-                  <div style={cardStyles.fieldLabel}>{t('qrCard.pos')}</div>
-                  <div style={cardStyles.metaValue}>{position}</div>
-                </div>
-              </div>
-            </div>
-
-            {/* ── FOOTER — title only, centred ── */}
-            <div style={cardStyles.footer}>
-              <span style={cardStyles.footerTitle}>{t('qrCard.footer')}</span>
-              <div style={cardStyles.footerShimmer} />
-            </div>
-
-          </div>
+        <div className="flex justify-center py-4 bg-app-surface-2/40 rounded-xl border border-app-border/50">
+          <IdCardFace
+            employee={preview.employee}
+            cardCode={preview.cardCode}
+            collegeName={collegeName}
+            labels={labels}
+          />
         </div>
 
-        {/* Modal Controls */}
-        <div className="flex gap-4">
+        {isBulk && (
+          <div className="rounded-xl border border-app-border max-h-28 overflow-y-auto px-3 py-2 text-xs text-app-secondary space-y-1">
+            {items.map((item, index) => (
+              <div key={`${item.cardCode}-${index}`}>
+                {index + 1}. {describe(item.employee).name} · {describe(item.employee).id}
+              </div>
+            ))}
+          </div>
+        )}
+
+        {error && <p className="text-sm text-red-400">{error}</p>}
+        {busy && progress.total > 0 && (
+          <p className="text-sm text-app-muted">
+            {t('qrCard.exporting', { current: progress.current, total: progress.total })}
+          </p>
+        )}
+
+        <div ref={bulkRef} className="fixed -left-[200vw] top-0 z-[-1] pointer-events-none" aria-hidden="true">
+          {items.map((item, index) => (
+            <IdCardFace
+              key={`${item.cardCode}-${index}`}
+              employee={item.employee}
+              cardCode={item.cardCode}
+              collegeName={collegeName}
+              labels={labels}
+            />
+          ))}
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <button
-            onClick={onClose}
-            className="flex-1 bg-app-surface-2 hover:bg-app-surface-2 font-semibold py-3 px-4 rounded-xl transition cursor-pointer text-white text-center"
+            onClick={handleExportA4}
+            disabled={Boolean(busy)}
+            className="btn-secondary justify-center"
           >
+            {busy === 'a4' ? <Loader className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
+            <span>{t('qrCard.exportA4')}</span>
+          </button>
+          <button
+            onClick={handleExportCr80}
+            disabled={Boolean(busy)}
+            className="btn-secondary justify-center"
+          >
+            {busy === 'cr80' ? <Loader className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
+            <span>{t('qrCard.exportCr80')}</span>
+          </button>
+          <button onClick={onClose} disabled={Boolean(busy)} className="btn-secondary justify-center">
             {t('common.close')}
           </button>
           <button
             onClick={handlePrint}
-            className="flex-1 bg-blue-600 hover:bg-blue-700 active:scale-95 text-white font-semibold py-3 px-4 rounded-xl shadow-premium hover:shadow-premium-hover transition flex items-center justify-center gap-2 cursor-pointer"
+            disabled={Boolean(busy)}
+            className="btn-primary justify-center"
           >
-            <Printer className="w-5 h-5" />
-            <span>{t('qrCard.print')}</span>
+            <Printer className="w-4 h-4" />
+            <span>{isBulk ? t('qrCard.printAll', { count: items.length }) : t('qrCard.print')}</span>
           </button>
         </div>
-
       </div>
     </div>
   );
