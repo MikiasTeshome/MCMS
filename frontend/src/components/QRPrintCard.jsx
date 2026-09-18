@@ -1,9 +1,8 @@
 import React, { useState } from 'react';
-import { renderToStaticMarkup } from 'react-dom/server.browser';
 import { useTranslation } from 'react-i18next';
 import { QRCodeSVG } from 'qrcode.react';
 import { Printer, X, Download, Loader } from 'lucide-react';
-import { CR80_H, CR80_W } from '../utils/idCardCanvas.js';
+import { CR80_H, CR80_W, canvasToJpeg, renderIdCardCanvas } from '../utils/idCardCanvas.js';
 const CR80_W_MM = `${CR80_W}mm`;
 const CR80_H_MM = `${CR80_H}mm`;
 const QR_SIZE = 172;
@@ -29,6 +28,11 @@ const a4Layout = () => {
   };
 };
 
+const loadJsPdf = async () => {
+  const { jsPDF } = await import('jspdf');
+  return jsPDF;
+};
+
 const cardStyles = {
   card: {
     width: CR80_W_MM,
@@ -37,7 +41,7 @@ const cardStyles = {
     borderRadius: '10px',
     overflow: 'hidden',
     position: 'relative',
-    fontFamily: "'Noto Sans Ethiopic', 'Inter', 'Nyala', 'Segoe UI', sans-serif",
+    fontFamily: "'Inter', 'Manrope', 'Segoe UI', system-ui, sans-serif",
     background: 'linear-gradient(180deg, #ffffff 0%, #f7fbff 54%, #ffffff 100%)',
     border: '1px solid #bfd3ee',
     boxShadow: '0 10px 28px rgba(0,61,122,0.18), 0 2px 6px rgba(0,91,172,0.12)',
@@ -333,114 +337,6 @@ const QRPrintCard = ({ employee, cardCode, cards, onClose }) => {
   };
   const collegeName = t('qrCard.collegeName');
 
-  const cardMarkup = (item) =>
-    renderToStaticMarkup(
-      <IdCardFace
-        employee={item.employee}
-        cardCode={item.cardCode}
-        collegeName={collegeName}
-        labels={labels}
-      />
-    );
-
-  const buildCardsHtml = async () => {
-    const markups = [];
-    for (let i = 0; i < items.length; i += 1) {
-      setProgress({ current: i + 1, total: items.length });
-      markups.push(cardMarkup(items[i]));
-      if (i % 20 === 19) {
-        await new Promise((resolve) => setTimeout(resolve, 0));
-      }
-    }
-    return markups;
-  };
-
-  const printShell = (title, pageCss, bodyHtml) => `<!DOCTYPE html>
-<html>
-<head>
-<meta charset="utf-8"/>
-<base href="${window.location.origin}/"/>
-<title>${title}</title>
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&family=Noto+Sans+Ethiopic:wght@700;800&display=swap" rel="stylesheet">
-<style>
-  ${pageCss}
-  * { box-sizing: border-box; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-  html, body { margin: 0; padding: 0; background: #fff; }
-  [data-print-card] { box-shadow: none !important; }
-</style>
-</head>
-<body>
-${bodyHtml}
-<script>
-  window.onload = function () {
-    var ready = (document.fonts && document.fonts.ready) ? document.fonts.ready : Promise.resolve();
-    var images = Array.prototype.slice.call(document.images || []).map(function (img) {
-      return img.complete ? Promise.resolve() : new Promise(function (res) { img.onload = img.onerror = res; });
-    });
-    Promise.all([ready].concat(images)).then(function () {
-      setTimeout(function () { window.print(); }, 400);
-    });
-  };
-<\/script>
-</body></html>`;
-
-  const openPrintWindow = (html) => {
-    const win = window.open('', '_blank', isBulk ? 'width=1100,height=800' : 'width=420,height=640');
-    if (!win) {
-      throw new Error(t('qrCard.popupBlocked'));
-    }
-    win.document.write(html);
-    win.document.close();
-  };
-
-  const openCr80Print = async () => {
-    const markups = await buildCardsHtml();
-    const body = markups
-      .map((html) => `<div class="sheet">${html}</div>`)
-      .join('\n');
-    openPrintWindow(
-      printShell(
-        'TMPC ID Card — CR80',
-        `@page { size: ${CR80_W}mm ${CR80_H}mm; margin: 0; }
-  .sheet { width: ${CR80_W}mm; height: ${CR80_H}mm; page-break-after: always; break-after: page; }
-  .sheet:last-child { page-break-after: auto; break-after: auto; }`,
-        body
-      )
-    );
-  };
-
-  const openA4Print = async () => {
-    const markups = await buildCardsHtml();
-    const { perPage } = a4Layout();
-    const pages = [];
-    for (let start = 0; start < markups.length; start += perPage) {
-      pages.push(`<div class="sheet">${markups.slice(start, start + perPage).join('')}</div>`);
-    }
-    openPrintWindow(
-      printShell(
-        'TMPC ID Cards — A4 landscape',
-        `@page { size: A4 landscape; margin: 0; }
-  .sheet {
-    width: ${A4_W}mm;
-    height: ${A4_H}mm;
-    display: flex;
-    flex-wrap: wrap;
-    align-content: center;
-    justify-content: center;
-    align-items: center;
-    gap: ${A4_GAP}mm;
-    page-break-after: always;
-    break-after: page;
-  }
-  .sheet:last-child { page-break-after: auto; break-after: auto; }
-  [data-print-card] { width: ${CR80_W}mm; height: ${CR80_H}mm; flex: 0 0 ${CR80_W}mm; }`,
-        pages.join('\n')
-      )
-    );
-  };
-
   const withBusy = async (mode, work) => {
     setError('');
     setBusy(mode);
@@ -455,9 +351,133 @@ ${bodyHtml}
     }
   };
 
-  const handlePrint = () => withBusy('print', () => (isBulk ? openA4Print() : openCr80Print()));
-  const handleExportCr80 = () => withBusy('cr80', openCr80Print);
-  const handleExportA4 = () => withBusy('a4', openA4Print);
+  const renderCard = async (item) =>
+    renderIdCardCanvas({
+      info: describe(item.employee),
+      cardCode: item.cardCode,
+      labels,
+      collegeName,
+    });
+
+  const collectJpegs = async () => {
+    const images = [];
+    for (let i = 0; i < items.length; i += 1) {
+      setProgress({ current: i + 1, total: items.length });
+      const canvas = await renderCard(items[i]);
+      images.push(canvasToJpeg(canvas));
+    }
+    return images;
+  };
+
+  const openPrintWindow = (html) => {
+    const win = window.open('', '_blank', isBulk ? 'width=1100,height=800' : 'width=420,height=640');
+    if (!win) {
+      throw new Error(t('qrCard.popupBlocked'));
+    }
+    win.document.write(html);
+    win.document.close();
+  };
+
+  const handlePrint = () =>
+    withBusy('print', async () => {
+      const images = await collectJpegs();
+      if (!isBulk) {
+        openPrintWindow(`<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8"/>
+<title>TMPC ID Card — CR80</title>
+<style>
+  @page { size: ${CR80_W}mm ${CR80_H}mm; margin: 0; }
+  * { box-sizing: border-box; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  html, body { margin: 0; padding: 0; background: #fff; }
+  img { width: ${CR80_W}mm; height: ${CR80_H}mm; display: block; }
+</style>
+</head>
+<body>
+<img src="${images[0]}" width="${CR80_W}mm" height="${CR80_H}mm" />
+<script>window.onload = function () { setTimeout(function () { window.print(); window.close(); }, 400); };<\/script>
+</body></html>`);
+        return;
+      }
+
+      const { cols, gap, perPage, originX, originY } = a4Layout();
+      const pages = [];
+      for (let start = 0; start < images.length; start += perPage) {
+        const slice = images.slice(start, start + perPage);
+        const cards = slice
+          .map((src, index) => {
+            const col = index % cols;
+            const row = Math.floor(index / cols);
+            const x = originX + col * (CR80_W + gap);
+            const y = originY + row * (CR80_H + gap);
+            return `<img src="${src}" style="position:absolute;left:${x}mm;top:${y}mm;width:${CR80_W}mm;height:${CR80_H}mm;" />`;
+          })
+          .join('');
+        pages.push(`<div class="page">${cards}</div>`);
+      }
+
+      openPrintWindow(`<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8"/>
+<title>TMPC ID Cards — A4 landscape</title>
+<style>
+  @page { size: A4 landscape; margin: 0; }
+  * { box-sizing: border-box; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  html, body { margin: 0; padding: 0; background: #fff; }
+  .page {
+    position: relative;
+    width: ${A4_W}mm;
+    height: ${A4_H}mm;
+    page-break-after: always;
+    break-after: page;
+  }
+  .page:last-child { page-break-after: auto; break-after: auto; }
+</style>
+</head>
+<body>
+${pages.join('\n')}
+<script>window.onload = function () { setTimeout(function () { window.print(); window.close(); }, 500); };<\/script>
+</body></html>`);
+    });
+
+  const handleExportCr80 = () =>
+    withBusy('cr80', async () => {
+      const jsPDF = await loadJsPdf();
+      const pdf = new jsPDF({ unit: 'mm', format: [CR80_W, CR80_H], orientation: 'portrait' });
+      for (let i = 0; i < items.length; i += 1) {
+        setProgress({ current: i + 1, total: items.length });
+        const canvas = await renderCard(items[i]);
+        if (i > 0) pdf.addPage([CR80_W, CR80_H], 'portrait');
+        pdf.addImage(canvasToJpeg(canvas), 'JPEG', 0, 0, CR80_W, CR80_H);
+      }
+      pdf.save(isBulk ? 'TMPC-ID-cards-CR80.pdf' : `TMPC-ID-${describe(preview.employee).id}.pdf`);
+    });
+
+  const handleExportA4 = () =>
+    withBusy('a4', async () => {
+      const jsPDF = await loadJsPdf();
+      const pdf = new jsPDF({ unit: 'mm', format: 'a4', orientation: 'landscape' });
+      const { cols, gap, perPage, originX, originY } = a4Layout();
+      for (let i = 0; i < items.length; i += 1) {
+        setProgress({ current: i + 1, total: items.length });
+        const slot = i % perPage;
+        if (i > 0 && slot === 0) pdf.addPage('a4', 'landscape');
+        const col = slot % cols;
+        const row = Math.floor(slot / cols);
+        const canvas = await renderCard(items[i]);
+        pdf.addImage(
+          canvasToJpeg(canvas),
+          'JPEG',
+          originX + col * (CR80_W + gap),
+          originY + row * (CR80_H + gap),
+          CR80_W,
+          CR80_H
+        );
+      }
+      pdf.save(isBulk ? 'TMPC-ID-cards-A4-landscape.pdf' : `TMPC-ID-${describe(preview.employee).id}-A4.pdf`);
+    });
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
