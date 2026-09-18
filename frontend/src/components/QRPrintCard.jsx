@@ -1,4 +1,6 @@
 import React, { useState } from 'react';
+import { createRoot } from 'react-dom/client';
+import { flushSync } from 'react-dom';
 import { renderToStaticMarkup } from 'react-dom/server.browser';
 import { useTranslation } from 'react-i18next';
 import { QRCodeSVG } from 'qrcode.react';
@@ -441,6 +443,58 @@ ${bodyHtml}
     );
   };
 
+  const waitForImages = (rootEl) =>
+    Promise.all(
+      [...rootEl.querySelectorAll('img')].map((img) =>
+        img.complete && img.naturalWidth
+          ? Promise.resolve()
+          : new Promise((resolve) => {
+              img.onload = img.onerror = resolve;
+            })
+      )
+    );
+
+  const captureCardJpegs = async () => {
+    const html2canvas = (await import('html2canvas')).default;
+    const host = document.createElement('div');
+    host.style.cssText = 'position:fixed;left:-12000px;top:0;width:54mm;height:86mm;background:#fff;';
+    document.body.appendChild(host);
+    const root = createRoot(host);
+    const images = [];
+    try {
+      for (let i = 0; i < items.length; i += 1) {
+        setProgress({ current: i + 1, total: items.length });
+        flushSync(() => {
+          root.render(
+            <IdCardFace
+              employee={items[i].employee}
+              cardCode={items[i].cardCode}
+              collegeName={collegeName}
+              labels={labels}
+            />
+          );
+        });
+        await waitForImages(host);
+        if (document.fonts?.ready) await document.fonts.ready;
+        const node = host.querySelector('[data-print-card]');
+        if (!node) throw new Error(t('qrCard.exportFailed'));
+        node.style.boxShadow = 'none';
+        const canvas = await html2canvas(node, {
+          scale: 3,
+          useCORS: true,
+          backgroundColor: '#ffffff',
+          logging: false,
+        });
+        images.push(canvas.toDataURL('image/jpeg', 0.95));
+        await new Promise((resolve) => setTimeout(resolve, 0));
+      }
+    } finally {
+      root.unmount();
+      host.remove();
+    }
+    return images;
+  };
+
   const withBusy = async (mode, work) => {
     setError('');
     setBusy(mode);
@@ -456,8 +510,34 @@ ${bodyHtml}
   };
 
   const handlePrint = () => withBusy('print', () => (isBulk ? openA4Print() : openCr80Print()));
-  const handleExportCr80 = () => withBusy('cr80', openCr80Print);
-  const handleExportA4 = () => withBusy('a4', openA4Print);
+
+  const handleExportCr80 = () =>
+    withBusy('cr80', async () => {
+      const { jsPDF } = await import('jspdf');
+      const images = await captureCardJpegs();
+      const pdf = new jsPDF({ unit: 'mm', format: [CR80_W, CR80_H], orientation: 'portrait' });
+      images.forEach((src, i) => {
+        if (i > 0) pdf.addPage([CR80_W, CR80_H], 'portrait');
+        pdf.addImage(src, 'JPEG', 0, 0, CR80_W, CR80_H);
+      });
+      pdf.save(isBulk ? 'TMPC-ID-cards-CR80.pdf' : `TMPC-ID-${describe(preview.employee).id}.pdf`);
+    });
+
+  const handleExportA4 = () =>
+    withBusy('a4', async () => {
+      const { jsPDF } = await import('jspdf');
+      const images = await captureCardJpegs();
+      const pdf = new jsPDF({ unit: 'mm', format: 'a4', orientation: 'landscape' });
+      const { cols, gap, perPage, originX, originY } = a4Layout();
+      images.forEach((src, i) => {
+        const slot = i % perPage;
+        if (i > 0 && slot === 0) pdf.addPage('a4', 'landscape');
+        const col = slot % cols;
+        const row = Math.floor(slot / cols);
+        pdf.addImage(src, 'JPEG', originX + col * (CR80_W + gap), originY + row * (CR80_H + gap), CR80_W, CR80_H);
+      });
+      pdf.save(isBulk ? 'TMPC-ID-cards-A4-landscape.pdf' : `TMPC-ID-${describe(preview.employee).id}-A4.pdf`);
+    });
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
