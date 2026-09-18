@@ -245,7 +245,7 @@
     "official": "TMPC OFFICIAL",
     "print": "Print ID Card",
     "printAll": "Print all {{count}} cards",
-    "bulkHelp": "Preview is the first card. Print opens the printer. A4 PDF downloads 10 cards per landscape page. CR80 PDF downloads one plastic-size card per page. Do not generate a new QR for a plastic reprint.",
+    "bulkHelp": "Preview is the first card. Print and A4/CR80 export use that same card design — 10 per landscape A4, or one CR80 page each for plastic. Do not generate a new QR for a plastic reprint.",
     "exportA4": "A4 landscape PDF (paper)",
     "exportCr80": "CR80 PDF (plastic)",
     "exporting": "Preparing card {{current}} of {{total}}…",
