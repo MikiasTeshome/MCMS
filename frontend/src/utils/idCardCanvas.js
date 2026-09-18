@@ -5,7 +5,7 @@ export const CR80_H = 85.6;
 
 const PX_PER_MM = 12;
 const COLLEGE_AM = 'ተፈሪ መኮንን ፖሊቴክኒክ ኮሌጅ';
-const FONT = 'Inter, Segoe UI, Noto Sans Ethiopic, Nyala, sans-serif';
+const FONT = '"Noto Sans Ethiopic", Inter, Nyala, "Segoe UI", sans-serif';
 
 const loadImage = (src) =>
   new Promise((resolve) => {
@@ -82,6 +82,17 @@ const drawCentered = (ctx, text, x, y, weight, size, color) => {
 };
 
 export async function renderIdCardCanvas({ info, cardCode, labels, collegeName }) {
+  if (document.fonts?.load) {
+    await Promise.all([
+      document.fonts.load('800 32px "Noto Sans Ethiopic"'),
+      document.fonts.load('700 24px "Noto Sans Ethiopic"'),
+      document.fonts.load('800 32px Inter'),
+      document.fonts.load('700 24px Inter'),
+    ]).catch(() => {});
+  }
+  if (document.fonts?.ready) {
+    await document.fonts.ready;
+  }
   const w = Math.round(CR80_W * PX_PER_MM);
   const h = Math.round(CR80_H * PX_PER_MM);
   const mm = (value) => value * PX_PER_MM;
@@ -172,11 +183,11 @@ export async function renderIdCardCanvas({ info, cardCode, labels, collegeName }
 
   const footerH = mm(6.2);
   const footerY = h - footerH;
-  const infoH = mm(16.5);
+  const infoH = mm(15.2);
   const infoY = footerY - infoH;
-  const qrTop = headerH + mm(1);
-  const qrBottom = infoY - mm(0.6);
-  const qrBox = Math.min(mm(42), qrBottom - qrTop - mm(1), w - mm(6));
+  const qrTop = headerH + mm(2.2);
+  const qrBottom = infoY - mm(1.4);
+  const qrBox = Math.min(mm(36.5), qrBottom - qrTop, w - mm(10));
   const qrX = (w - qrBox) / 2;
   const qrY = qrTop + (qrBottom - qrTop - qrBox) / 2;
 
@@ -189,7 +200,7 @@ export async function renderIdCardCanvas({ info, cardCode, labels, collegeName }
 
   const qrUrl = await QRCode.toDataURL(cardCode || 'N/A', {
     width: 512,
-    margin: 1,
+    margin: 2,
     errorCorrectionLevel: 'M',
     color: { dark: '#000000', light: '#ffffff' },
   });
@@ -207,23 +218,20 @@ export async function renderIdCardCanvas({ info, cardCode, labels, collegeName }
   ctx.stroke();
 
   const nameMax = w - mm(6);
-  ctx.font = `800 ${mm(3.05)}px ${FONT}`;
+  ctx.font = `800 ${mm(3.2)}px ${FONT}`;
   const nameLines = wrapLines(ctx, String(info.name || ''), nameMax, 2);
   const idText = String(info.id || '');
-  const labelSize = mm(1.7);
-  const infoBottom = infoY + infoH;
 
-  drawCentered(ctx, String(labels.employeeName || '').toUpperCase(), cx, infoY + mm(2.35), '700', labelSize, '#6e87a7');
-  let nameY = infoY + mm(4.9);
+  drawCentered(ctx, String(labels.employeeName || '').toUpperCase(), cx, infoY + mm(2.6), '700', mm(1.75), '#6e87a7');
+  let nameY = infoY + mm(5.4);
   nameLines.forEach((line) => {
-    const size = fitSize(ctx, line, '800', mm(3.05), mm(2.0), nameMax);
+    const size = fitSize(ctx, line, '800', mm(3.2), mm(2.4), nameMax);
     drawCentered(ctx, line, cx, nameY, '800', size, '#0a2540');
-    nameY += size + mm(0.4);
+    nameY += size + mm(0.35);
   });
-  const idLabelY = Math.min(nameY + mm(1.05), infoBottom - mm(5.8));
-  drawCentered(ctx, String(labels.idNumber || '').toUpperCase(), cx, idLabelY, '700', labelSize, '#6e87a7');
-  const idSize = fitSize(ctx, idText, '700', mm(2.95), mm(2.0), nameMax);
-  drawCentered(ctx, idText, cx, Math.min(idLabelY + mm(2.7), infoBottom - mm(2.2)), '700', idSize, '#005BAC');
+  drawCentered(ctx, String(labels.idNumber || '').toUpperCase(), cx, infoY + infoH - mm(5.6), '700', mm(1.75), '#6e87a7');
+  const idSize = fitSize(ctx, idText, '700', mm(2.9), mm(2.2), nameMax);
+  drawCentered(ctx, idText, cx, infoY + infoH - mm(2.4), '700', idSize, '#005BAC');
 
   const footGrad = ctx.createLinearGradient(0, footerY, w, h);
   footGrad.addColorStop(0, '#003d7a');
