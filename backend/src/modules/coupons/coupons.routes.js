@@ -17,7 +17,7 @@ router.get(
 router.get(
   '/reports/payment-order',
   protect,
-  authorize(ROLES.ADMIN, ROLES.HR, ROLES.FINANCE),
+  authorize(ROLES.HR),
   downloadPaymentOrder
 );
 

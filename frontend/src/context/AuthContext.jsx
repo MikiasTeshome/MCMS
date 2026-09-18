@@ -3,29 +3,37 @@ import { authLogin, getProfile } from '../services/auth.service.js';
 
 const AuthContext = createContext(null);
 
-export const AuthProvider = ({ children }) => {
-  const [user, setUser] = useState(null);
-  const [loading, setLoading] = useState(true);
+const readStoredUser = () => {
+  try {
+    const raw = localStorage.getItem('mcms_user');
+    return raw ? JSON.parse(raw) : null;
+  } catch {
+    return null;
+  }
+};
 
-  // Synchronize context session status on boot
+export const AuthProvider = ({ children }) => {
+  const [user, setUser] = useState(readStoredUser);
+  const [loading, setLoading] = useState(() => Boolean(localStorage.getItem('mcms_token')) && !readStoredUser());
+
   useEffect(() => {
     const initializeAuth = async () => {
       const token = localStorage.getItem('mcms_token');
-      const savedUser = localStorage.getItem('mcms_user');
+      if (!token) {
+        setUser(null);
+        setLoading(false);
+        return;
+      }
 
-      if (token && savedUser) {
-        try {
-          setUser(JSON.parse(savedUser));
-          // Proactively confirm credentials with backend API
-          const profileRes = await getProfile();
-          if (profileRes.success) {
-            setUser(profileRes.data);
-            localStorage.setItem('mcms_user', JSON.stringify(profileRes.data));
-          }
-        } catch (error) {
-          console.error('Session restoration failed:', error.message);
-          logout();
+      try {
+        const profileRes = await getProfile();
+        if (profileRes.success) {
+          setUser(profileRes.data);
+          localStorage.setItem('mcms_user', JSON.stringify(profileRes.data));
         }
+      } catch (error) {
+        console.error('Session restoration failed:', error.message);
+        logout();
       }
       setLoading(false);
     };
@@ -34,7 +42,6 @@ export const AuthProvider = ({ children }) => {
   }, []);
 
   const login = async (email, password) => {
-    setLoading(true);
     try {
       const res = await authLogin(email, password);
       if (res.success) {
@@ -44,11 +51,10 @@ export const AuthProvider = ({ children }) => {
         localStorage.setItem('mcms_user', JSON.stringify(loggedUser));
         return { success: true, user: loggedUser };
       }
+      throw new Error('Login attempt failed');
     } catch (error) {
       setUser(null);
-      throw new Error(error.response?.data?.message || 'Login attempt failed');
-    } finally {
-      setLoading(false);
+      throw new Error(error.response?.data?.message || error.message || 'Login attempt failed');
     }
   };
 

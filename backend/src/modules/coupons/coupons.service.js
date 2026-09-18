@@ -789,11 +789,11 @@ class CouponsService {
   }
 
   /**
-   * Editable Word payment order for Finance. Totals come from scans
-   * for the selected period and cafe vendor; HR still signs and sends it.
+   * Editable Word payment order for HR. Totals come from scans
+   * for the selected period and cafe vendor.
    */
   async buildPaymentOrderDocx(filters = {}, user = null) {
-    if (user?.role === 'CAFE_STAFF') {
+    if (user?.role !== 'HR') {
       const err = new Error('Payment letters are prepared by HR.');
       err.statusCode = 403;
       throw err;

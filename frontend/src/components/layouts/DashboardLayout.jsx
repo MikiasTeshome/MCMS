@@ -1,7 +1,8 @@
-import React, { useState } from 'react';
+import React, { Suspense, useState } from 'react';
 import { Outlet } from 'react-router-dom';
 import Sidebar from './Sidebar.jsx';
 import Header from './Header.jsx';
+import { PageLoader } from '../ui/Page.jsx';
 
 const DashboardLayout = () => {
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -30,7 +31,9 @@ const DashboardLayout = () => {
 
         <main className="flex-1 overflow-x-hidden overflow-y-auto p-6 bg-app-bg">
           <div className="content-container">
-            <Outlet />
+            <Suspense fallback={<PageLoader />}>
+              <Outlet />
+            </Suspense>
           </div>
         </main>
       </div>

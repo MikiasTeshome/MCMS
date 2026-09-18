@@ -3,16 +3,22 @@ import React, { createContext, useContext, useEffect, useState } from 'react';
 const ThemeContext = createContext(null);
 const STORAGE_KEY = 'mcms_theme';
 
+const applyThemeClass = (next) => {
+  const root = document.documentElement;
+  root.classList.remove('light', 'dark');
+  root.classList.add(next);
+};
+
 export const ThemeProvider = ({ children }) => {
   const [theme, setTheme] = useState(() => {
     if (typeof window === 'undefined') return 'dark';
-    return localStorage.getItem(STORAGE_KEY) || 'dark';
+    const next = localStorage.getItem(STORAGE_KEY) || 'dark';
+    applyThemeClass(next);
+    return next;
   });
 
   useEffect(() => {
-    const root = document.documentElement;
-    root.classList.remove('light', 'dark');
-    root.classList.add(theme);
+    applyThemeClass(theme);
     localStorage.setItem(STORAGE_KEY, theme);
   }, [theme]);
 

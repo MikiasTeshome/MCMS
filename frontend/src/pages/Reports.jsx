@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '../context/AuthContext.jsx';
 import { useCalendar } from '../context/CalendarContext.jsx';
@@ -12,7 +12,7 @@ import {
   parseCalendarDateString,
   toIsoDay,
 } from '../utils/ethiopianDate.js';
-import { CalendarDays, Download, FileText, Printer, TrendingUp, ArrowUpRight, ArrowDownRight } from 'lucide-react';
+import { CalendarDays, Download, FileText, Printer, ArrowUpRight, ArrowDownRight } from 'lucide-react';
 
 const PRESETS = [
   { key: 'today', label: 'Today' },
@@ -32,14 +32,26 @@ const CALENDARS = {
   gregorian: 'Gregorian Calendar',
 };
 
+const escapeHtml = (value) =>
+  String(value ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+
+const formatPct = (value) => {
+  if (value === null || value === undefined || Number.isNaN(Number(value))) return '—';
+  const n = Number(value);
+  const sign = n > 0 ? '+' : '';
+  return `${sign}${n.toFixed(2)}%`;
+};
+
 const Reports = () => {
   const { t } = useTranslation();
   const { user } = useAuth();
   const { calendarMode } = useCalendar();
-  const chartRef = useRef(null);
   const [loading, setLoading] = useState(true);
   const [report, setReport] = useState(null);
-  const [activeMetric, setActiveMetric] = useState('count');
   const [activePreset, setActivePreset] = useState(
     user?.role === 'CAFE_STAFF' ? 'today' : 'thisMonth'
   );
@@ -47,10 +59,10 @@ const Reports = () => {
   const [tableSort, setTableSort] = useState({ key: 'date', order: 'asc' });
   const [tablePage, setTablePage] = useState(1);
   const [tablePageSize, setTablePageSize] = useState(10);
-  const [hoveredPoint, setHoveredPoint] = useState(null);
   const [letterBusyKey, setLetterBusyKey] = useState('');
   const [letterError, setLetterError] = useState('');
   const [letterCafeKey, setLetterCafeKey] = useState('');
+  const [pdfError, setPdfError] = useState('');
 
   const loadReport = async (params = {}) => {
     setLoading(true);
@@ -115,17 +127,14 @@ const Reports = () => {
   const comparison = report?.comparison;
   const summary = report?.summary || {};
 
-  const chartData = useMemo(() => {
-    return series.map((item, index) => {
-      const dateLabel = formatCalendarShortDate(calendarMode, item.date) || item.label;
-      return {
+  const dailyRows = useMemo(
+    () =>
+      series.map((item) => ({
         ...item,
-        label: dateLabel,
-        value: activeMetric === 'amount' ? item.amount : item.count,
-        index,
-      };
-    });
-  }, [series, activeMetric, calendarMode]);
+        label: formatCalendarShortDate(calendarMode, item.date) || item.label,
+      })),
+    [series, calendarMode]
+  );
 
   const summaryHighestDay = useMemo(() => {
     if (!summary.highestScanDay) return null;
@@ -143,24 +152,8 @@ const Reports = () => {
     };
   }, [summary.lowestScanDay, calendarMode]);
 
-  const maxValue = Math.max(1, ...chartData.map((item) => item.value));
-  const minValue = Math.min(0, ...chartData.map((item) => item.value));
-  const width = 800;
-  const height = 280;
-  const padding = 36;
-
-  const points = chartData.map((item, index) => {
-    const x = padding + (index * (width - padding * 2)) / Math.max(chartData.length - 1, 1);
-    const normalized = (item.value - minValue) / Math.max(maxValue - minValue, 1);
-    const y = height - padding - normalized * (height - padding * 2);
-    return { ...item, x, y };
-  });
-
-  const pathD = points.map((p, idx) => `${idx === 0 ? 'M' : 'L'} ${p.x} ${p.y}`).join(' ');
-  const areaD = `${pathD} L ${points[points.length - 1]?.x || padding} ${height - padding} L ${points[0]?.x || padding} ${height - padding} Z`;
-
   const sortedTable = useMemo(() => {
-    const rows = [...chartData];
+    const rows = [...dailyRows];
     rows.sort((a, b) => {
       const dir = tableSort.order === 'asc' ? 1 : -1;
       if (tableSort.key === 'count') return dir * (a.count - b.count);
@@ -168,7 +161,7 @@ const Reports = () => {
       return dir * String(a.date || '').localeCompare(String(b.date || ''));
     });
     return rows;
-  }, [chartData, tableSort]);
+  }, [dailyRows, tableSort]);
 
   const totalTablePages = Math.max(1, Math.ceil(sortedTable.length / tablePageSize));
   const pagedTable = useMemo(() => {
@@ -206,7 +199,98 @@ const Reports = () => {
     XLSX.writeFile(wb, `coupon-scan-report-${toIsoDay(new Date())}.xlsx`);
   };
 
-  const exportPdf = () => window.print();
+  const exportPdf = () => {
+    setPdfError('');
+    const title =
+      user?.role === 'CAFE_STAFF'
+        ? t('reports.cafeTitle', { defaultValue: 'Your cafe scans' })
+        : t('reports.title', { defaultValue: 'Coupon Scan Reports' });
+    const cafeRows = report?.byCampus || [];
+    const cafeTable =
+      cafeRows.length === 0
+        ? ''
+        : `<h2>Payment by cafe</h2>
+<table>
+  <thead><tr><th>Kitchen</th><th>Vendor</th><th>Vouchers</th><th>Amount (Birr)</th></tr></thead>
+  <tbody>
+    ${cafeRows
+      .map(
+        (row) => `<tr>
+      <td>${escapeHtml(row.campusName)}</td>
+      <td>${escapeHtml(row.vendorName)}</td>
+      <td>${escapeHtml(row.count.toLocaleString())}</td>
+      <td>${escapeHtml(row.amount.toLocaleString())}</td>
+    </tr>`
+      )
+      .join('')}
+  </tbody>
+</table>`;
+
+    const dayTable = sortedTable
+      .map(
+        (row) => `<tr>
+      <td>${escapeHtml(row.label)}</td>
+      <td>${escapeHtml(row.count.toLocaleString())}</td>
+      <td>${escapeHtml(row.amount.toLocaleString())}</td>
+      <td>${escapeHtml(rate.toLocaleString())}</td>
+    </tr>`
+      )
+      .join('');
+
+    const html = `<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8"/>
+<title>${escapeHtml(title)}</title>
+<style>
+  @page { size: A4; margin: 14mm; }
+  * { box-sizing: border-box; }
+  body { font-family: Inter, Segoe UI, Noto Sans Ethiopic, sans-serif; color: #111; margin: 0; }
+  h1 { font-size: 20px; margin: 0 0 4px; }
+  h2 { font-size: 14px; margin: 18px 0 8px; }
+  .meta { color: #555; font-size: 12px; margin-bottom: 16px; }
+  .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .card { border: 1px solid #d5dce6; border-radius: 8px; padding: 10px 12px; }
+  .label { font-size: 10px; text-transform: uppercase; letter-spacing: .04em; color: #667085; }
+  .value { font-size: 14px; font-weight: 700; margin-top: 4px; }
+  table { width: 100%; border-collapse: collapse; font-size: 12px; }
+  th, td { border: 1px solid #d5dce6; padding: 6px 8px; text-align: left; }
+  th { background: #f4f7fb; }
+</style>
+</head>
+<body>
+  <h1>${escapeHtml(title)}</h1>
+  <div class="meta">${escapeHtml(selectedRangeLabel)}${user?.campus?.name ? ` · ${escapeHtml(user.campus.name)}` : ''}</div>
+  <h2>Summary</h2>
+  <div class="grid">
+    <div class="card"><div class="label">Coupons scanned</div><div class="value">${escapeHtml(selectedCount.toLocaleString())}</div></div>
+    <div class="card"><div class="label">Total revenue</div><div class="value">${escapeHtml(selectedAmount.toLocaleString())} Birr</div></div>
+    <div class="card"><div class="label">Standard rate</div><div class="value">${escapeHtml(rate.toLocaleString())} Birr</div></div>
+    <div class="card"><div class="label">Average / day</div><div class="value">${escapeHtml(summary.averagePerDay?.toLocaleString?.() ?? summary.averagePerDay ?? 0)}</div></div>
+    <div class="card"><div class="label">Revenue / day</div><div class="value">${escapeHtml(summary.averageRevenuePerDay?.toLocaleString?.() ?? summary.averageRevenuePerDay ?? 0)} Birr</div></div>
+    <div class="card"><div class="label">Highest day</div><div class="value">${escapeHtml(summaryHighestDay?.label || '—')}</div></div>
+    <div class="card"><div class="label">Lowest day</div><div class="value">${escapeHtml(summaryLowestDay?.label || '—')}</div></div>
+    <div class="card"><div class="label">Vs previous period</div><div class="value">${escapeHtml(formatPct(comparison?.selectedVsPreviousCount))}</div></div>
+    <div class="card"><div class="label">Revenue change</div><div class="value">${escapeHtml(formatPct(comparison?.selectedVsPreviousAmount))}</div></div>
+  </div>
+  ${cafeTable}
+  <h2>Daily breakdown</h2>
+  <table>
+    <thead><tr><th>Period</th><th>Coupons scanned</th><th>Revenue (Birr)</th><th>Standard rate</th></tr></thead>
+    <tbody>${dayTable || '<tr><td colspan="4">No scans in this range.</td></tr>'}</tbody>
+  </table>
+  <script>window.onload = function () { setTimeout(function () { window.print(); }, 300); };<\/script>
+</body>
+</html>`;
+
+    const win = window.open('', '_blank', 'width=900,height=1100');
+    if (!win) {
+      setPdfError(t('qrCard.popupBlocked', { defaultValue: 'Please allow pop-ups to export the PDF.' }));
+      return;
+    }
+    win.document.write(html);
+    win.document.close();
+  };
 
   const handleDownloadPaymentLetter = async (row) => {
     const key = `${row?.campusId || 'none'}-${row?.vendorId || 'none'}`;
@@ -226,7 +310,7 @@ const Reports = () => {
     }
   };
 
-  const canWritePaymentLetter = ['ADMIN', 'HR', 'FINANCE'].includes(user?.role);
+  const canWritePaymentLetter = user?.role === 'HR';
 
   const handlePresetClick = (presetKey) => {
     setActivePreset(presetKey);
@@ -267,8 +351,8 @@ const Reports = () => {
   ];
 
   return (
-    <div className="page-shell space-y-6 print:space-y-4">
-      <div className="surface-card flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between print:border-0 print:p-0">
+    <div className="page-shell space-y-6">
+      <div className="surface-card flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
         <PageHeader
           title={
             user?.role === 'CAFE_STAFF'
@@ -290,7 +374,7 @@ const Reports = () => {
             <button
               type="button"
               onClick={() => handleDownloadPaymentLetter((report?.byCampus || [])[0])}
-              className="btn-primary print:hidden"
+              className="btn-primary"
               disabled={!!letterBusyKey}
             >
               <FileText className="w-4 h-4" />
@@ -299,18 +383,19 @@ const Reports = () => {
               </span>
             </button>
           )}
-          <button onClick={exportPdf} className="btn-secondary print:hidden">
+          <button type="button" onClick={exportPdf} className="btn-secondary">
             <Printer className="w-4 h-4" />
             <span>Export PDF</span>
           </button>
-          <button onClick={exportExcel} className="btn-secondary print:hidden">
+          <button type="button" onClick={exportExcel} className="btn-secondary">
             <Download className="w-4 h-4" />
             <span>Export Excel</span>
           </button>
         </div>
       </div>
+      {pdfError && <p className="alert-error text-sm">{pdfError}</p>}
 
-      <div className="surface-card flex flex-col gap-4">
+      <div className="surface-card flex flex-col gap-4 no-print">
         <div className="flex flex-wrap gap-2">
           {PRESETS.map((preset) => (
             <button
@@ -364,7 +449,7 @@ const Reports = () => {
       </div>
 
       {canWritePaymentLetter && (
-        <div className="surface-card space-y-3 print:hidden">
+        <div className="surface-card space-y-3 no-print">
           <h3 className="text-lg font-semibold text-app-primary">{t('reports.paymentLetter')}</h3>
           <p className="text-sm text-app-muted">{t('reports.letterHelp')}</p>
           {letterError && <p className="alert-error text-sm">{letterError}</p>}
@@ -434,7 +519,7 @@ const Reports = () => {
               ? t('reports.cafePaymentHelp')
               : t('reports.paymentByCafeHelp')}
           </p>
-          {letterError && <p className="alert-error text-sm">{letterError}</p>}
+          {letterError && <p className="alert-error text-sm no-print">{letterError}</p>}
           <div className="table-wrap">
             <table className="table-modern">
               <thead>
@@ -444,7 +529,7 @@ const Reports = () => {
                   <th>{t('reports.vouchers')}</th>
                   <th>{t('reports.amount')}</th>
                   {canWritePaymentLetter && (
-                    <th className="print:hidden">{t('reports.paymentLetter')}</th>
+                    <th className="no-print">{t('reports.paymentLetter')}</th>
                   )}
                 </tr>
               </thead>
@@ -456,7 +541,7 @@ const Reports = () => {
                     <td>{row.count.toLocaleString()}</td>
                     <td>{row.amount.toLocaleString()} {t('common.birr')}</td>
                     {canWritePaymentLetter && (
-                      <td className="print:hidden">
+                      <td className="no-print">
                         <button
                           type="button"
                           className="btn-secondary !min-h-0 !py-1.5 !px-3 text-xs"
@@ -478,109 +563,50 @@ const Reports = () => {
         </div>
       )}
 
-      <div className="surface-card space-y-4">
-        <div className="flex items-center justify-between gap-3">
-          <div>
-            <p className="section-label mb-2">Trend Chart</p>
-            <h3 className="text-xl font-semibold text-app-primary">
-              {activeMetric === 'count' ? 'Coupons Scanned Over Time' : 'Revenue Over Time'}
-            </h3>
-          </div>
-          <div className="flex flex-wrap items-center justify-end gap-2">
-            <button className={`btn-secondary ${activeMetric === 'count' ? 'ring-1 ring-app-border' : ''}`} onClick={() => setActiveMetric('count')}>Coupons Scanned</button>
-            <button className={`btn-secondary ${activeMetric === 'amount' ? 'ring-1 ring-app-border' : ''}`} onClick={() => setActiveMetric('amount')}>Revenue</button>
-            <span className="rounded-full px-3 py-1 border border-app-border bg-app-surface-2/50 text-sm text-app-secondary">
-              {selectedCount.toLocaleString()} coupons
-            </span>
-            <span className="rounded-full px-3 py-1 border border-app-border bg-app-surface-2/50 text-sm text-app-secondary">
-              {selectedAmount.toLocaleString()} {t('common.birr')}
-            </span>
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+        <div className="surface-card space-y-4">
+          <p className="section-label">Summary</p>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            {summaryItems.map((item) => (
+              <div key={item.label} className="rounded-card border border-app-border p-3" style={{ backgroundColor: 'var(--color-bg-secondary)' }}>
+                <div className="text-[11px] uppercase tracking-wider text-app-muted">{item.label}</div>
+                <div className="mt-1 text-base font-semibold text-app-primary break-words">{item.value}</div>
+              </div>
+            ))}
           </div>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1.55fr)_minmax(260px,0.7fr)] gap-5">
-          <div className="rounded-card border border-app-border p-4 overflow-hidden" style={{ backgroundColor: 'var(--color-bg-secondary)' }}>
-            <div className="relative w-full overflow-x-auto">
-              <svg ref={chartRef} viewBox={`0 0 ${width} ${height}`} className="w-full h-[340px]">
-                <defs>
-                  <linearGradient id="chartFill" x1="0" x2="0" y1="0" y2="1">
-                    <stop offset="0%" stopColor="var(--color-primary)" stopOpacity="0.42" />
-                    <stop offset="100%" stopColor="var(--color-primary)" stopOpacity="0.04" />
-                  </linearGradient>
-                </defs>
-                <line x1={padding} y1={height - padding} x2={width - padding} y2={height - padding} stroke="var(--color-border)" strokeWidth="1" />
-                <path d={areaD} fill="url(#chartFill)" />
-                <path d={pathD} fill="none" stroke="var(--color-primary)" strokeWidth="3.5" strokeLinejoin="round" strokeLinecap="round" />
-                {points.map((point) => (
-                  <g key={point.date} onMouseEnter={() => setHoveredPoint(point)} onMouseLeave={() => setHoveredPoint(null)}>
-                    <circle cx={point.x} cy={point.y} r="4.5" fill="var(--color-primary)" />
-                    <circle cx={point.x} cy={point.y} r="11" fill="transparent" />
-                  </g>
-                ))}
-              </svg>
-
-              {hoveredPoint && (
-                <div className="absolute top-4 right-4 rounded-card border border-app-border bg-app-surface px-4 py-3 shadow-lg">
-                  <div className="text-xs text-app-muted">{hoveredPoint.label}</div>
-                  <div className="text-2xl font-semibold text-app-primary">{hoveredPoint.value.toLocaleString()}</div>
-                  <div className="text-xs text-app-secondary">{activeMetric === 'count' ? 'Coupons' : `Birr (${t('common.birr')})`}</div>
+        <div className="surface-card space-y-3">
+          <p className="section-label">Comparison</p>
+          <div className="space-y-3 text-sm">
+            <div className="flex items-center justify-between gap-4">
+              <span className="text-app-muted">Vs previous period</span>
+              {comparison ? comparisonBadge(comparison.selectedVsPreviousCount) : <span className="text-app-muted">No comparison</span>}
+            </div>
+            <div className="flex items-center justify-between gap-4">
+              <span className="text-app-muted">Revenue change</span>
+              {comparison ? comparisonBadge(comparison.selectedVsPreviousAmount) : <span className="text-app-muted">No comparison</span>}
+            </div>
+            <div className="pt-2 border-t border-app-border text-xs text-app-muted">
+              {summaryHighestDay?.label && (
+                <div>
+                  Highest day: <span className="text-app-primary">{summaryHighestDay.label}</span>
                 </div>
               )}
-            </div>
-          </div>
-
-          <div className="space-y-4">
-            <div className="surface-card surface-card-hover space-y-4">
-              <p className="section-label">Summary</p>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                {summaryItems.map((item) => (
-                  <div key={item.label} className="rounded-card border border-app-border p-3" style={{ backgroundColor: 'var(--color-bg-secondary)' }}>
-                    <div className="text-[11px] uppercase tracking-wider text-app-muted">{item.label}</div>
-                    <div className="mt-1 text-base font-semibold text-app-primary break-words">{item.value}</div>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            <div className="surface-card surface-card-hover space-y-3">
-              <p className="section-label">Comparison</p>
-              <div className="space-y-3 text-sm">
-                <div className="flex items-center justify-between gap-4">
-                  <span className="text-app-muted">Vs previous period</span>
-                  {comparison ? comparisonBadge(comparison.selectedVsPreviousCount) : <span className="text-app-muted">No comparison</span>}
+              {summaryLowestDay?.label && (
+                <div>
+                  Lowest day: <span className="text-app-primary">{summaryLowestDay.label}</span>
                 </div>
-                <div className="flex items-center justify-between gap-4">
-                  <span className="text-app-muted">Revenue change</span>
-                  {comparison ? comparisonBadge(comparison.selectedVsPreviousAmount) : <span className="text-app-muted">No comparison</span>}
-                </div>
-                <div className="pt-2 border-t border-app-border text-xs text-app-muted">
-                  {summaryHighestDay?.label && (
-                    <div>
-                      Highest day: <span className="text-app-primary">{summaryHighestDay.label}</span>
-                    </div>
-                  )}
-                  {summaryLowestDay?.label && (
-                    <div>
-                      Lowest day: <span className="text-app-primary">{summaryLowestDay.label}</span>
-                    </div>
-                  )}
-                </div>
-              </div>
+              )}
             </div>
           </div>
         </div>
       </div>
 
       <div className="surface-card space-y-4">
-        <div className="flex items-center justify-between gap-3">
-          <div>
-            <p className="section-label mb-2">Period Analytics</p>
-            <h3 className="text-xl font-semibold text-app-primary">Daily breakdown</h3>
-          </div>
-          <div className="flex items-center gap-2 text-sm text-app-secondary">
-            <TrendingUp className="w-4 h-4" />
-            <span>Sortable table with sticky header</span>
-          </div>
+        <div>
+          <p className="section-label mb-2">Period Analytics</p>
+          <h3 className="text-xl font-semibold text-app-primary">Daily breakdown</h3>
         </div>
 
         <div className="table-wrap">
@@ -625,7 +651,7 @@ const Reports = () => {
           </div>
         </div>
 
-        <div className="flex flex-col gap-3 border-t border-app-border pt-4 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex flex-col gap-3 border-t border-app-border pt-4 sm:flex-row sm:items-center sm:justify-between no-print">
           <div className="text-sm text-app-secondary">
             Showing {sortedTable.length === 0 ? 0 : (tablePage - 1) * tablePageSize + 1}-{Math.min(tablePage * tablePageSize, sortedTable.length)} of {sortedTable.length} days
           </div>

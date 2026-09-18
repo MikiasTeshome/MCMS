@@ -22,7 +22,7 @@ const Sidebar = ({ isOpen, setIsOpen, collapsed, onToggleCollapse }) => {
   const { t } = useTranslation();
 
   const menuItems = [
-    { path: '/dashboard', label: t('common.dashboard'), icon: LayoutDashboard, roles: ['ADMIN', 'HR', 'FINANCE'] },
+    { path: '/dashboard', label: t('common.dashboard'), icon: LayoutDashboard, roles: ['ADMIN', 'HR'] },
     { path: '/employees', label: t('common.employees'), icon: UserCheck, roles: ['HR'] },
     { path: '/cafes', label: t('common.cafes'), icon: MapPin, roles: ['HR'] },
     { path: '/off-days', label: t('common.offDays'), icon: CalendarDays, roles: ['HR'] },

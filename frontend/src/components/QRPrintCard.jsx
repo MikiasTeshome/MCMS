@@ -1,12 +1,37 @@
-import React, { useRef, useState } from 'react';
+import React, { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { QRCodeSVG } from 'qrcode.react';
 import { Printer, X, Download, Loader } from 'lucide-react';
-import { jsPDF } from 'jspdf';
 import { CR80_H, CR80_W, canvasToJpeg, renderIdCardCanvas } from '../utils/idCardCanvas.js';
 const CR80_W_MM = `${CR80_W}mm`;
 const CR80_H_MM = `${CR80_H}mm`;
 const QR_SIZE = 172;
+const A4_W = 297;
+const A4_H = 210;
+const A4_COLS = 5;
+const A4_ROWS = 2;
+const A4_GAP = 2.4;
+
+const a4Layout = () => {
+  const cols = A4_COLS;
+  const rows = A4_ROWS;
+  const gap = A4_GAP;
+  const gridW = cols * CR80_W + (cols - 1) * gap;
+  const gridH = rows * CR80_H + (rows - 1) * gap;
+  return {
+    cols,
+    rows,
+    gap,
+    perPage: cols * rows,
+    originX: (A4_W - gridW) / 2,
+    originY: (A4_H - gridH) / 2,
+  };
+};
+
+const loadJsPdf = async () => {
+  const { jsPDF } = await import('jspdf');
+  return jsPDF;
+};
 
 const cardStyles = {
   card: {
@@ -156,13 +181,13 @@ const cardStyles = {
     width: '100%',
     display: 'flex',
     flexDirection: 'column',
-    gap: '2px',
+    gap: '3px',
     justifyContent: 'center',
     textAlign: 'center',
     flexShrink: 0,
     position: 'relative',
     zIndex: 6,
-    padding: '4px 6px 5px',
+    padding: '5px 7px 6px',
     background: 'linear-gradient(180deg, #f4f9ff 0%, #ffffff 100%)',
     borderTop: '1px solid rgba(0,91,172,0.10)',
   },
@@ -289,7 +314,6 @@ const IdCardFace = ({ employee, cardCode, collegeName, labels }) => {
 
 const QRPrintCard = ({ employee, cardCode, cards, onClose }) => {
   const { t } = useTranslation();
-  const bulkRef = useRef(null);
   const [busy, setBusy] = useState(null);
   const [progress, setProgress] = useState({ current: 0, total: 0 });
   const [error, setError] = useState('');
@@ -313,54 +337,6 @@ const QRPrintCard = ({ employee, cardCode, cards, onClose }) => {
   };
   const collegeName = t('qrCard.collegeName');
 
-  const cardNodes = () => [...(bulkRef.current?.querySelectorAll('[data-print-card]') || [])];
-
-  const handlePrint = async () => {
-    setError('');
-    const sources = cardNodes();
-    if (!sources.length) {
-      setError(t('qrCard.exportFailed'));
-      return;
-    }
-
-    const markup = sources.map((node) => node.outerHTML).join('\n');
-    const html = `<!DOCTYPE html>
-<html>
-<head>
-<meta charset="utf-8"/>
-<base href="${window.location.origin}/"/>
-<title>TMPC ID Card — CR80</title>
-<style>
-  @page { size: ${CR80_W_MM} ${CR80_H_MM}; margin: 0; }
-  * { box-sizing: border-box; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-  html, body { margin: 0; padding: 0; background: #fff; }
-  [data-print-card] {
-    page-break-after: always;
-    break-after: page;
-    page-break-inside: avoid;
-    break-inside: avoid;
-    box-shadow: none !important;
-  }
-</style>
-</head>
-<body>
-${markup}
-<script>
-  window.onload = function () {
-    setTimeout(function () { window.print(); window.close(); }, 250);
-  };
-<\/script>
-</body></html>`;
-
-    const win = window.open('', '_blank', 'width=420,height=640');
-    if (!win) {
-      setError(t('qrCard.popupBlocked'));
-      return;
-    }
-    win.document.write(html);
-    win.document.close();
-  };
-
   const withBusy = async (mode, work) => {
     setError('');
     setBusy(mode);
@@ -375,17 +351,104 @@ ${markup}
     }
   };
 
+  const renderCard = async (item) =>
+    renderIdCardCanvas({
+      info: describe(item.employee),
+      cardCode: item.cardCode,
+      labels,
+      collegeName,
+    });
+
+  const collectJpegs = async () => {
+    const images = [];
+    for (let i = 0; i < items.length; i += 1) {
+      setProgress({ current: i + 1, total: items.length });
+      const canvas = await renderCard(items[i]);
+      images.push(canvasToJpeg(canvas));
+    }
+    return images;
+  };
+
+  const openPrintWindow = (html) => {
+    const win = window.open('', '_blank', isBulk ? 'width=1100,height=800' : 'width=420,height=640');
+    if (!win) {
+      throw new Error(t('qrCard.popupBlocked'));
+    }
+    win.document.write(html);
+    win.document.close();
+  };
+
+  const handlePrint = () =>
+    withBusy('print', async () => {
+      const images = await collectJpegs();
+      if (!isBulk) {
+        openPrintWindow(`<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8"/>
+<title>TMPC ID Card — CR80</title>
+<style>
+  @page { size: ${CR80_W}mm ${CR80_H}mm; margin: 0; }
+  * { box-sizing: border-box; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  html, body { margin: 0; padding: 0; background: #fff; }
+  img { width: ${CR80_W}mm; height: ${CR80_H}mm; display: block; }
+</style>
+</head>
+<body>
+<img src="${images[0]}" width="${CR80_W}mm" height="${CR80_H}mm" />
+<script>window.onload = function () { setTimeout(function () { window.print(); window.close(); }, 400); };<\/script>
+</body></html>`);
+        return;
+      }
+
+      const { cols, gap, perPage, originX, originY } = a4Layout();
+      const pages = [];
+      for (let start = 0; start < images.length; start += perPage) {
+        const slice = images.slice(start, start + perPage);
+        const cards = slice
+          .map((src, index) => {
+            const col = index % cols;
+            const row = Math.floor(index / cols);
+            const x = originX + col * (CR80_W + gap);
+            const y = originY + row * (CR80_H + gap);
+            return `<img src="${src}" style="position:absolute;left:${x}mm;top:${y}mm;width:${CR80_W}mm;height:${CR80_H}mm;" />`;
+          })
+          .join('');
+        pages.push(`<div class="page">${cards}</div>`);
+      }
+
+      openPrintWindow(`<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8"/>
+<title>TMPC ID Cards — A4 landscape</title>
+<style>
+  @page { size: A4 landscape; margin: 0; }
+  * { box-sizing: border-box; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  html, body { margin: 0; padding: 0; background: #fff; }
+  .page {
+    position: relative;
+    width: ${A4_W}mm;
+    height: ${A4_H}mm;
+    page-break-after: always;
+    break-after: page;
+  }
+  .page:last-child { page-break-after: auto; break-after: auto; }
+</style>
+</head>
+<body>
+${pages.join('\n')}
+<script>window.onload = function () { setTimeout(function () { window.print(); window.close(); }, 500); };<\/script>
+</body></html>`);
+    });
+
   const handleExportCr80 = () =>
     withBusy('cr80', async () => {
+      const jsPDF = await loadJsPdf();
       const pdf = new jsPDF({ unit: 'mm', format: [CR80_W, CR80_H], orientation: 'portrait' });
       for (let i = 0; i < items.length; i += 1) {
         setProgress({ current: i + 1, total: items.length });
-        const canvas = await renderIdCardCanvas({
-          info: describe(items[i].employee),
-          cardCode: items[i].cardCode,
-          labels,
-          collegeName,
-        });
+        const canvas = await renderCard(items[i]);
         if (i > 0) pdf.addPage([CR80_W, CR80_H], 'portrait');
         pdf.addImage(canvasToJpeg(canvas), 'JPEG', 0, 0, CR80_W, CR80_H);
       }
@@ -394,39 +457,26 @@ ${markup}
 
   const handleExportA4 = () =>
     withBusy('a4', async () => {
-      const pdf = new jsPDF({ unit: 'mm', format: 'a4', orientation: 'portrait' });
-      const cols = 2;
-      const rows = 3;
-      const perPage = cols * rows;
-      const gapX = 10;
-      const gapY = 8;
-      const gridW = cols * CR80_W + (cols - 1) * gapX;
-      const gridH = rows * CR80_H + (rows - 1) * gapY;
-      const originX = (210 - gridW) / 2;
-      const originY = (297 - gridH) / 2;
-
+      const jsPDF = await loadJsPdf();
+      const pdf = new jsPDF({ unit: 'mm', format: 'a4', orientation: 'landscape' });
+      const { cols, gap, perPage, originX, originY } = a4Layout();
       for (let i = 0; i < items.length; i += 1) {
         setProgress({ current: i + 1, total: items.length });
         const slot = i % perPage;
-        if (i > 0 && slot === 0) pdf.addPage('a4', 'portrait');
+        if (i > 0 && slot === 0) pdf.addPage('a4', 'landscape');
         const col = slot % cols;
         const row = Math.floor(slot / cols);
-        const canvas = await renderIdCardCanvas({
-          info: describe(items[i].employee),
-          cardCode: items[i].cardCode,
-          labels,
-          collegeName,
-        });
+        const canvas = await renderCard(items[i]);
         pdf.addImage(
           canvasToJpeg(canvas),
           'JPEG',
-          originX + col * (CR80_W + gapX),
-          originY + row * (CR80_H + gapY),
+          originX + col * (CR80_W + gap),
+          originY + row * (CR80_H + gap),
           CR80_W,
           CR80_H
         );
       }
-      pdf.save(isBulk ? 'TMPC-ID-cards-A4.pdf' : `TMPC-ID-${describe(preview.employee).id}-A4.pdf`);
+      pdf.save(isBulk ? 'TMPC-ID-cards-A4-landscape.pdf' : `TMPC-ID-${describe(preview.employee).id}-A4.pdf`);
     });
 
   return (
@@ -476,18 +526,6 @@ ${markup}
             {t('qrCard.exporting', { current: progress.current, total: progress.total })}
           </p>
         )}
-
-        <div ref={bulkRef} className="fixed -left-[200vw] top-0 z-[-1] pointer-events-none" aria-hidden="true">
-          {items.map((item, index) => (
-            <IdCardFace
-              key={`${item.cardCode}-${index}`}
-              employee={item.employee}
-              cardCode={item.cardCode}
-              collegeName={collegeName}
-              labels={labels}
-            />
-          ))}
-        </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <button

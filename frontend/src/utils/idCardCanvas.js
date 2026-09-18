@@ -172,11 +172,11 @@ export async function renderIdCardCanvas({ info, cardCode, labels, collegeName }
 
   const footerH = mm(6.2);
   const footerY = h - footerH;
-  const infoH = mm(12);
+  const infoH = mm(16.5);
   const infoY = footerY - infoH;
   const qrTop = headerH + mm(1);
   const qrBottom = infoY - mm(0.6);
-  const qrBox = Math.min(mm(46), qrBottom - qrTop, w - mm(5));
+  const qrBox = Math.min(mm(42), qrBottom - qrTop - mm(1), w - mm(6));
   const qrX = (w - qrBox) / 2;
   const qrY = qrTop + (qrBottom - qrTop - qrBox) / 2;
 
@@ -206,17 +206,24 @@ export async function renderIdCardCanvas({ info, cardCode, labels, collegeName }
   ctx.lineTo(w, infoY);
   ctx.stroke();
 
-  const fields = [
-    { label: String(labels.employeeName || '').toUpperCase(), value: info.name, color: '#0a2540', weight: '800', size: mm(3.9) },
-    { label: String(labels.idNumber || '').toUpperCase(), value: info.id, color: '#005BAC', weight: '700', size: mm(3.5) },
-  ];
-  const rowH = infoH / fields.length;
-  fields.forEach((field, index) => {
-    const rowTop = infoY + rowH * index;
-    drawCentered(ctx, field.label, cx, rowTop + mm(2.35), '700', mm(2.05), '#6e87a7');
-    const valueSize = fitSize(ctx, String(field.value || ''), field.weight, field.size, mm(2.2), w - mm(6));
-    drawCentered(ctx, String(field.value || ''), cx, rowTop + mm(5.15), field.weight, valueSize, field.color);
+  const nameMax = w - mm(6);
+  ctx.font = `800 ${mm(3.05)}px ${FONT}`;
+  const nameLines = wrapLines(ctx, String(info.name || ''), nameMax, 2);
+  const idText = String(info.id || '');
+  const labelSize = mm(1.7);
+  const infoBottom = infoY + infoH;
+
+  drawCentered(ctx, String(labels.employeeName || '').toUpperCase(), cx, infoY + mm(2.35), '700', labelSize, '#6e87a7');
+  let nameY = infoY + mm(4.9);
+  nameLines.forEach((line) => {
+    const size = fitSize(ctx, line, '800', mm(3.05), mm(2.0), nameMax);
+    drawCentered(ctx, line, cx, nameY, '800', size, '#0a2540');
+    nameY += size + mm(0.4);
   });
+  const idLabelY = Math.min(nameY + mm(1.05), infoBottom - mm(5.8));
+  drawCentered(ctx, String(labels.idNumber || '').toUpperCase(), cx, idLabelY, '700', labelSize, '#6e87a7');
+  const idSize = fitSize(ctx, idText, '700', mm(2.95), mm(2.0), nameMax);
+  drawCentered(ctx, idText, cx, Math.min(idLabelY + mm(2.7), infoBottom - mm(2.2)), '700', idSize, '#005BAC');
 
   const footGrad = ctx.createLinearGradient(0, footerY, w, h);
   footGrad.addColorStop(0, '#003d7a');

@@ -102,6 +102,7 @@
   "employees": {
     "title": "HR Employee Directory",
     "subtitle": "Register employees and print QR meal cards",
+    "searchPlaceholder": "Search by name or employee ID",
     "provision": "Provision Employee",
     "addTitle": "Register New Employee",
     "fullName": "Full Name",
@@ -244,8 +245,8 @@
     "official": "TMPC OFFICIAL",
     "print": "Print ID Card",
     "printAll": "Print all {{count}} cards",
-    "bulkHelp": "Preview is the first card only. Print and PDF export include all {{count}} cards. Use A4 PDF for office paper; use CR80 PDF for the plastic-card shop. Do not generate a new QR for the plastic reprint — this is the same code.",
-    "exportA4": "A4 PDF (paper)",
+    "bulkHelp": "Preview is the first card only. Print and A4 PDF place 10 true-size CR80 cards per landscape A4 page. Use CR80 PDF for the plastic-card shop. Do not generate a new QR for a plastic reprint — this is the same code.",
+    "exportA4": "A4 landscape PDF (paper)",
     "exportCr80": "CR80 PDF (plastic)",
     "exporting": "Preparing card {{current}} of {{total}}…",
     "exportFailed": "Could not prepare the ID cards.",

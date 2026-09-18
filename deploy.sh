@@ -38,15 +38,21 @@ SUCCESS "Environment files synced successfully."
 # 4. Clean Install dependencies
 INFO "Installing workspace dependencies..."
 npm ci --prefix backend
-npm ci --prefix frontend
+npm ci --prefix frontend --legacy-peer-deps
 SUCCESS "All dependencies installed cleanly."
 
 # 5. Database operations (Prisma Client generation & migration)
 INFO "Generating Prisma Client..."
-npx prisma generate --schema=backend/prisma/schema.prisma
+(
+  cd backend
+  ./node_modules/.bin/prisma generate
+)
 
 INFO "Applying database migrations..."
-npx prisma migrate deploy --schema=backend/prisma/schema.prisma
+(
+  cd backend
+  ./node_modules/.bin/prisma migrate deploy
+)
 SUCCESS "Database schema is up to date."
 
 # 6. Build Frontend Static Bundle

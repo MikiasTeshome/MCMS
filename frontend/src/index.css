@@ -742,3 +742,22 @@
   50% { top: 95%; }
   100% { top: 5%; }
 }
+
+@media print {
+  .app-sidebar,
+  .app-header,
+  .no-print {
+    display: none !important;
+  }
+
+  html,
+  body,
+  #root,
+  .h-screen,
+  .w-screen {
+    height: auto !important;
+    overflow: visible !important;
+    background: #fff !important;
+    color: #111 !important;
+  }
+}

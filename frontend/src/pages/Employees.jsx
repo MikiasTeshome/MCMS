@@ -1,8 +1,7 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, Suspense, lazy } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useCalendar } from '../context/CalendarContext.jsx';
 import { generateQR } from '../services/hr.service.js';
-import QRPrintCard from '../components/QRPrintCard.jsx';
 import {
   Users as UsersIcon,
   Plus,
@@ -10,6 +9,7 @@ import {
   ShieldAlert,
   QrCode,
   Printer,
+  Search,
   Loader,
   UserCheck,
   Download,
@@ -41,6 +41,8 @@ import {
   shiftUtcDays,
   DATE_INPUT_FORMAT,
 } from '../utils/ethiopianDate.js';
+
+const QRPrintCard = lazy(() => import('../components/QRPrintCard.jsx'));
 
 const truncateCode = (code) => (code ? `${code.slice(0, 8)}...` : '—');
 
@@ -124,6 +126,7 @@ const Employees = () => {
   const [importResults, setImportResults] = useState(null);
   const [importing, setImporting] = useState(false);
   const fileInputRef = useRef(null);
+  const searchTimerRef = useRef(null);
   const [holidays, setHolidays] = useState([]);
 
   const fetchEmployees = async (page = pageMeta.page, limit = pageMeta.limit, nextFilters = filters) => {
@@ -133,17 +136,19 @@ const Employees = () => {
         params: {
           page,
           limit,
-          search: nextFilters.search || undefined,
+          search: nextFilters.search?.trim() || undefined,
           sort: nextFilters.sort,
           order: nextFilters.order,
         },
       });
-      setEmployeesList(Array.isArray(res.data?.data?.data) ? res.data.data.data : []);
+      const payload = res.data?.data || {};
+      const rows = Array.isArray(payload.data) ? payload.data : [];
+      setEmployeesList(rows);
       setPageMeta({
-        page: res.data.page || page,
-        limit: res.data.limit || limit,
-        total: res.data.total || 0,
-        totalPages: res.data.totalPages || 1,
+        page: Number(payload.page) || page,
+        limit: Number(payload.limit) || limit,
+        total: Number(payload.total) || 0,
+        totalPages: Math.max(Number(payload.totalPages) || 1, 1),
       });
     } catch (err) {
       console.error('Failed to load employees list:', err);
@@ -163,6 +168,7 @@ const Employees = () => {
       }
     };
     fetchHolidays();
+    return () => clearTimeout(searchTimerRef.current);
   }, []);
 
   useEffect(() => {
@@ -367,9 +373,16 @@ const Employees = () => {
     }
   };
 
-  const updateFilters = (patch) => {
+  const updateFilters = (patch, { debounceSearch = false } = {}) => {
     const next = { ...filters, ...patch };
     setFilters(next);
+    if (debounceSearch) {
+      clearTimeout(searchTimerRef.current);
+      searchTimerRef.current = setTimeout(() => {
+        fetchEmployees(1, pageMeta.limit, next);
+      }, 350);
+      return;
+    }
     fetchEmployees(1, pageMeta.limit, next);
   };
 
@@ -496,13 +509,17 @@ const Employees = () => {
       />
 
       <div className="surface-card flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-        <input
-          type="search"
-          value={filters.search}
-          onChange={(e) => updateFilters({ search: e.target.value })}
-          placeholder={t('common.search', { defaultValue: 'Search employees' })}
-          className="glass-input lg:max-w-sm"
-        />
+        <label className="relative flex-1 lg:max-w-md">
+          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-app-muted" />
+          <input
+            type="search"
+            value={filters.search}
+            onChange={(e) => updateFilters({ search: e.target.value }, { debounceSearch: true })}
+            placeholder={t('employees.searchPlaceholder')}
+            className="glass-input w-full pl-10"
+            aria-label={t('employees.searchPlaceholder')}
+          />
+        </label>
         <div className="flex flex-wrap items-center gap-3">
           <select
             value={filters.sort}
@@ -557,9 +574,23 @@ const Employees = () => {
         <div className="flex items-center justify-between gap-3 px-4 pb-3 text-sm text-app-secondary">
           <span>{pageMeta.total.toLocaleString()} records</span>
           <div className="flex items-center gap-2">
-            <button className="btn-secondary" disabled={pageMeta.page <= 1} onClick={() => fetchEmployees(pageMeta.page - 1, pageMeta.limit)}>Previous</button>
+            <button
+              type="button"
+              className="btn-secondary"
+              disabled={loading || pageMeta.page <= 1}
+              onClick={() => fetchEmployees(pageMeta.page - 1, pageMeta.limit)}
+            >
+              Previous
+            </button>
             <span>Page {pageMeta.page} of {pageMeta.totalPages}</span>
-            <button className="btn-secondary" disabled={pageMeta.page >= pageMeta.totalPages} onClick={() => fetchEmployees(pageMeta.page + 1, pageMeta.limit)}>Next</button>
+            <button
+              type="button"
+              className="btn-secondary"
+              disabled={loading || pageMeta.page >= pageMeta.totalPages}
+              onClick={() => fetchEmployees(pageMeta.page + 1, pageMeta.limit)}
+            >
+              Next
+            </button>
           </div>
         </div>
         <div className="table-scroll">
@@ -1096,10 +1127,11 @@ const Employees = () => {
       )}
 
       {showPrintModal && (printCards || selectedEmployee) && (
-        <QRPrintCard
-          employee={selectedEmployee}
-          cardCode={selectedCardCode}
-          cards={printCards}
+        <Suspense fallback={null}>
+          <QRPrintCard
+            employee={selectedEmployee}
+            cardCode={selectedCardCode}
+            cards={printCards}
           onClose={() => {
             setShowPrintModal(false);
             setSelectedEmployee(null);
@@ -1107,6 +1139,7 @@ const Employees = () => {
             setPrintCards(null);
           }}
         />
+        </Suspense>
       )}
     </div>
   );

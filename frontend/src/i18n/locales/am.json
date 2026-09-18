@@ -102,6 +102,7 @@
   "employees": {
     "title": "የሰራተኞች ማውጫ",
     "subtitle": "ሰራተኞችን መዝግቡ እና QR መታወቂያ ያትሙ",
+    "searchPlaceholder": "በስም ወይም በሰራተኛ መለያ ይፈልጉ",
     "provision": "ሰራተኛ መዝግብ",
     "addTitle": "አዲስ ሰራተኛ መዝግብ",
     "fullName": "ሙሉ ስም",
@@ -245,7 +246,7 @@
     "print": "መታወቂያ አትም",
     "printAll": "ሁሉንም {{count}} ካርዶች አትም",
     "bulkHelp": "ቅድመ እይታ የመጀመሪያው ካርድ ብቻ ነው። ማተም እና PDF ሁሉንም {{count}} ካርዶች ያካትታሉ። ለወረቀት A4 PDF፣ ለፕላስቲክ CR80 PDF ይጠቀሙ። ለፕላስቲክ አዲስ QR አይፍጠሩ — ይህው ኮድ ነው።",
-    "exportA4": "A4 PDF (ወረቀት)",
+    "exportA4": "A4 አግድም PDF (ወረቀት)",
     "exportCr80": "CR80 PDF (ፕላስቲክ)",
     "exporting": "ካርድ {{current}} ከ {{total}} በመዘጋጀት ላይ…",
     "exportFailed": "መታወቂያዎችን ማዘጋጀት አልተሳካም።",
