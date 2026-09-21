@@ -22,13 +22,6 @@ function hasScanSessionModel() {
   return Boolean(prisma.cafeScanSession);
 }
 
-const addisDayFormatter = new Intl.DateTimeFormat('en-CA', {
-  timeZone: ADDIS_TIME_ZONE,
-  year: 'numeric',
-  month: '2-digit',
-  day: '2-digit',
-});
-
 const normalizeDateInput = (value) => {
   if (value === undefined || value === null || value === '') return null;
   const date = value instanceof Date ? new Date(value.getTime()) : new Date(value);
@@ -38,12 +31,10 @@ const normalizeDateInput = (value) => {
 const getAddisDayKey = (value) => {
   const date = normalizeDateInput(value);
   if (!date) return '';
-
-  const parts = addisDayFormatter.formatToParts(date);
-  const year = parts.find((part) => part.type === 'year')?.value || '';
-  const month = parts.find((part) => part.type === 'month')?.value || '';
-  const day = parts.find((part) => part.type === 'day')?.value || '';
-  if (!year || !month || !day) return '';
+  const shifted = new Date(date.getTime() + ADDIS_OFFSET_MS);
+  const year = shifted.getUTCFullYear();
+  const month = String(shifted.getUTCMonth() + 1).padStart(2, '0');
+  const day = String(shifted.getUTCDate()).padStart(2, '0');
   return `${year}-${month}-${day}`;
 };
 
@@ -52,10 +43,7 @@ function todayDateString(date = new Date()) {
 }
 
 function getAddisWeekday(date = new Date()) {
-  const key = getAddisDayKey(date);
-  if (!key) return date.getUTCDay();
-  const [year, month, day] = key.split('-').map(Number);
-  return new Date(Date.UTC(year, month - 1, day, 9, 0, 0, 0)).getUTCDay();
+  return new Date(date.getTime() + ADDIS_OFFSET_MS).getUTCDay();
 }
 
 function startOfWeek(date = new Date()) {
@@ -101,18 +89,48 @@ function getDailyCap(date = new Date()) {
   return capMap[day] ?? 0;
 }
 
-async function isPublicHoliday(referenceDate = new Date()) {
+async function findTodayHoliday(referenceDate = new Date()) {
   const todayKey = getAddisDayKey(referenceDate);
-  if (!todayKey) return false;
-  const holidays = await prisma.holiday.findMany({ select: { date: true } });
-  return holidays.some((holiday) => getAddisDayKey(holiday.date) === todayKey);
+  if (!todayKey) return null;
+  const holidays = await prisma.holiday.findMany({ select: { date: true, description: true } });
+  return (
+    holidays.find((holiday) => {
+      const key = getAddisDayKey(holiday.date);
+      return Boolean(key) && key === todayKey;
+    }) || null
+  );
 }
 
 async function getEffectiveDailyCap() {
-  const cap = getDailyCap();
-  if (cap === 0) return 0;
-  if (await isPublicHoliday()) return 0;
-  return cap;
+  return getDailyCap();
+}
+
+async function getOrCreateCouponConfig() {
+  const existing = await prisma.couponConfig.findFirst({
+    orderBy: { createdAt: 'asc' },
+  });
+  if (existing) return existing;
+
+  const actor = await prisma.user.findFirst({
+    where: { role: { in: ['FINANCE', 'ADMIN'] } },
+    orderBy: { createdAt: 'asc' },
+    select: { id: true },
+  });
+  if (!actor) return null;
+
+  try {
+    return await prisma.couponConfig.create({
+      data: {
+        name: 'Standard Canteen Meal',
+        value: 40,
+        expiryWorkingDays: 5,
+        createdById: actor.id,
+      },
+    });
+  } catch (err) {
+    logger.warn(`[getOrCreateCouponConfig] ${err.message}`);
+    return prisma.couponConfig.findFirst({ orderBy: { createdAt: 'asc' } });
+  }
 }
 
 function deviceInfoFromReq(req) {
@@ -296,10 +314,11 @@ class CouponsScanService {
     if (deficit <= 0) return; // already has enough coupons
 
     // Fetch the primary coupon config
-    const config = await prisma.couponConfig.findFirst({
-      orderBy: { createdAt: 'asc' },
-    });
-    if (!config) return; // no config yet — HR hasn't created one
+    const config = await getOrCreateCouponConfig();
+    if (!config) {
+      logger.warn('[ensureWeeklyCoupons] No coupon config and none could be created.');
+      return;
+    }
 
     // Expiry = 5 working days from now (covers the remainder of this week)
     const expiresAt = await calculateExpiryDate(new Date(), 5);
@@ -361,6 +380,14 @@ class CouponsScanService {
     const now = new Date();
     const weekStart = startOfWeek(now);
     const dateString = todayDateString();
+    const claimedTodayWhere =
+      dateString.length >= 10
+        ? {
+            employeeId,
+            status: 'CLAIMED',
+            claimedDateString: { startsWith: dateString },
+          }
+        : null;
 
     const [allocated, expired, claimedTodayRow, lastClaim, weekAllocated] =
       await Promise.all([
@@ -382,13 +409,9 @@ class CouponsScanService {
             ],
           },
         }),
-        prisma.coupon.findFirst({
-          where: {
-            employeeId,
-            status: 'CLAIMED',
-            claimedDateString: { startsWith: dateString },
-          },
-        }),
+        claimedTodayWhere
+          ? prisma.coupon.findFirst({ where: claimedTodayWhere })
+          : Promise.resolve(null),
         hasCouponClaimModel()
           ? prisma.couponClaim.findFirst({
               where: { employeeId },
@@ -579,10 +602,11 @@ class CouponsScanService {
     const desk = await getCafeDeskContext(req.user);
     const { employee, leaveState } = employeeContext;
     const stats = await this.buildEmployeeCouponStats(employeeId);
-    const isHoliday = await isPublicHoliday();
+    const todayHoliday = await findTodayHoliday();
+    const addisDay = todayDateString();
+    const addisWeekday = getAddisWeekday();
     let recordBlockReason = null;
-    if (isHoliday) recordBlockReason = 'HOLIDAY';
-    else if (stats.dailyCap === 0) recordBlockReason = 'WEEKEND';
+    if (stats.dailyCap === 0) recordBlockReason = 'WEEKEND';
     else if (stats.claimedToday) recordBlockReason = 'CLAIMED_TODAY';
     else if (stats.couponsRedeemableNow === 0) recordBlockReason = 'NO_BALANCE';
 
@@ -615,7 +639,10 @@ class CouponsScanService {
       weekBalance: stats.weekBalance,
       dailyCap: stats.dailyCap,
       couponsRedeemableNow: stats.couponsRedeemableNow,
-      isHoliday,
+      addisDay,
+      addisWeekday,
+      isHoliday: Boolean(todayHoliday),
+      holidayDescription: todayHoliday?.description || null,
       recordBlockReason,
       leaveStatus: leaveState,
       eligible:

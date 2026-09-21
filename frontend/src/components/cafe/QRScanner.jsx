@@ -276,10 +276,11 @@ const QRScanner = ({ onScan, scanPaused = false, pausedLabel }) => {
         )}
 
         {scanPaused && scannerState !== 'ERROR' && (
-          <div className="absolute inset-0 bg-app-surface-2/80 flex flex-col items-center justify-center gap-2 px-4 text-center">
-            {!pausedLabel && <Loader2 className="w-8 h-8 spinner" />}
-            {pausedLabel && (
-              <p className="text-xs font-medium text-app-secondary">{pausedLabel}</p>
+          <div className="absolute inset-0 bg-app-surface-2/90 flex flex-col items-center justify-center gap-2 px-4 text-center">
+            {pausedLabel ? (
+              <p className="text-sm font-semibold text-app-primary">{pausedLabel}</p>
+            ) : (
+              <Loader2 className="w-8 h-8 spinner" />
             )}
           </div>
         )}

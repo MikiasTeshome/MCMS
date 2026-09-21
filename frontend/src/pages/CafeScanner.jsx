@@ -131,11 +131,7 @@ const CafeScanner = () => {
           <QRScanner
             onScan={handleScanPayload}
             scanPaused={loading || submitting || showSuccessModal || Boolean(employee)}
-            pausedLabel={
-              employee && !loading && !submitting
-                ? t('cafe.cameraPausedForRecord')
-                : undefined
-            }
+            pausedLabel={t('cafe.cameraPausedForRecord')}
           />
         </div>
 
