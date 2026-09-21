@@ -1,3 +1,5 @@
+import { formatGregorianDate } from './ethiopianDate.js';
+
 const TEMPLATE_HEADERS = ['Full Name', 'Employee ID Number'];
 
 const EXPORT_HEADERS = [
@@ -100,14 +102,14 @@ export function exportEmployeesToExcel(employees, filename = 'employees.xlsx') {
       'Staff Type': emp.employeeProfile?.staffType || 'Standard',
       'Leave Days': emp.employeeProfile?.leaveDays ?? '',
       'Leave Start Date': emp.employeeProfile?.leaveStartDate
-        ? new Date(emp.employeeProfile.leaveStartDate).toLocaleDateString()
+        ? formatGregorianDate(emp.employeeProfile.leaveStartDate)
         : '',
       'Leave Return Date': emp.employeeProfile?.leaveReturnDate
-        ? new Date(emp.employeeProfile.leaveReturnDate).toLocaleDateString()
+        ? formatGregorianDate(emp.employeeProfile.leaveReturnDate)
         : '',
       Active: emp.isActive ? 'Yes' : 'No',
       'QR Card Code': emp.qrCards?.[0]?.cardCode || '',
-      'Joined Date': emp.createdAt ? new Date(emp.createdAt).toLocaleDateString() : '',
+      'Joined Date': emp.createdAt ? formatGregorianDate(emp.createdAt) : '',
     }));
 
     const worksheet = XLSX.utils.json_to_sheet(rows, { header: EXPORT_HEADERS });

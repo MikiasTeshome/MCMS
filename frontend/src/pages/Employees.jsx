@@ -343,8 +343,8 @@ const Employees = () => {
       const payload = {
         ...editForm,
         leaveDays: String(editForm.leaveDays || '').trim() ? Number.parseInt(editForm.leaveDays, 10) : null,
-        leaveStartDate: parseCalendarDateString(calendarMode, editForm.leaveStartDate),
-        leaveReturnDate: parseCalendarDateString(calendarMode, editForm.leaveReturnDate),
+        leaveStartDate: parseCalendarDateString(calendarMode, editForm.leaveStartDate)?.toISOString() || null,
+        leaveReturnDate: parseCalendarDateString(calendarMode, editForm.leaveReturnDate)?.toISOString() || null,
       };
 
       const res = await api.put(`/employees/${selectedEmployee.id}`, payload);

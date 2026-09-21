@@ -28,9 +28,39 @@ const QR_CARD_SELECT = {
   updatedAt: true,
 };
 
+const parseDayMonthYear = (value) => {
+  const match = String(value || '').trim().match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+  if (!match) return null;
+
+  const day = Number(match[1]);
+  const month = Number(match[2]);
+  const year = Number(match[3]);
+  if (!year || month < 1 || month > 12 || day < 1 || day > 31) return null;
+
+  const date = new Date(Date.UTC(year, month - 1, day, 12, 0, 0, 0));
+  if (date.getUTCFullYear() !== year || date.getUTCMonth() !== month - 1 || date.getUTCDate() !== day) {
+    return null;
+  }
+  return date;
+};
+
 const normalizeDateInput = (value) => {
   if (value === undefined || value === null || value === '') return null;
-  const date = value instanceof Date ? new Date(value.getTime()) : new Date(value);
+  if (value instanceof Date) {
+    const date = new Date(value.getTime());
+    return Number.isNaN(date.getTime()) ? null : date;
+  }
+
+  const text = String(value).trim();
+  if (/^\d{4}-\d{2}-\d{2}/.test(text)) {
+    const date = new Date(text);
+    return Number.isNaN(date.getTime()) ? null : date;
+  }
+
+  const dmy = parseDayMonthYear(text);
+  if (dmy) return dmy;
+
+  const date = new Date(text);
   return Number.isNaN(date.getTime()) ? null : date;
 };
 

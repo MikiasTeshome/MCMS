@@ -139,7 +139,7 @@ export const getGregorianDayKey = (value) => {
 
   const { year, month, day } = getGregorianParts(date);
   if (!year || !month || !day) return '';
-  return `${year}-${month}-${day}`;
+  return `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
 };
 
 export const getCalendarParts = (calendarMode, value) =>
