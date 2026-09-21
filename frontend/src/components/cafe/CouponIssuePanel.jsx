@@ -100,7 +100,7 @@ const CouponIssuePanel = ({
           type="button"
           disabled={submitting || !canRecord}
           onClick={() => onIssue(safeQty)}
-          className="flex-1 btn-primary py-3"
+          className="flex-1 btn-primary py-3 disabled:opacity-40 disabled:cursor-not-allowed"
         >
           <Coffee className="w-5 h-5" />
           {submitting
@@ -109,7 +109,16 @@ const CouponIssuePanel = ({
         </button>
       </div>
 
-      {!canRecord && maxQty === 0 && (
+      {!canRecord && employee?.recordBlockReason === 'HOLIDAY' && (
+        <p className="text-xs text-app-secondary text-center">{t('cafe.recordDisabledHoliday')}</p>
+      )}
+      {!canRecord && employee?.recordBlockReason === 'WEEKEND' && (
+        <p className="text-xs text-app-secondary text-center">{t('cafe.recordDisabledWeekend')}</p>
+      )}
+      {!canRecord && employee?.recordBlockReason === 'NO_BALANCE' && (
+        <p className="text-xs text-app-muted text-center">{t('cafe.noMealsToday')}</p>
+      )}
+      {!canRecord && maxQty === 0 && !employee?.recordBlockReason && (
         <p className="text-xs text-app-muted text-center">{t('cafe.noMealsToday')}</p>
       )}
       {employee?.claimedToday && !isAdmin && (

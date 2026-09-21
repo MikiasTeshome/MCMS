@@ -280,6 +280,12 @@
     background-color: var(--color-btn-primary-hover) !important;
   }
 
+  .btn-primary:disabled,
+  .btn-secondary:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+  }
+
   .btn-brand {
     background-color: var(--color-brand) !important;
     color: #ffffff !important;

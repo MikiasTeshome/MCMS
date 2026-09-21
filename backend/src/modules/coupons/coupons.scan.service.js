@@ -8,6 +8,8 @@ import { getCafeDeskContext } from '../../utils/cafeDesk.js';
 
 const SCAN_SESSION_MINUTES = 15;
 const ADDIS_TIME_ZONE = 'Africa/Addis_Ababa';
+const ADDIS_OFFSET_MS = 3 * 60 * 60 * 1000;
+const DAY_MS = 24 * 60 * 60 * 1000;
 
 /** Fallback when Prisma client has not been regenerated yet */
 const scanSessionMemory = new Map();
@@ -18,62 +20,6 @@ function hasCouponClaimModel() {
 
 function hasScanSessionModel() {
   return Boolean(prisma.cafeScanSession);
-}
-
-function todayDateString() {
-  return new Date().toISOString().split('T')[0];
-}
-
-function startOfWeek(date = new Date()) {
-  const d = new Date(date);
-  const day = d.getDay();
-  const diff = d.getDate() - day + (day === 0 ? -6 : 1);
-  d.setDate(diff);
-  d.setHours(0, 0, 0, 0);
-  return d;
-}
-
-/**
- * Returns a string key like "2026-W25" identifying the ISO calendar week.
- * Used to detect week boundaries for the lazy reset.
- */
-function isoWeekKey(date = new Date()) {
-  const d = new Date(date);
-  // Move to Thursday of the same week (ISO week anchor)
-  d.setUTCDate(d.getUTCDate() + 4 - (d.getUTCDay() || 7));
-  const year = d.getUTCFullYear();
-  const week = Math.ceil(((d - new Date(Date.UTC(year, 0, 1))) / 86400000 + 1) / 7);
-  return `${year}-W${String(week).padStart(2, '0')}`;
-}
-
-/**
- * Unused weekdays already earned can be used in one visit on any later
- * weekday this week (skip Monday → Tuesday can record 2). Future days stay locked.
- * Returns 0 on weekends.
- */
-function getDailyCap() {
-  const day = new Date().getDay(); // 0=Sun … 6=Sat
-  const capMap = { 1: 1, 2: 2, 3: 3, 4: 4, 5: 5 };
-  return capMap[day] ?? 0;
-}
-
-async function isPublicHoliday(referenceDate = new Date()) {
-  const todayKey = getAddisDayKey(referenceDate);
-  if (!todayKey) return false;
-  const holidays = await prisma.holiday.findMany({ select: { date: true } });
-  return holidays.some((holiday) => getAddisDayKey(holiday.date) === todayKey);
-}
-
-async function getEffectiveDailyCap() {
-  const cap = getDailyCap();
-  if (cap === 0) return 0;
-  if (await isPublicHoliday()) return 0;
-  return cap;
-}
-
-function deviceInfoFromReq(req) {
-  if (!req) return null;
-  return req.headers['user-agent'] || null;
 }
 
 const addisDayFormatter = new Intl.DateTimeFormat('en-CA', {
@@ -100,6 +46,79 @@ const getAddisDayKey = (value) => {
   if (!year || !month || !day) return '';
   return `${year}-${month}-${day}`;
 };
+
+function todayDateString(date = new Date()) {
+  return getAddisDayKey(date);
+}
+
+function getAddisWeekday(date = new Date()) {
+  const key = getAddisDayKey(date);
+  if (!key) return date.getUTCDay();
+  const [year, month, day] = key.split('-').map(Number);
+  return new Date(Date.UTC(year, month - 1, day, 9, 0, 0, 0)).getUTCDay();
+}
+
+function startOfWeek(date = new Date()) {
+  const key = getAddisDayKey(date);
+  if (!key) {
+    const fallback = new Date(date);
+    fallback.setHours(0, 0, 0, 0);
+    return fallback;
+  }
+
+  const [year, month, day] = key.split('-').map(Number);
+  const addisNoonUtcMs = Date.UTC(year, month - 1, day, 9, 0, 0, 0);
+  const weekday = new Date(addisNoonUtcMs).getUTCDay();
+  const daysFromMonday = weekday === 0 ? 6 : weekday - 1;
+  const monday = new Date(addisNoonUtcMs - daysFromMonday * DAY_MS);
+  return new Date(
+    Date.UTC(monday.getUTCFullYear(), monday.getUTCMonth(), monday.getUTCDate(), 0, 0, 0, 0) -
+      ADDIS_OFFSET_MS
+  );
+}
+
+/**
+ * Returns a string key like "2026-W25" identifying the ISO calendar week.
+ * Used to detect week boundaries for the lazy reset.
+ */
+function isoWeekKey(date = new Date()) {
+  const d = new Date(date);
+  // Move to Thursday of the same week (ISO week anchor)
+  d.setUTCDate(d.getUTCDate() + 4 - (d.getUTCDay() || 7));
+  const year = d.getUTCFullYear();
+  const week = Math.ceil(((d - new Date(Date.UTC(year, 0, 1))) / 86400000 + 1) / 7);
+  return `${year}-W${String(week).padStart(2, '0')}`;
+}
+
+/**
+ * Unused weekdays already earned can be used in one visit on any later
+ * weekday this week (skip Monday → Tuesday can record 2). Future days stay locked.
+ * Returns 0 on weekends.
+ */
+function getDailyCap(date = new Date()) {
+  const day = getAddisWeekday(date); // 0=Sun … 6=Sat in Africa/Addis_Ababa
+  const capMap = { 1: 1, 2: 2, 3: 3, 4: 4, 5: 5 };
+  return capMap[day] ?? 0;
+}
+
+async function isPublicHoliday(referenceDate = new Date()) {
+  const todayKey = getAddisDayKey(referenceDate);
+  if (!todayKey) return false;
+  const holidays = await prisma.holiday.findMany({ select: { date: true } });
+  return holidays.some((holiday) => getAddisDayKey(holiday.date) === todayKey);
+}
+
+async function getEffectiveDailyCap() {
+  const cap = getDailyCap();
+  if (cap === 0) return 0;
+  if (await isPublicHoliday()) return 0;
+  return cap;
+}
+
+function deviceInfoFromReq(req) {
+  if (!req) return null;
+  return req.headers['user-agent'] || null;
+}
 
 const isEmployeeOnLeave = (profile, referenceDate = new Date()) => {
   if (!profile?.leaveStartDate || !profile?.leaveReturnDate) {
@@ -560,6 +579,12 @@ class CouponsScanService {
     const desk = await getCafeDeskContext(req.user);
     const { employee, leaveState } = employeeContext;
     const stats = await this.buildEmployeeCouponStats(employeeId);
+    const isHoliday = await isPublicHoliday();
+    let recordBlockReason = null;
+    if (isHoliday) recordBlockReason = 'HOLIDAY';
+    else if (stats.dailyCap === 0) recordBlockReason = 'WEEKEND';
+    else if (stats.claimedToday) recordBlockReason = 'CLAIMED_TODAY';
+    else if (stats.couponsRedeemableNow === 0) recordBlockReason = 'NO_BALANCE';
 
     await this.recordScanSession(employeeId, staffId, req);
 
@@ -590,6 +615,8 @@ class CouponsScanService {
       weekBalance: stats.weekBalance,
       dailyCap: stats.dailyCap,
       couponsRedeemableNow: stats.couponsRedeemableNow,
+      isHoliday,
+      recordBlockReason,
       leaveStatus: leaveState,
       eligible:
         stats.couponsRedeemableNow > 0 &&
