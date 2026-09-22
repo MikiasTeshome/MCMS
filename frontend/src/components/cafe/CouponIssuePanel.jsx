@@ -15,17 +15,16 @@ const CouponIssuePanel = ({
   const { user } = useAuth();
   const isAdmin = user?.role === 'ADMIN';
   const maxQty = employee?.couponsRedeemableNow ?? employee?.availableCoupons ?? 0;
-  const needsOverride = employee?.claimedToday && isAdmin;
+  const needsOverride = employee?.claimedToday && maxQty <= 0 && isAdmin;
   const [qty, setQty] = useState(1);
 
   useEffect(() => {
     setQty(1);
-  }, [employee?.employeeId]);
+  }, [employee?.employeeId, maxQty]);
 
   const safeQty = Math.min(Math.max(1, qty), Math.max(1, maxQty));
   const canRecord =
-    maxQty > 0 &&
-    (!employee?.claimedToday || (needsOverride && overrideReason?.trim()));
+    maxQty > 0 || (needsOverride && overrideReason?.trim());
   const amount = safeQty * 40;
 
   return (
@@ -113,8 +112,12 @@ const CouponIssuePanel = ({
         <div className="alert alert-error text-sm text-center space-y-1">
           {employee?.recordBlockReason === 'WEEKEND' && <p>{t('cafe.recordDisabledWeekend')}</p>}
           {employee?.recordBlockReason === 'NO_BALANCE' && <p>{t('cafe.noMealsToday')}</p>}
-          {employee?.claimedToday && !isAdmin && <p>{t('cafe.claimedContactAdmin')}</p>}
-          {!employee?.recordBlockReason && maxQty === 0 && <p>{t('cafe.noMealsToday')}</p>}
+          {employee?.claimedToday && maxQty <= 0 && !isAdmin && (
+            <p>{t('cafe.claimedContactAdmin')}</p>
+          )}
+          {!employee?.recordBlockReason && maxQty === 0 && !employee?.claimedToday && (
+            <p>{t('cafe.noMealsToday')}</p>
+          )}
           <p className="text-xs opacity-80">
             {t('cafe.recordDebug', {
               unused: maxQty,

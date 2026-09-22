@@ -73,13 +73,36 @@ const CafeScanner = () => {
       const res = await issueCoupons({
         employeeId: employee.employeeId,
         quantity: Number(quantity) || 1,
-        overrideReason: employee.claimedToday ? overrideReason : undefined,
+        overrideReason:
+          employee.claimedToday &&
+          (employee.couponsRedeemableNow ?? employee.availableCoupons ?? 0) <= 0
+            ? overrideReason
+            : undefined,
       });
       if (res.success) {
+        const remainingCoupons = res.data.remainingCoupons ?? 0;
+        const remainingRedeemableNow =
+          res.data.remainingRedeemableNow ?? remainingCoupons;
+        setEmployee((prev) =>
+          prev
+            ? {
+                ...prev,
+                claimedToday: true,
+                availableCoupons: remainingCoupons,
+                couponsRedeemableNow: remainingRedeemableNow,
+                recordBlockReason:
+                  remainingRedeemableNow > 0
+                    ? null
+                    : remainingCoupons > 0
+                    ? 'NO_BALANCE'
+                    : 'CLAIMED_TODAY',
+              }
+            : prev
+        );
         setSuccessData({
           employeeName: employee.fullName,
           issuedCount: res.data.issuedCount,
-          remainingCoupons: res.data.remainingCoupons,
+          remainingCoupons: remainingRedeemableNow,
         });
         setShowSuccessModal(true);
       }
@@ -92,7 +115,11 @@ const CafeScanner = () => {
 
   const handleConfirmSuccess = () => {
     setShowSuccessModal(false);
-    handleRescan();
+    const leftover =
+      employee?.couponsRedeemableNow ?? employee?.availableCoupons ?? 0;
+    if (leftover <= 0) {
+      handleRescan();
+    }
   };
 
   const handleRescan = () => {
@@ -103,9 +130,7 @@ const CafeScanner = () => {
   };
 
   const eligible =
-    employee &&
-    (employee.couponsRedeemableNow ?? employee.availableCoupons) > 0 &&
-    !employee.claimedToday;
+    employee && (employee.couponsRedeemableNow ?? employee.availableCoupons) > 0;
 
   return (
     <div className="space-y-8 max-w-6xl mx-auto">

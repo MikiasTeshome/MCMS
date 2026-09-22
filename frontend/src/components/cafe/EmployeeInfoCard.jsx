@@ -59,7 +59,7 @@ const EmployeeInfoCard = ({ employee, eligible }) => {
   if (!employee) return null;
 
   const redeemableNow = employee.couponsRedeemableNow ?? employee.availableCoupons;
-  const canIssue = eligible ?? (redeemableNow > 0 && !employee.claimedToday);
+  const canIssue = eligible ?? redeemableNow > 0;
 
   return (
     <div className="surface-card overflow-hidden p-0">

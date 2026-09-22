@@ -607,8 +607,9 @@ class CouponsScanService {
     const addisWeekday = getAddisWeekday();
     let recordBlockReason = null;
     if (stats.dailyCap === 0) recordBlockReason = 'WEEKEND';
-    else if (stats.claimedToday) recordBlockReason = 'CLAIMED_TODAY';
-    else if (stats.couponsRedeemableNow === 0) recordBlockReason = 'NO_BALANCE';
+    else if (stats.couponsRedeemableNow === 0) {
+      recordBlockReason = stats.claimedToday ? 'CLAIMED_TODAY' : 'NO_BALANCE';
+    }
 
     await this.recordScanSession(employeeId, staffId, req);
 
@@ -645,9 +646,7 @@ class CouponsScanService {
       holidayDescription: todayHoliday?.description || null,
       recordBlockReason,
       leaveStatus: leaveState,
-      eligible:
-        stats.couponsRedeemableNow > 0 &&
-        !stats.claimedToday,
+      eligible: stats.couponsRedeemableNow > 0,
       campus: { id: desk.campus.id, name: desk.campus.name, code: desk.campus.code },
       vendor: { id: desk.vendor.id, name: desk.vendor.name },
     };
@@ -732,16 +731,19 @@ class CouponsScanService {
       throw err;
     }
 
-    if (stats.claimedToday && !cleanOverrideReason) {
+    // Same-day leftover: unused earlier weekdays can still be recorded today
+    // (second scan or another Record click). Block only when today's earned
+    // days are already used and nothing leftover remains.
+    if (stats.couponsRedeemableNow === 0 && stats.claimedToday && !cleanOverrideReason) {
       await auditService.log({
         action: 'COUPON_BLOCKED',
         entityType: 'Employee',
         entityId: employeeId,
         actorId: issuedById,
-        newState: { reason: 'Already claimed today.' },
+        newState: { reason: 'Already claimed today and no leftover unused days.' },
         req,
       });
-      const err = new Error('Employee already claimed a coupon today.');
+      const err = new Error('Employee already claimed today and has no leftover unused days.');
       err.code = 'DUPLICATE_CLAIM';
       throw err;
     }
@@ -857,6 +859,10 @@ class CouponsScanService {
         name: employee.name,
       },
       remainingCoupons: stats.availableCoupons - claims.length,
+      remainingRedeemableNow: Math.min(
+        stats.dailyCap,
+        Math.max(0, stats.availableCoupons - claims.length)
+      ),
     };
   }
 }

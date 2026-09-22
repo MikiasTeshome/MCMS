@@ -200,7 +200,7 @@
     "overridePlaceholder": "State reason for recording after today's claim...",
     "scanNext": "Scan Next",
     "issuing": "Recording…",
-    "claimedContactAdmin": "Employee already claimed today. Contact an admin for override.",
+    "claimedContactAdmin": "No leftover unused days left today. Contact an admin for override.",
     "unusedThisWeek": "Unused days this week",
     "mealsToRecord": "Meals to record",
     "useAll": "All unused",
