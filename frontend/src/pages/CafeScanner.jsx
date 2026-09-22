@@ -208,7 +208,7 @@ const CafeScanner = () => {
               >
                 <CouponIssuePanel
                   employee={employee}
-                  submitting={submitting}
+                  submitting={submitting || showSuccessModal}
                   overrideReason={overrideReason}
                   onOverrideReasonChange={setOverrideReason}
                   onIssue={handleIssue}

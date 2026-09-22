@@ -22,6 +22,21 @@ function hasScanSessionModel() {
   return Boolean(prisma.cafeScanSession);
 }
 
+async function countClaimedThisWeek(client, employeeId, weekStart) {
+  const claimedCoupons = await client.coupon.count({
+    where: {
+      employeeId,
+      status: 'CLAIMED',
+      claimedAt: { gte: weekStart },
+    },
+  });
+  if (!hasCouponClaimModel()) return claimedCoupons;
+  const claims = await client.couponClaim.count({
+    where: { employeeId, issuedAt: { gte: weekStart } },
+  });
+  return Math.max(claimedCoupons, claims);
+}
+
 const normalizeDateInput = (value) => {
   if (value === undefined || value === null || value === '') return null;
   const date = value instanceof Date ? new Date(value.getTime()) : new Date(value);
@@ -451,17 +466,7 @@ class CouponsScanService {
             createdAt: { gte: weekStart },
           },
         }),
-        hasCouponClaimModel()
-          ? prisma.couponClaim.count({
-              where: { employeeId, issuedAt: { gte: weekStart } },
-            })
-          : prisma.coupon.count({
-              where: {
-                employeeId,
-                status: 'CLAIMED',
-                claimedAt: { gte: weekStart },
-              },
-            }),
+        countClaimedThisWeek(prisma, employeeId, weekStart),
       ]);
 
     const availableCoupons = allocated.length;
@@ -614,6 +619,16 @@ class CouponsScanService {
     return true;
   }
 
+  async consumeScanSession(employeeId, staffId) {
+    if (hasScanSessionModel()) {
+      await prisma.cafeScanSession.deleteMany({
+        where: { staffId, employeeId },
+      });
+      return;
+    }
+    scanSessionMemory.delete(`${staffId}:${employeeId}`);
+  }
+
   /**
    * POST /coupons/scan — cafe staff scans employee QR (UUID).
    */
@@ -742,10 +757,7 @@ class CouponsScanService {
     }
     const { employee } = employeeContext;
 
-    const scannedFirst =
-      isAdmin && cleanOverrideReason
-        ? true
-        : await this.hasValidScanSession(employeeId, issuedById);
+    const scannedFirst = await this.hasValidScanSession(employeeId, issuedById);
 
     if (!scannedFirst) {
       const err = new Error('Scan the employee QR card first, then record the meal.');
@@ -811,7 +823,13 @@ class CouponsScanService {
     }
 
     // Leftover only: remaining earned weekdays this week, not spare coupon rows.
-    const qty = Math.min(5, Math.max(0, Math.trunc(Number(quantity) || 0)) || 1);
+    const parsedQty = Math.trunc(Number(quantity));
+    if (!Number.isFinite(parsedQty) || parsedQty < 1) {
+      const err = new Error('Enter how many meals to record.');
+      err.code = 'INVALID_QUANTITY';
+      throw err;
+    }
+    const qty = Math.min(5, parsedQty);
     const weekStart = startOfWeek(new Date());
     const dateString = todayDateString();
 
@@ -820,17 +838,7 @@ class CouponsScanService {
       async (tx) => {
         await tx.$queryRaw`SELECT id FROM "User" WHERE id = ${employeeId} FOR UPDATE`;
 
-        const claimedThisWeek = hasCouponClaimModel()
-          ? await tx.couponClaim.count({
-              where: { employeeId, issuedAt: { gte: weekStart } },
-            })
-          : await tx.coupon.count({
-              where: {
-                employeeId,
-                status: 'CLAIMED',
-                claimedAt: { gte: weekStart },
-              },
-            });
+        const claimedThisWeek = await countClaimedThisWeek(tx, employeeId, weekStart);
 
         const remainingAllowance = Math.max(0, stats.dailyCap - claimedThisWeek);
         const allocated = await tx.coupon.findMany({
@@ -842,9 +850,16 @@ class CouponsScanService {
           orderBy: [{ expiresAt: 'asc' }, { createdAt: 'asc' }],
         });
 
-        const maxIssuable = cleanOverrideReason
-          ? allocated.length
-          : Math.min(remainingAllowance, allocated.length);
+        let maxIssuable;
+        if (cleanOverrideReason) {
+          const extrasAlready = Math.max(0, claimedThisWeek - stats.dailyCap);
+          maxIssuable =
+            extrasAlready >= 1 ? 0 : remainingAllowance > 0
+              ? Math.min(remainingAllowance, allocated.length)
+              : Math.min(1, allocated.length);
+        } else {
+          maxIssuable = Math.min(remainingAllowance, allocated.length);
+        }
         if (maxIssuable <= 0) {
           const err = new Error(
             `${employee.name} already used all meals allowed today.`
@@ -940,6 +955,18 @@ class CouponsScanService {
       )
     );
 
+    const remainingCoupons = Math.max(0, stats.availableCoupons - claims.length);
+    const remainingRedeemableNow = Math.max(
+      0,
+      Math.min(
+        remainingCoupons,
+        stats.dailyCap - stats.claimedThisWeek - claims.length
+      )
+    );
+    if (remainingRedeemableNow <= 0) {
+      await this.consumeScanSession(employeeId, issuedById);
+    }
+
     return {
       issuedCount: claims.length,
       claims: claims.map((c) => ({
@@ -953,14 +980,8 @@ class CouponsScanService {
         id: employee.id,
         name: employee.name,
       },
-      remainingCoupons: Math.max(0, stats.availableCoupons - claims.length),
-      remainingRedeemableNow: Math.max(
-        0,
-        Math.min(
-          stats.availableCoupons - claims.length,
-          stats.dailyCap - stats.claimedThisWeek - claims.length
-        )
-      ),
+      remainingCoupons,
+      remainingRedeemableNow,
     };
   }
 }

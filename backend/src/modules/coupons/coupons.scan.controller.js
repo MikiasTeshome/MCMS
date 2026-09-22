@@ -64,6 +64,7 @@ export const issueScannedCoupon = async (req, res, next) => {
       QR_BLOCKED: 403,
       CAP_NOT_REACHED: 400,
       DUPLICATE_CLAIM: 400,
+      INVALID_QUANTITY: 400,
       HOLIDAY: 400,
       WEEKEND: 400,
       ON_LEAVE: 403,

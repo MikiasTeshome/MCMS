@@ -30,7 +30,8 @@ const CouponIssuePanel = ({
     maxQty > 0 ? Math.min(Math.max(1, qty), maxQty) : needsOverride && wallet > 0 ? 1 : 0;
   const canRecord =
     maxQty > 0 || (needsOverride && Boolean(overrideReason?.trim()) && wallet > 0);
-  const amount = safeQty * 40;
+  const mealValue = Number(employee?.couponValue) > 0 ? Number(employee.couponValue) : 40;
+  const amount = safeQty * mealValue;
 
   return (
     <div className="glass-card p-6 space-y-5">

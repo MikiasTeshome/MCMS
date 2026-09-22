@@ -37,6 +37,11 @@ api.interceptors.response.use(
       const url = String(error.config?.url || '');
       const isLogin = url.includes('/auth/login');
       if (!isLogin) {
+        const sent = String(error.config?.headers?.Authorization || '');
+        const current = localStorage.getItem('mcms_token');
+        if (current && sent && sent !== `Bearer ${current}`) {
+          return Promise.reject(error);
+        }
         localStorage.removeItem('mcms_token');
         localStorage.removeItem('mcms_user');
         window.dispatchEvent(new Event('mcms:unauthenticated'));

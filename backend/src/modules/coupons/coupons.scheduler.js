@@ -43,6 +43,21 @@ async function isTodayHoliday() {
  * Called by the cron job every weekday morning.
  */
 export async function allocateDailyCoupons() {
+  const lockRows = await prisma.$queryRaw`SELECT pg_try_advisory_lock(74628301) AS locked`;
+  const gotLock = Boolean(lockRows?.[0]?.locked);
+  if (!gotLock) {
+    logger.info('[Scheduler] Skipping allocation — another worker holds the lock.');
+    return { skipped: true, reason: 'lock' };
+  }
+
+  try {
+    return await runDailyAllocation();
+  } finally {
+    await prisma.$queryRaw`SELECT pg_advisory_unlock(74628301)`;
+  }
+}
+
+async function runDailyAllocation() {
   const dayOfWeek = getAddisWeekday();
 
   // Only run Mon–Fri (1–5) in Africa/Addis_Ababa
@@ -157,6 +172,12 @@ export async function allocateDailyCoupons() {
  *   "0 6 * * 1-5" = 06:00 on Mon, Tue, Wed, Thu, Fri
  */
 export function registerCouponScheduler() {
+  const instance = process.env.NODE_APP_INSTANCE;
+  if (instance !== undefined && instance !== '0') {
+    logger.info(`[Scheduler] Skipping cron on cluster instance ${instance}.`);
+    return;
+  }
+
   cron.schedule(
     '0 6 * * 1-5',
     async () => {

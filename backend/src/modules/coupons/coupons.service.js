@@ -276,8 +276,23 @@ const formatCalendarDate = (calendarMode, value) =>
 const formatCalendarShortDate = (calendarMode, value) =>
   getCalendarMode(calendarMode) === 'gregorian' ? formatGregorianShortDate(value) : formatEthiopianShortDate(value);
 
-const parseCalendarDate = (calendarMode, value) =>
-  getCalendarMode(calendarMode) === 'gregorian' ? parseGregorianInput(value) : ethiopianToGregorianDate(value);
+const parseIsoDay = (value) => {
+  const match = String(value || '').trim().match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!match) return null;
+  const year = Number(match[1]);
+  const month = Number(match[2]);
+  const day = Number(match[3]);
+  if (!year || month < 1 || month > 12 || day < 1 || day > 31) return null;
+  return new Date(Date.UTC(year, month - 1, day, 12, 0, 0, 0));
+};
+
+const parseCalendarDate = (calendarMode, value) => {
+  const iso = parseIsoDay(value);
+  if (iso) return iso;
+  return getCalendarMode(calendarMode) === 'gregorian'
+    ? parseGregorianInput(value)
+    : ethiopianToGregorianDate(value);
+};
 
 const calendarPartsToGregorianDate = (calendarMode, parts) =>
   getCalendarMode(calendarMode) === 'gregorian'
@@ -610,9 +625,10 @@ class CouponsService {
         startDate = shiftUtcDays(thisWeekStart, -7);
         endDate = endOfEthiopiaDayUtc(shiftUtcDays(thisWeekStart, -1));
       } else if (rangeType === 'lastMonth') {
+        const previousYearMonth = calendarMode === 'gregorian' ? 12 : 13;
         const previousMonth =
           currentParts.month === 1
-            ? { year: currentParts.year - 1, month: 13, day: 1 }
+            ? { year: currentParts.year - 1, month: previousYearMonth, day: 1 }
             : { year: currentParts.year, month: currentParts.month - 1, day: 1 };
         const previousMonthStart = calendarPartsToGregorianDate(calendarMode, previousMonth);
         const currentMonthStart = calendarPartsToGregorianDate(calendarMode, {
@@ -654,10 +670,6 @@ class CouponsService {
       startDate = startOfEthiopiaDayUtc(now);
       endDate = endOfEthiopiaDayUtc(now);
     }
-
-    const rangeDays = Math.max(1, Math.ceil((endDate - startDate) / 86400000) + 1);
-    const previousStart = shiftUtcDays(startDate, -rangeDays);
-    const previousEnd = endOfEthiopiaDayUtc(shiftUtcDays(startDate, -1));
 
     const rangeLabel = `${formatCalendarDate(calendarMode, startDate)} -> ${formatCalendarDate(calendarMode, endDate)}`;
 
@@ -729,9 +741,8 @@ class CouponsService {
     });
     const dashMonthStart = startOfEthiopiaDayUtc(dashMonthStartDate || dashTodayStart);
 
-    const [selectedRows, previousRows, todayRows, weekRows, monthRows, employeeClaims] = await Promise.all([
+    const [selectedRows, todayRows, weekRows, monthRows, employeeClaims] = await Promise.all([
       aggregateRange(startDate, endDate),
-      rangeType === 'lifetime' ? Promise.resolve([]) : aggregateRange(previousStart, previousEnd),
       aggregateRange(dashTodayStart, dashTodayEnd),
       aggregateRange(dashWeekStart, dashTodayEnd),
       aggregateRange(dashMonthStart, dashTodayEnd),
@@ -758,17 +769,11 @@ class CouponsService {
 
     const selectedCount = selectedRows.reduce((sum, row) => sum + row.count, 0);
     const selectedAmount = selectedRows.reduce((sum, row) => sum + row.amount, 0);
-    const previousCount = previousRows.reduce((sum, row) => sum + row.count, 0);
-    const previousAmount = previousRows.reduce((sum, row) => sum + row.amount, 0);
     const sumPeriod = (rows) => ({
       count: rows.reduce((sum, row) => sum + row.count, 0),
       amount: rows.reduce((sum, row) => sum + row.amount, 0),
       rate: STANDARD_COUPON_VALUE,
     });
-    const compare = (current, previous) => {
-      if (!previous) return null;
-      return Number((((current - previous) / previous) * 100).toFixed(2));
-    };
 
     const chartSeries = [];
     let dayCursor = new Date(startDate.getTime());
@@ -825,20 +830,11 @@ class CouponsService {
         highestScanDay: chartSeries.reduce((best, row) => (row.count > (best?.count || -1) ? row : best), null),
         lowestScanDay: chartSeries.reduce((best, row) => (best === null || row.count < best.count ? row : best), null),
       },
-      comparison: rangeType === 'lifetime' ? null : {
-        previousStartDate: previousStart,
-        previousEndDate: previousEnd,
-        selectedVsPreviousCount: compare(selectedCount, previousCount),
-        selectedVsPreviousAmount: compare(selectedAmount, previousAmount),
-        previousCount,
-        previousAmount,
-      },
+      comparison: null,
       metrics: {
         selectedCount,
         selectedAmount,
         rate: STANDARD_COUPON_VALUE,
-        previousCount,
-        previousAmount,
       },
       byCampus: (breakdownRows || []).map((row) => ({
         campusId: row.campusId,
