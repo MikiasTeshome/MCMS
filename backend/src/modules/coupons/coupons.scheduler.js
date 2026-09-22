@@ -18,17 +18,24 @@ import { calculateExpiryDate } from '../../utils/expiry.js';
 /** How many seconds before Friday EOD a coupon expires (end of next Monday). */
 const WEEKLY_EXPIRY_WORKING_DAYS = 5; // 5 working days from allocation date
 
-/**
- * Determine whether today is a registered holiday in the Holiday table.
- * Returns true if today should be skipped.
- */
+const ADDIS_OFFSET_MS = 3 * 60 * 60 * 1000;
+
+function getAddisDayKey(date = new Date()) {
+  const shifted = new Date(date.getTime() + ADDIS_OFFSET_MS);
+  const year = shifted.getUTCFullYear();
+  const month = String(shifted.getUTCMonth() + 1).padStart(2, '0');
+  const day = String(shifted.getUTCDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
+function getAddisWeekday(date = new Date()) {
+  return new Date(date.getTime() + ADDIS_OFFSET_MS).getUTCDay();
+}
+
 async function isTodayHoliday() {
-  const today = new Date();
-  today.setUTCHours(0, 0, 0, 0);
-  const holiday = await prisma.holiday.findFirst({
-    where: { date: { equals: today } },
-  });
-  return Boolean(holiday);
+  const todayKey = getAddisDayKey();
+  const holidays = await prisma.holiday.findMany({ select: { date: true } });
+  return holidays.some((holiday) => getAddisDayKey(holiday.date) === todayKey);
 }
 
 /**
@@ -36,9 +43,9 @@ async function isTodayHoliday() {
  * Called by the cron job every weekday morning.
  */
 export async function allocateDailyCoupons() {
-  const dayOfWeek = new Date().getUTCDay(); // 0=Sun, 1=Mon … 6=Sat
+  const dayOfWeek = getAddisWeekday();
 
-  // Only run Mon–Fri (1–5)
+  // Only run Mon–Fri (1–5) in Africa/Addis_Ababa
   if (dayOfWeek === 0 || dayOfWeek === 6) {
     logger.info('[Scheduler] Skipping allocation — weekend.');
     return { skipped: true, reason: 'weekend' };
@@ -130,15 +137,19 @@ export async function allocateDailyCoupons() {
  *   "0 6 * * 1-5" = 06:00 on Mon, Tue, Wed, Thu, Fri
  */
 export function registerCouponScheduler() {
-  cron.schedule('0 6 * * 1-5', async () => {
-    logger.info('[Scheduler] Triggering daily coupon allocation job…');
-    try {
-      const result = await allocateDailyCoupons();
-      logger.info('[Scheduler] Job finished:', result);
-    } catch (err) {
-      logger.error('[Scheduler] Job failed with unhandled error:', err.message);
-    }
-  });
+  cron.schedule(
+    '0 6 * * 1-5',
+    async () => {
+      logger.info('[Scheduler] Triggering daily coupon allocation job…');
+      try {
+        const result = await allocateDailyCoupons();
+        logger.info('[Scheduler] Job finished:', result);
+      } catch (err) {
+        logger.error('[Scheduler] Job failed with unhandled error:', err.message);
+      }
+    },
+    { timezone: 'Africa/Addis_Ababa' }
+  );
 
-  logger.info('[Scheduler] Daily coupon allocation job registered (06:00 Mon–Fri).');
+  logger.info('[Scheduler] Daily coupon allocation job registered (06:00 Mon–Fri Africa/Addis_Ababa).');
 }

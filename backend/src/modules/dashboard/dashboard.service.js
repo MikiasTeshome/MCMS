@@ -14,7 +14,10 @@ class DashboardService {
         prisma.coupon.count({ where: { status: 'CLAIMED' } }),
         prisma.coupon.count({
           where: {
-            OR: [{ status: 'EXPIRED' }, { expiresAt: { lt: new Date() } }],
+            OR: [
+              { status: 'EXPIRED' },
+              { status: 'ALLOCATED', expiresAt: { lt: new Date() } },
+            ],
           },
         }),
         prisma.user.count({ where: { role: 'EMPLOYEE', isActive: true } }),

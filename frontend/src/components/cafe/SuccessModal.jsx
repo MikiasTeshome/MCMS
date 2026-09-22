@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { CheckCircle2, User, Coffee, Landmark, ArrowRight } from 'lucide-react';
 
@@ -12,14 +12,25 @@ const SuccessModal = ({
 }) => {
   const { t } = useTranslation();
   const [timeLeft, setTimeLeft] = useState(Math.ceil(autoCloseTimeout / 1000));
+  const onConfirmRef = useRef(onConfirm);
+  onConfirmRef.current = onConfirm;
+  const firedRef = useRef(false);
+
+  const confirmOnce = () => {
+    if (firedRef.current) return;
+    firedRef.current = true;
+    onConfirmRef.current?.();
+  };
 
   useEffect(() => {
-    if (!isOpen) return;
-    
-    // Reset timer
+    if (!isOpen) {
+      firedRef.current = false;
+      return undefined;
+    }
+
+    firedRef.current = false;
     setTimeLeft(Math.ceil(autoCloseTimeout / 1000));
 
-    // Decr timer every second
     const timerInterval = setInterval(() => {
       setTimeLeft((prev) => {
         if (prev <= 1) {
@@ -30,16 +41,14 @@ const SuccessModal = ({
       });
     }, 1000);
 
-    // Auto close timeout
     const closeTimeout = setTimeout(() => {
-      onConfirm();
+      confirmOnce();
     }, autoCloseTimeout);
 
-    // Keyboard listener for Enter or Escape
     const handleKeyDown = (e) => {
       if (e.key === 'Enter' || e.key === 'Escape') {
         e.preventDefault();
-        onConfirm();
+        confirmOnce();
       }
     };
     window.addEventListener('keydown', handleKeyDown);
@@ -49,7 +58,7 @@ const SuccessModal = ({
       clearTimeout(closeTimeout);
       window.removeEventListener('keydown', handleKeyDown);
     };
-  }, [isOpen, autoCloseTimeout, onConfirm]);
+  }, [isOpen, autoCloseTimeout]);
 
   if (!isOpen) return null;
 
@@ -134,7 +143,7 @@ const SuccessModal = ({
         <div className="w-full space-y-4">
           <button
             type="button"
-            onClick={onConfirm}
+            onClick={confirmOnce}
             className="w-full btn-primary py-3 flex items-center justify-center gap-2 text-sm font-bold shadow-lg shadow-emerald-950/20 active:scale-[0.98] transition-all"
           >
             <span>{t('cafe.confirmReset')}</span>

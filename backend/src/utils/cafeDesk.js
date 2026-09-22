@@ -16,13 +16,19 @@ export async function getCafeDeskContext(user) {
     },
   });
 
-  if (!assignment?.campus?.isActive) {
+  if (!assignment) {
+    const err = new Error('No cafe vendor is assigned to this campus. Ask HR to assign the vendor under Cafes.');
+    err.code = 'NO_VENDOR';
+    throw err;
+  }
+
+  if (!assignment.campus?.isActive) {
     const err = new Error('This campus is inactive. Meals cannot be recorded here.');
     err.code = 'NO_CAMPUS';
     throw err;
   }
 
-  if (!assignment?.vendor?.isActive) {
+  if (!assignment.vendor?.isActive) {
     const err = new Error('No cafe vendor is assigned to this campus. Ask HR to assign the vendor under Cafes.');
     err.code = 'NO_VENDOR';
     throw err;

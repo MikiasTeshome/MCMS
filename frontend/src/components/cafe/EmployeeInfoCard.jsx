@@ -1,6 +1,7 @@
 import React from 'react';
 import { useTranslation } from 'react-i18next';
 import { User, ShieldCheck, AlertTriangle } from 'lucide-react';
+import { remainingEarnedMeals } from '../../utils/cafeRedeemable.js';
 
 /** Returns the ISO day-of-week label for Mon–Fri. */
 const DAY_LABELS = ['M', 'T', 'W', 'T', 'F'];
@@ -58,14 +59,7 @@ const EmployeeInfoCard = ({ employee, eligible }) => {
   const { t } = useTranslation();
   if (!employee) return null;
 
-  const earned = Math.max(0, Number(employee.dailyCap) || 0);
-  const used = Math.max(0, Number(employee.claimedThisWeek) || 0);
-  const leftover = Math.max(0, earned - used);
-  const fromApi = Number(employee.couponsRedeemableNow);
-  const redeemableNow = Math.max(
-    0,
-    Number.isFinite(fromApi) ? Math.min(leftover, fromApi) : leftover
-  );
+  const redeemableNow = remainingEarnedMeals(employee);
   const canIssue = eligible ?? redeemableNow > 0;
 
   return (
@@ -122,7 +116,7 @@ const EmployeeInfoCard = ({ employee, eligible }) => {
         {/* Weekly accumulation tracker */}
         <WeekTracker
           dailyCap={employee.dailyCap ?? 0}
-          claimedCount={(employee.weekBalance ?? 0) - (employee.availableCoupons ?? 0)}
+          claimedCount={Number(employee.claimedThisWeek) || 0}
         />
       </div>
     </div>

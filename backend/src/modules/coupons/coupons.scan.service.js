@@ -101,9 +101,29 @@ async function findTodayHoliday(referenceDate = new Date()) {
   );
 }
 
-async function getEffectiveDailyCap() {
-  if (await findTodayHoliday()) return 0;
-  return getDailyCap();
+async function getEffectiveDailyCap(referenceDate = new Date()) {
+  const todayWeekday = getAddisWeekday(referenceDate);
+  if (todayWeekday === 0 || todayWeekday === 6) return 0;
+
+  const holidays = await prisma.holiday.findMany({ select: { date: true } });
+  const holidayKeys = new Set(
+    holidays.map((holiday) => getAddisDayKey(holiday.date)).filter(Boolean)
+  );
+  const todayKey = getAddisDayKey(referenceDate);
+  if (!todayKey || holidayKeys.has(todayKey)) return 0;
+
+  const weekStart = startOfWeek(referenceDate);
+  let earned = 0;
+  for (let i = 0; i < 7; i += 1) {
+    const day = new Date(weekStart.getTime() + i * DAY_MS);
+    const key = getAddisDayKey(day);
+    if (!key || key > todayKey) break;
+    const weekday = getAddisWeekday(day);
+    if (weekday === 0 || weekday === 6) continue;
+    if (holidayKeys.has(key)) continue;
+    earned += 1;
+  }
+  return earned;
 }
 
 async function getOrCreateCouponConfig() {
@@ -192,7 +212,10 @@ class CouponsScanService {
   async resolveEmployeeId(scannedValue) {
     const raw = String(scannedValue || '').trim();
     if (!raw) {
-    throw new Error('Invalid QR code.');
+      const err = new Error('This QR card is not valid.');
+      err.code = 'QR_INVALID';
+      throw err;
+    }
 
     if (isUuid(raw)) {
       const user = await prisma.user.findUnique({
@@ -831,8 +854,8 @@ class CouponsScanService {
           }
 
           // Step A: mark the coupon as CLAIMED
-          await tx.coupon.update({
-            where: { id: coupon.id },
+          const claimed = await tx.coupon.updateMany({
+            where: { id: coupon.id, status: 'ALLOCATED' },
             data: {
               status: 'CLAIMED',
               claimedById: issuedById,
@@ -840,6 +863,11 @@ class CouponsScanService {
               claimedDateString: claimStr,
             },
           });
+          if (claimed.count !== 1) {
+            const err = new Error('This meal was already recorded. Scan the card again.');
+            err.code = 'DUPLICATE_CLAIM';
+            throw err;
+          }
 
           // Step B: write the immutable CouponClaim audit record
           let claim;

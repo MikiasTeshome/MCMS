@@ -47,8 +47,10 @@ export const AuthProvider = ({ children }) => {
           logout();
         }
       } catch (error) {
-        console.error('Session restoration failed:', error.message);
-        logout();
+        const status = error.response?.status;
+        if (status === 401 || status === 403) {
+          logout();
+        }
       }
       setLoading(false);
     };

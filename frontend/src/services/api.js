@@ -34,11 +34,15 @@ api.interceptors.response.use(
   (response) => response,
   (error) => {
     if (error.response && error.response.status === 401) {
-      localStorage.removeItem('mcms_token');
-      localStorage.removeItem('mcms_user');
-      window.dispatchEvent(new Event('mcms:unauthenticated'));
-      if (window.location.pathname !== '/login') {
-        window.location.replace('/login');
+      const url = String(error.config?.url || '');
+      const isLogin = url.includes('/auth/login');
+      if (!isLogin) {
+        localStorage.removeItem('mcms_token');
+        localStorage.removeItem('mcms_user');
+        window.dispatchEvent(new Event('mcms:unauthenticated'));
+        if (window.location.pathname !== '/login') {
+          window.location.replace('/login');
+        }
       }
     }
     return Promise.reject(error);

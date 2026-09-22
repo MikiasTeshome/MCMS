@@ -666,7 +666,7 @@ class CouponsService {
       const vendorClause = vendorId ? Prisma.sql`AND cc."vendorId" = ${vendorId}` : Prisma.empty;
       const rows = await prisma.$queryRaw`
         SELECT
-          DATE_TRUNC('day', cc."issuedAt" + INTERVAL '3 hours')::date AS day,
+          DATE_TRUNC('day', (cc."issuedAt" AT TIME ZONE 'Africa/Addis_Ababa'))::date AS day,
           COUNT(*)::int AS count,
           COALESCE(SUM(c."value"), 0)::numeric AS amount
         FROM "CouponClaim" cc

@@ -379,7 +379,7 @@ const Reports = () => {
 
   const handleResetRange = () => {
     setCustomRange({ startDate: '', endDate: '' });
-    setActivePreset('thisMonth');
+    setActivePreset(user?.role === 'CAFE_STAFF' ? 'today' : 'thisMonth');
   };
 
   if (loading && !report) return <PageSkeleton cards={3} table={false} />;
@@ -404,6 +404,7 @@ const Reports = () => {
 
   return (
     <div className="page-shell space-y-6">
+      {reportError && <p className="alert-error">{reportError}</p>}
       <div className="surface-card flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
         <PageHeader
           title={

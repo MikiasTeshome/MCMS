@@ -3,16 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { Coffee, RotateCcw, Minus, Plus } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext.jsx';
 import { cafeBlockMessage } from '../../utils/cafeScanError.js';
-
-/** Earned weekdays so far minus meals already taken this week. Never future days. */
-const remainingEarnedMeals = (employee) => {
-  const earned = Math.max(0, Number(employee?.dailyCap) || 0);
-  const used = Math.max(0, Number(employee?.claimedThisWeek) || 0);
-  const leftover = Math.max(0, earned - used);
-  const fromApi = Number(employee?.couponsRedeemableNow);
-  const capped = Number.isFinite(fromApi) ? Math.min(leftover, fromApi) : leftover;
-  return Math.max(0, capped);
-};
+import { remainingEarnedMeals } from '../../utils/cafeRedeemable.js';
 
 const CouponIssuePanel = ({
   employee,
@@ -27,6 +18,7 @@ const CouponIssuePanel = ({
   const isAdmin = user?.role === 'ADMIN';
   const maxQty = remainingEarnedMeals(employee);
   const leftoverDays = Math.max(0, maxQty - 1);
+  const wallet = Number(employee?.availableCoupons) || 0;
   const needsOverride = employee?.claimedToday && maxQty <= 0 && isAdmin;
   const [qty, setQty] = useState(1);
 
@@ -34,9 +26,10 @@ const CouponIssuePanel = ({
     setQty(1);
   }, [employee?.employeeId, maxQty]);
 
-  const safeQty = Math.min(Math.max(1, qty), Math.max(1, maxQty));
+  const safeQty =
+    maxQty > 0 ? Math.min(Math.max(1, qty), maxQty) : needsOverride && wallet > 0 ? 1 : 0;
   const canRecord =
-    maxQty > 0 || (needsOverride && overrideReason?.trim());
+    maxQty > 0 || (needsOverride && Boolean(overrideReason?.trim()) && wallet > 0);
   const amount = safeQty * 40;
 
   return (

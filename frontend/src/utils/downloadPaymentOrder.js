@@ -24,7 +24,12 @@ export const downloadPaymentOrderFromReport = async ({
 }) => {
   const start = startDate || report?.selectedRange?.startDate;
   const end = endDate || report?.selectedRange?.endDate;
-  const days = report?.chartSeries?.length || 0;
+  const startMs = start ? new Date(start).getTime() : NaN;
+  const endMs = end ? new Date(end).getTime() : NaN;
+  const days =
+    Number.isFinite(startMs) && Number.isFinite(endMs)
+      ? Math.max(1, Math.round((endMs - startMs) / 86400000) + 1)
+      : report?.chartSeries?.length || 0;
   const count = row?.count ?? report?.metrics?.selectedCount ?? 0;
   const amount = row?.amount ?? report?.metrics?.selectedAmount ?? 0;
   const rate = report?.metrics?.rate ?? 40;

@@ -28,10 +28,26 @@ function getAddisWeekday(date = new Date()) {
   return new Date(date.getTime() + ADDIS_OFFSET_MS).getUTCDay();
 }
 
-function getDailyCap(date = new Date()) {
-  const day = getAddisWeekday(date);
-  const capMap = { 1: 1, 2: 2, 3: 3, 4: 4, 5: 5 };
-  return capMap[day] ?? 0;
+async function holidayKeys() {
+  const holidays = await prisma.holiday.findMany({ select: { date: true } });
+  return new Set(holidays.map((holiday) => getAddisDayKey(holiday.date)).filter(Boolean));
+}
+
+function earnedCapThrough(date, holidays) {
+  const todayKey = getAddisDayKey(date);
+  const weekday = getAddisWeekday(date);
+  if (!todayKey || weekday === 0 || weekday === 6 || holidays.has(todayKey)) return 0;
+  const weekStart = startOfWeek(date);
+  let earned = 0;
+  for (let i = 0; i < 7; i += 1) {
+    const day = new Date(weekStart.getTime() + i * DAY_MS);
+    const key = getAddisDayKey(day);
+    if (!key || key > todayKey) break;
+    const wd = getAddisWeekday(day);
+    if (wd === 0 || wd === 6 || holidays.has(key)) continue;
+    earned += 1;
+  }
+  return earned;
 }
 
 function startOfWeek(date = new Date()) {
@@ -65,11 +81,12 @@ async function main() {
     byEmployee.set(claim.employeeId, list);
   }
 
+  const holidays = await holidayKeys();
   const extras = [];
   for (const [, list] of byEmployee) {
     let kept = 0;
     for (const claim of list) {
-      const allowed = getDailyCap(claim.issuedAt);
+      const allowed = earnedCapThrough(claim.issuedAt, holidays);
       if (kept >= allowed) {
         extras.push(claim);
       } else {

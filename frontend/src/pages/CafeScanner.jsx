@@ -9,6 +9,7 @@ import ScanNotification from '../components/cafe/ScanNotification.jsx';
 import SuccessModal from '../components/cafe/SuccessModal.jsx';
 import { scanEmployeeQr, issueCoupons } from '../services/couponScan.service.js';
 import { cafeApiErrorMessage, cafeBlockMessage } from '../utils/cafeScanError.js';
+import { remainingEarnedMeals } from '../utils/cafeRedeemable.js';
 
 const CafeScanner = () => {
   const { t } = useTranslation();
@@ -78,8 +79,7 @@ const CafeScanner = () => {
         employeeId: employee.employeeId,
         quantity: Number(quantity) || 1,
         overrideReason:
-          employee.claimedToday &&
-          Math.max(0, (Number(employee.dailyCap) || 0) - (Number(employee.claimedThisWeek) || 0)) <= 0
+          employee.claimedToday && remainingEarnedMeals(employee) <= 0
             ? overrideReason
             : undefined,
       });
@@ -127,10 +127,7 @@ const CafeScanner = () => {
 
   const handleConfirmSuccess = () => {
     setShowSuccessModal(false);
-    const leftover = Math.max(
-      0,
-      (Number(employee?.dailyCap) || 0) - (Number(employee?.claimedThisWeek) || 0)
-    );
+    const leftover = remainingEarnedMeals(employee);
     if (leftover <= 0) {
       handleRescan();
     }
@@ -143,9 +140,7 @@ const CafeScanner = () => {
     setOverrideReason('');
   };
 
-  const eligible =
-    employee &&
-    Math.max(0, (Number(employee.dailyCap) || 0) - (Number(employee.claimedThisWeek) || 0)) > 0;
+  const eligible = remainingEarnedMeals(employee) > 0;
 
   return (
     <div className="space-y-8 max-w-6xl mx-auto">

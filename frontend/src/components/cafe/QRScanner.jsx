@@ -36,6 +36,8 @@ const QRScanner = ({ onScan, scanPaused = false, pausedLabel }) => {
 
   const html5QrCodeRef = useRef(null);
   const scanLockRef = useRef(false);
+  const scanPausedRef = useRef(scanPaused);
+  scanPausedRef.current = scanPaused;
   const onScanRef = useRef(onScan);
   onScanRef.current = onScan;
 
@@ -85,7 +87,7 @@ const QRScanner = ({ onScan, scanPaused = false, pausedLabel }) => {
             aspectRatio: 1.0,
           },
           (decodedText) => {
-            if (scanLockRef.current || scanPaused) return;
+            if (scanLockRef.current || scanPausedRef.current) return;
             scanLockRef.current = true;
             try {
               html5QrCode.pause(true);
@@ -213,6 +215,17 @@ const QRScanner = ({ onScan, scanPaused = false, pausedLabel }) => {
       startScanner(selectedCameraId);
     }
   }, [selectedCameraId, scannerState, scanPaused, startScanner]);
+
+  useEffect(() => {
+    if (!scanPaused) return undefined;
+    scanLockRef.current = true;
+    try {
+      html5QrCodeRef.current?.pause(true);
+    } catch {
+      // camera may already be paused
+    }
+    return undefined;
+  }, [scanPaused]);
 
   useEffect(() => {
     if (!scanPaused && scannerState === 'PAUSED') {
