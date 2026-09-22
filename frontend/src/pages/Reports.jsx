@@ -63,6 +63,7 @@ const Reports = () => {
 
   const [reportError, setReportError] = useState('');
   const reportRequestRef = useRef(0);
+  const lastCustomIsoRef = useRef(null);
 
   const loadReport = async (params = {}, { silent = false } = {}) => {
     const requestId = reportRequestRef.current + 1;
@@ -90,21 +91,23 @@ const Reports = () => {
 
   useEffect(() => {
     if (!isPresetKey(activePreset)) return;
+    lastCustomIsoRef.current = null;
     loadPresetReport(activePreset);
   }, [activePreset, calendarMode]);
 
   useEffect(() => {
-    setCustomRange({ startDate: '', endDate: '' });
-  }, [calendarMode]);
+    if (isPresetKey(activePreset)) return;
+    if (!lastCustomIsoRef.current) return;
+    loadReport({ ...lastCustomIsoRef.current, calendarMode });
+  }, [calendarMode, activePreset]);
 
   useEffect(() => {
     if (!report?.selectedRange?.startDate || !report?.selectedRange?.endDate) return;
-    if (!isPresetKey(activePreset)) return;
     setCustomRange({
       startDate: formatCalendarDate(calendarMode, report.selectedRange.startDate),
       endDate: formatCalendarDate(calendarMode, report.selectedRange.endDate),
     });
-  }, [report, activePreset, calendarMode]);
+  }, [report, calendarMode]);
 
   useEffect(() => {
     setTablePage(1);
@@ -330,10 +333,13 @@ const Reports = () => {
       const entered = resolveEnteredRange();
       if (entered) {
         setActivePreset('custom');
+        lastCustomIsoRef.current = {
+          startDate: toIsoDay(entered.startDate),
+          endDate: toIsoDay(entered.endDate),
+        };
         activeReport = await loadReport(
           {
-            startDate: toIsoDay(entered.startDate),
-            endDate: toIsoDay(entered.endDate),
+            ...lastCustomIsoRef.current,
             calendarMode,
           },
           { silent: true }
@@ -375,15 +381,19 @@ const Reports = () => {
     if (!entered) return;
 
     setActivePreset('custom');
-    loadReport({
+    lastCustomIsoRef.current = {
       startDate: toIsoDay(entered.startDate),
       endDate: toIsoDay(entered.endDate),
+    };
+    loadReport({
+      ...lastCustomIsoRef.current,
       calendarMode,
     });
   };
 
   const handleResetRange = () => {
     setCustomRange({ startDate: '', endDate: '' });
+    lastCustomIsoRef.current = null;
     setActivePreset(user?.role === 'CAFE_STAFF' ? 'today' : 'thisMonth');
   };
 

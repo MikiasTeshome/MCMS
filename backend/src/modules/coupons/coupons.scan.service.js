@@ -331,14 +331,20 @@ class CouponsScanService {
    *   - Today's cap = earned days so far (Mon=1, Tue=2 … Fri=5).
    *   - If fewer coupons exist than the cap, allocate the difference.
    */
-  async ensureWeeklyCoupons(employeeId) {
+  async ensureWeeklyCoupons(employeeId, tx) {
     const cap = await getEffectiveDailyCap();
     if (cap === 0) return; // weekend or public holiday — nothing to do
 
+    if (!tx) {
+      return prisma.$transaction(async (inner) => {
+        await inner.$queryRaw`SELECT id FROM "User" WHERE id = ${employeeId} FOR UPDATE`;
+        return this.ensureWeeklyCoupons(employeeId, inner);
+      });
+    }
+
     const weekStart = startOfWeek(new Date());
 
-    // Count coupons that already exist for this employee this week
-    const existingThisWeek = await prisma.coupon.count({
+    const existingThisWeek = await tx.coupon.count({
       where: {
         employeeId,
         status: { in: ['ALLOCATED', 'CLAIMED'] },
@@ -363,7 +369,7 @@ class CouponsScanService {
     for (let i = 0; i < deficit; i++) {
       try {
         const code = `DAY-${Date.now()}-${Math.random().toString(36).substr(2, 6).toUpperCase()}`;
-        await prisma.coupon.create({
+        await tx.coupon.create({
           data: {
             code,
             status: 'ALLOCATED',
@@ -404,14 +410,13 @@ class CouponsScanService {
 
     // --- Step 1: Lazy weekly reset ---
     // Before counting, void any ALLOCATED coupons from a previous week.
-    await this.voidLastWeekCoupons(employeeId);
-
-    // --- Step 2: Self-healing catch-up ---
-    // Ensure the employee has the correct number of coupons for this week.
-    // Handles cold-start (scheduler never ran) and missed cron days.
-    if (allowAccrual) {
-      await this.ensureWeeklyCoupons(employeeId);
-    }
+    await prisma.$transaction(async (tx) => {
+      await tx.$queryRaw`SELECT id FROM "User" WHERE id = ${employeeId} FOR UPDATE`;
+      await this.voidLastWeekCoupons(employeeId, tx);
+      if (allowAccrual) {
+        await this.ensureWeeklyCoupons(employeeId, tx);
+      }
+    });
 
     const now = new Date();
     const weekStart = startOfWeek(now);

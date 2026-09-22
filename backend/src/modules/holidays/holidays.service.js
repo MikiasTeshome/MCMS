@@ -1,5 +1,21 @@
 import prisma from '../../config/db.js';
 import auditService from '../audit/audit.service.js';
+import { clearHolidayCache } from '../../utils/expiry.js';
+
+function holidayDateUtcNoon(value) {
+  const iso = String(value || '').trim().match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (iso) {
+    return new Date(Date.UTC(Number(iso[1]), Number(iso[2]) - 1, Number(iso[3]), 12, 0, 0, 0));
+  }
+  const date = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    throw new Error('Invalid holiday date');
+  }
+  const shifted = new Date(date.getTime() + 3 * 60 * 60 * 1000);
+  return new Date(
+    Date.UTC(shifted.getUTCFullYear(), shifted.getUTCMonth(), shifted.getUTCDate(), 12, 0, 0, 0)
+  );
+}
 
 class HolidaysService {
   /**
@@ -7,10 +23,7 @@ class HolidaysService {
    */
   async createHoliday(data, actorId, req) {
     const { date, description } = data;
-    
-    // Ensure date is stored as clean ISO date with zeroed hours
-    const holidayDate = new Date(date);
-    holidayDate.setUTCHours(0, 0, 0, 0);
+    const holidayDate = holidayDateUtcNoon(date);
 
     const holiday = await prisma.holiday.create({
       data: {
@@ -18,6 +31,7 @@ class HolidaysService {
         description,
       },
     });
+    clearHolidayCache();
 
     await auditService.log({
       action: 'HOLIDAY_CREATE',
@@ -55,6 +69,7 @@ class HolidaysService {
     await prisma.holiday.delete({
       where: { id },
     });
+    clearHolidayCache();
 
     await auditService.log({
       action: 'HOLIDAY_DELETE',

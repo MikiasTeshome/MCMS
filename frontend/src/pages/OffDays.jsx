@@ -5,7 +5,7 @@ import { Plus, Trash2, ShieldAlert, CheckCircle } from 'lucide-react';
 import { PageHeader, PageSkeleton } from '../components/ui/Page.jsx';
 import CalendarDatePicker from '../components/ui/CalendarDatePicker.jsx';
 import { createHoliday, deleteHoliday, getHolidays } from '../services/campus.service.js';
-import { formatCalendarDate, parseCalendarDateString } from '../utils/ethiopianDate.js';
+import { formatCalendarDate, parseCalendarDateString, toIsoDay } from '../utils/ethiopianDate.js';
 
 const OffDays = () => {
   const { t } = useTranslation();
@@ -44,7 +44,7 @@ const OffDays = () => {
     setError('');
     try {
       await createHoliday({
-        date: parsed.toISOString(),
+        date: toIsoDay(parsed),
         description: description.trim(),
       });
       setDateValue('');
