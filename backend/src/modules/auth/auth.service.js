@@ -27,6 +27,10 @@ class AuthService {
       throw new Error('Invalid credentials');
     }
 
+    if (user.role === 'EMPLOYEE') {
+      throw new Error('Invalid credentials');
+    }
+
     if (!user.isActive) {
       throw new Error('Account inactive');
     }

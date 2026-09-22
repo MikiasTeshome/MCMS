@@ -328,9 +328,9 @@ class CouponsService {
       // Ensure beneficiary exists and is employee
       const employee = await tx.user.findUnique({
         where: { id: beneficiaryId },
-        select: { id: true, role: true },
+        select: { id: true, role: true, isActive: true },
       });
-      if (!employee || employee.role !== 'EMPLOYEE') {
+      if (!employee || employee.role !== 'EMPLOYEE' || !employee.isActive) {
         throw new Error('Beneficiary employee not found');
       }
 
@@ -400,6 +400,7 @@ class CouponsService {
         where: {
           id: { in: beneficiaryIds },
           role: 'EMPLOYEE',
+          isActive: true,
         },
         select: {
           id: true,

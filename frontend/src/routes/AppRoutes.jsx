@@ -66,7 +66,7 @@ const AppRoutes = () => {
         }
       >
         <Route index element={<HomeRedirect />} />
-        <Route path="dashboard" element={<DashboardGate />} />
+        <Route path="dashboard" element={<RoleRoute allowedRoles={['ADMIN', 'HR']}><Dashboard /></RoleRoute>} />
         <Route path="users" element={<RoleRoute allowedRoles={['ADMIN']}><Users /></RoleRoute>} />
         <Route path="employees" element={<RoleRoute allowedRoles={['HR']}><Employees /></RoleRoute>} />
         <Route path="cafes" element={<RoleRoute allowedRoles={['HR']}><Cafes /></RoleRoute>} />
@@ -89,17 +89,6 @@ const AppRoutes = () => {
       <Route path="*" element={<HomeRedirect />} />
     </Routes>
   );
-};
-
-const DashboardGate = () => {
-  const { user } = useAuth();
-  if (user?.role === 'CAFE_STAFF') {
-    return <Navigate to="/cafe-scanner" replace />;
-  }
-  if (user?.role === 'FINANCE') {
-    return <Navigate to="/reports" replace />;
-  }
-  return <Dashboard />;
 };
 
 export default AppRoutes;

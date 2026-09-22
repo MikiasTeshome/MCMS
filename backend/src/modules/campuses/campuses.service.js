@@ -157,16 +157,18 @@ class CampusesService {
     });
 
     if (current?.vendorId === vendorId) {
+      await prisma.campusVendorAssignment.updateMany({
+        where: { campusId, endedAt: null, NOT: { id: current.id } },
+        data: { endedAt: new Date() },
+      });
       return current;
     }
 
     const assignment = await prisma.$transaction(async (tx) => {
-      if (current) {
-        await tx.campusVendorAssignment.update({
-          where: { id: current.id },
-          data: { endedAt: new Date() },
-        });
-      }
+      await tx.campusVendorAssignment.updateMany({
+        where: { campusId, endedAt: null },
+        data: { endedAt: new Date() },
+      });
       return tx.campusVendorAssignment.create({
         data: { campusId, vendorId },
         include: currentAssignmentInclude,

@@ -470,7 +470,7 @@ const Employees = () => {
   }
 
   const detailsCard = selectedEmployee?.qrCards?.[0];
-  const detailsUuid = detailsCard?.cardCode || selectedEmployee?.id || '';
+  const detailsUuid = detailsCard?.cardCode || '';
   const detailsLeaveState = selectedEmployee ? getEmployeeLeaveState(selectedEmployee) : null;
 
   return (

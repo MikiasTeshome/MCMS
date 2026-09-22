@@ -19,7 +19,22 @@ class UsersService {
       throw new Error('Create employees from the Employees page, not Users');
     }
 
-    const passwordHash = await bcrypt.hash(password || 'Password123!', 10);
+    const nextPassword = String(password || '').trim();
+    if (nextPassword.length < 8) {
+      throw new Error('Password must be at least 8 characters');
+    }
+
+    if (role === 'CAFE_STAFF') {
+      const campus = await prisma.campus.findUnique({
+        where: { id: campusId },
+        select: { id: true, isActive: true },
+      });
+      if (!campus?.isActive) {
+        throw new Error('Cafe staff must be assigned to an active campus');
+      }
+    }
+
+    const passwordHash = await bcrypt.hash(nextPassword, 10);
 
     const user = await prisma.user.create({
       data: {

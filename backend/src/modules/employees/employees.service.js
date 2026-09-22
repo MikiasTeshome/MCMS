@@ -52,9 +52,11 @@ const normalizeDateInput = (value) => {
   }
 
   const text = String(value).trim();
-  if (/^\d{4}-\d{2}-\d{2}/.test(text)) {
-    const date = new Date(text);
-    return Number.isNaN(date.getTime()) ? null : date;
+  const isoDay = text.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (isoDay) {
+    return new Date(
+      Date.UTC(Number(isoDay[1]), Number(isoDay[2]) - 1, Number(isoDay[3]), 12, 0, 0, 0)
+    );
   }
 
   const dmy = parseDayMonthYear(text);

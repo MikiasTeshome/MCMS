@@ -21,8 +21,8 @@ const clearSessionStorage = () => {
 };
 
 export const AuthProvider = ({ children }) => {
-  const [user, setUser] = useState(readStoredUser);
-  const [loading, setLoading] = useState(() => Boolean(localStorage.getItem(TOKEN_KEY)) && !readStoredUser());
+  const [user, setUser] = useState(null);
+  const [loading, setLoading] = useState(() => Boolean(localStorage.getItem(TOKEN_KEY)));
 
   const logout = useCallback(() => {
     setUser(null);
@@ -41,6 +41,11 @@ export const AuthProvider = ({ children }) => {
       try {
         const profileRes = await getProfile();
         if (profileRes.success) {
+          if (!localStorage.getItem(TOKEN_KEY)) return;
+          if (profileRes.data?.role === 'EMPLOYEE') {
+            logout();
+            return;
+          }
           setUser(profileRes.data);
           localStorage.setItem(USER_KEY, JSON.stringify(profileRes.data));
         } else {

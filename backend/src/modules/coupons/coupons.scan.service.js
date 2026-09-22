@@ -232,21 +232,6 @@ class CouponsScanService {
       throw err;
     }
 
-    if (isUuid(raw)) {
-      const user = await prisma.user.findUnique({
-        where: { id: raw },
-        select: { id: true, role: true },
-      });
-      if (user?.role === 'EMPLOYEE') {
-        return user.id;
-      }
-      if (user) {
-        const err = new Error('This QR is not a registered employee card.');
-        err.code = 'NOT_FOUND';
-        throw err;
-      }
-    }
-
     const card = await prisma.qRCard.findFirst({
       where: { cardCode: raw },
       select: { employeeId: true, status: true },
@@ -478,9 +463,7 @@ class CouponsScanService {
     const couponValue =
       availableCoupons > 0 ? Number(allocated[0].value) : null;
     const expiryDate =
-      availableCoupons > 0
-        ? allocated[0].expiresAt.toISOString().split('T')[0]
-        : null;
+      availableCoupons > 0 ? getAddisDayKey(allocated[0].expiresAt) : null;
 
     // Earned days so far this week (Mon=1 … Fri=5). Leftover = those earned
     // days minus meals already recorded this week — never future weekdays.
