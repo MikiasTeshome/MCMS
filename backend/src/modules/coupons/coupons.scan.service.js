@@ -102,6 +102,7 @@ async function findTodayHoliday(referenceDate = new Date()) {
 }
 
 async function getEffectiveDailyCap() {
+  if (await findTodayHoliday()) return 0;
   return getDailyCap();
 }
 
@@ -202,6 +203,9 @@ class CouponsScanService {
       if (user?.role === 'EMPLOYEE') {
         return user.id;
       }
+      const err = new Error('This QR is not a registered employee card.');
+      err.code = 'NOT_FOUND';
+      throw err;
     }
 
     const card = await prisma.qRCard.findFirst({
@@ -487,13 +491,15 @@ class CouponsScanService {
     });
 
     if (!employee || employee.role !== 'EMPLOYEE') {
-      const err = new Error('Employee not found.');
+      const err = new Error('This QR is not a registered employee card.');
       err.code = 'NOT_FOUND';
       throw err;
     }
 
     if (!employee.isActive) {
-      const err = new Error('Employee account is inactive.');
+      const err = new Error(
+        `${employee.name} is inactive and cannot use a meal today.`
+      );
       err.code = 'INACTIVE';
       throw err;
     }
@@ -506,7 +512,9 @@ class CouponsScanService {
     };
 
     if (leaveState.isOnLeave && !allowLeave) {
-      const err = new Error('Employee is currently on leave.');
+      const err = new Error(
+        `${employee.name} is on leave and cannot use a meal today.`
+      );
       err.code = 'ON_LEAVE';
       throw err;
     }
@@ -515,7 +523,18 @@ class CouponsScanService {
     if (requireActiveCard) {
       qrCard = await this.getActiveQRCard(employeeId);
       if (!qrCard) {
-        const err = new Error('QR card is invalid.');
+        const latestCard = await prisma.qRCard.findFirst({
+          where: { employeeId },
+          orderBy: { createdAt: 'desc' },
+        });
+        if (latestCard && latestCard.status !== 'ACTIVE') {
+          const err = new Error(
+            `${employee.name}'s QR card is blocked or reported lost.`
+          );
+          err.code = 'QR_BLOCKED';
+          throw err;
+        }
+        const err = new Error(`${employee.name} has no valid QR card.`);
         err.code = 'QR_INVALID';
         throw err;
       }
@@ -620,9 +639,11 @@ class CouponsScanService {
     const addisDay = todayDateString();
     const addisWeekday = getAddisWeekday();
     let recordBlockReason = null;
-    if (stats.dailyCap === 0) recordBlockReason = 'WEEKEND';
+    if (todayHoliday) recordBlockReason = 'HOLIDAY';
+    else if (stats.dailyCap === 0) recordBlockReason = 'WEEKEND';
     else if (stats.couponsRedeemableNow === 0) {
-      recordBlockReason = stats.claimedToday ? 'CLAIMED_TODAY' : 'NO_BALANCE';
+      recordBlockReason =
+        stats.claimedToday || stats.claimedThisWeek > 0 ? 'CLAIMED_TODAY' : 'NO_BALANCE';
     }
 
     await this.recordScanSession(employeeId, staffId, req);
@@ -710,7 +731,7 @@ class CouponsScanService {
         : await this.hasValidScanSession(employeeId, issuedById);
 
     if (!scannedFirst) {
-      const err = new Error('QR scan required.');
+      const err = new Error('Scan the employee QR card first, then record the meal.');
       err.code = 'SCAN_REQUIRED';
       throw err;
     }
@@ -726,40 +747,49 @@ class CouponsScanService {
         newState: { reason: 'No available coupons.' },
         req,
       });
-      const err = new Error('No available coupons.');
+      const err = new Error(
+        `${employee.name} has no unused meals left this week.`
+      );
       err.code = 'NO_COUPONS';
       throw err;
     }
 
-    // Employee may redeem unused days earned so far this week (not future days).
+    const todayHoliday = await findTodayHoliday();
+    if (!cleanOverrideReason && todayHoliday) {
+      const err = new Error('Today is an off day. Meals cannot be recorded.');
+      err.code = 'HOLIDAY';
+      throw err;
+    }
+    if (!cleanOverrideReason && stats.dailyCap === 0) {
+      const err = new Error('Meals cannot be recorded on Saturday or Sunday.');
+      err.code = 'WEEKEND';
+      throw err;
+    }
+
     if (stats.couponsRedeemableNow === 0 && !cleanOverrideReason) {
       await auditService.log({
         action: 'COUPON_BLOCKED',
         entityType: 'Employee',
         entityId: employeeId,
         actorId: issuedById,
-        newState: { reason: 'Daily accumulation cap not yet reached.', dailyCap: stats.dailyCap },
+        newState: {
+          reason: stats.claimedThisWeek > 0 ? 'Already used meals allowed today.' : 'No leftover meals today.',
+          dailyCap: stats.dailyCap,
+          claimedThisWeek: stats.claimedThisWeek,
+        },
         req,
       });
-      const err = new Error('No coupons redeemable today — daily accumulation cap not yet reached.');
+      if (stats.claimedToday || stats.claimedThisWeek > 0) {
+        const err = new Error(
+          `${employee.name} already used all meals allowed today.`
+        );
+        err.code = 'DUPLICATE_CLAIM';
+        throw err;
+      }
+      const err = new Error(
+        `${employee.name} has no leftover meals to use today. Future days stay locked.`
+      );
       err.code = 'CAP_NOT_REACHED';
-      throw err;
-    }
-
-    // Same-day leftover: unused earlier weekdays can still be recorded today
-    // (second scan or another Record click). Block only when today's earned
-    // days are already used and nothing leftover remains.
-    if (stats.couponsRedeemableNow === 0 && stats.claimedToday && !cleanOverrideReason) {
-      await auditService.log({
-        action: 'COUPON_BLOCKED',
-        entityType: 'Employee',
-        entityId: employeeId,
-        actorId: issuedById,
-        newState: { reason: 'Already claimed today and no leftover unused days.' },
-        req,
-      });
-      const err = new Error('Employee already claimed today and has no leftover unused days.');
-      err.code = 'DUPLICATE_CLAIM';
       throw err;
     }
 

@@ -8,6 +8,7 @@ import CouponIssuePanel from '../components/cafe/CouponIssuePanel.jsx';
 import ScanNotification from '../components/cafe/ScanNotification.jsx';
 import SuccessModal from '../components/cafe/SuccessModal.jsx';
 import { scanEmployeeQr, issueCoupons } from '../services/couponScan.service.js';
+import { cafeApiErrorMessage, cafeBlockMessage } from '../utils/cafeScanError.js';
 
 const CafeScanner = () => {
   const { t } = useTranslation();
@@ -50,12 +51,15 @@ const CafeScanner = () => {
       const res = await scanEmployeeQr(payload);
       if (res.success) {
         setEmployee(res.data);
+        if (res.data.recordBlockReason && res.data.couponsRedeemableNow <= 0) {
+          setApiError(cafeBlockMessage(t, res.data.recordBlockReason, t('cafe.cannotRecordYet')));
+        }
       } else {
         setApiError(res.message || t('cafe.scanFailed'));
         setEmployee(null);
       }
     } catch (err) {
-      setApiError(err.response?.data?.message || t('cafe.verifyFailed'));
+      setApiError(cafeApiErrorMessage(err, t, 'cafe.verifyFailed'));
       setEmployee(null);
     } finally {
       setLoading(false);
@@ -109,7 +113,7 @@ const CafeScanner = () => {
         setShowSuccessModal(true);
       }
     } catch (err) {
-      setApiError(err.response?.data?.message || t('cafe.issueFailed'));
+      setApiError(cafeApiErrorMessage(err, t, 'cafe.issueFailed'));
     } finally {
       setSubmitting(false);
     }

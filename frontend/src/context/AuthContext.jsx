@@ -100,7 +100,11 @@ export const AuthProvider = ({ children }) => {
     } catch (error) {
       setUser(null);
       clearSessionStorage();
-      throw new Error(error.response?.data?.message || error.message || 'Login attempt failed');
+      const wrapped = new Error(
+        error.response?.data?.message || error.message || 'Login attempt failed'
+      );
+      wrapped.status = error.response?.status;
+      throw wrapped;
     }
   };
 

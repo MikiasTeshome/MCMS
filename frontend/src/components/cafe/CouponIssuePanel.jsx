@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Coffee, RotateCcw, Minus, Plus } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext.jsx';
+import { cafeBlockMessage } from '../../utils/cafeScanError.js';
 
 /** Earned weekdays so far minus meals already taken this week. Never future days. */
 const remainingEarnedMeals = (employee) => {
@@ -122,22 +123,17 @@ const CouponIssuePanel = ({
 
       {!canRecord && (
         <div className="alert alert-error text-sm text-center space-y-1">
-          {employee?.recordBlockReason === 'WEEKEND' && <p>{t('cafe.recordDisabledWeekend')}</p>}
-          {employee?.recordBlockReason === 'NO_BALANCE' && <p>{t('cafe.noMealsToday')}</p>}
-          {employee?.claimedToday && maxQty <= 0 && !isAdmin && (
+          <p>
+            {cafeBlockMessage(
+              t,
+              employee?.recordBlockReason ||
+                (employee?.claimedToday && maxQty <= 0 ? 'CLAIMED_TODAY' : 'NO_BALANCE'),
+              t('cafe.noMealsToday')
+            )}
+          </p>
+          {employee?.claimedToday && maxQty <= 0 && isAdmin && (
             <p>{t('cafe.claimedContactAdmin')}</p>
           )}
-          {!employee?.recordBlockReason && maxQty === 0 && !employee?.claimedToday && (
-            <p>{t('cafe.noMealsToday')}</p>
-          )}
-          <p className="text-xs opacity-80">
-            {t('cafe.recordDebug', {
-              unused: maxQty,
-              cap: employee?.dailyCap ?? 0,
-              used: employee?.claimedThisWeek ?? 0,
-              day: employee?.addisDay || '—',
-            })}
-          </p>
         </div>
       )}
     </div>

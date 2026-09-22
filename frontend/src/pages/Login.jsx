@@ -31,7 +31,12 @@ const Login = () => {
         navigate(homePathForRole(res.user?.role), { replace: true });
       }
     } catch (err) {
-      setErrorMsg(err.message || t('login.error'));
+      const status = err.status || err.response?.status;
+      if (status === 403) {
+        setErrorMsg(t('login.inactive'));
+      } else {
+        setErrorMsg(err.message || t('login.error'));
+      }
     } finally {
       setSubmitting(false);
     }
