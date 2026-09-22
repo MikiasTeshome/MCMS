@@ -26,7 +26,10 @@ const Login = () => {
     setSubmitting(true);
     try {
       const res = await login(email, password);
-      if (res.success) navigate(homePathForRole(res.user?.role));
+      if (res.success) {
+        // Replace so Back does not return to the login form after a successful sign-in.
+        navigate(homePathForRole(res.user?.role), { replace: true });
+      }
     } catch (err) {
       setErrorMsg(err.message || t('login.error'));
     } finally {
@@ -56,7 +59,7 @@ const Login = () => {
           <p className="page-subtitle !mt-1">{t('login.subtitle')}</p>
         </div>
 
-        <form onSubmit={handleSubmit} className="form-stack">
+        <form onSubmit={handleSubmit} className="form-stack" autoComplete="on">
           {errorMsg && (
             <div className="alert-error">
               <ShieldCheck className="w-4 h-4 flex-shrink-0" />
@@ -65,18 +68,39 @@ const Login = () => {
           )}
 
           <div className="form-group">
-            <label className="input-label">{t('login.email')}</label>
+            <label className="input-label" htmlFor="login-email">{t('login.email')}</label>
             <div className="relative">
               <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-app-muted" />
-              <input type="email" required value={email} onChange={(e) => setEmail(e.target.value)} placeholder="email@system.com" className="input-field pl-10" />
+              <input
+                id="login-email"
+                name="email"
+                type="email"
+                autoComplete="username"
+                inputMode="email"
+                required
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="email@system.com"
+                className="input-field pl-10"
+              />
             </div>
           </div>
 
           <div className="form-group">
-            <label className="input-label">{t('login.password')}</label>
+            <label className="input-label" htmlFor="login-password">{t('login.password')}</label>
             <div className="relative">
               <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-app-muted" />
-              <input type="password" required value={password} onChange={(e) => setPassword(e.target.value)} placeholder="••••••••" className="input-field pl-10" />
+              <input
+                id="login-password"
+                name="password"
+                type="password"
+                autoComplete="current-password"
+                required
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder="••••••••"
+                className="input-field pl-10"
+              />
             </div>
           </div>
 

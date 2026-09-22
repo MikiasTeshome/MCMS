@@ -1,7 +1,10 @@
 import api from './api.js';
 
 export const authLogin = async (email, password) => {
-  const response = await api.post('/auth/login', { email, password });
+  const response = await api.post('/auth/login', {
+    email: String(email || '').trim().toLowerCase(),
+    password,
+  });
   return response.data;
 };
 

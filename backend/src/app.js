@@ -21,24 +21,25 @@ import dashboardRoutes from './modules/dashboard/dashboard.routes.js';
 
 const app = express();
 
+// Nginx / reverse proxy: required for accurate rate-limit IPs
+app.set('trust proxy', 1);
+
 // --- 1. GLOBAL MIDDLEWARES ---
 
-// Security headers integration
-app.use(helmet());
+app.use(helmet({
+  contentSecurityPolicy: false,
+  crossOriginEmbedderPolicy: false,
+  referrerPolicy: { policy: 'no-referrer' },
+}));
 
-// Enable Cross-Origin Resource Sharing with customized settings
 app.use(cors({
-  // Dynamically allow origins based on environment, configuration, and network patterns
   origin: (origin, callback) => {
-    // Allow same‑origin/server-to-server requests
     if (!origin) return callback(null, true);
 
-    // 1. Allow all origins in development mode for seamless local development
     if (config.nodeEnv === 'development') {
       return callback(null, true);
     }
 
-    // 2. Normalize and check ALLOWED_ORIGINS and CLIENT_URL configuration
     const allowedOrigins = [];
     if (process.env.ALLOWED_ORIGINS) {
       allowedOrigins.push(
@@ -58,7 +59,6 @@ app.use(cors({
       return callback(null, true);
     }
 
-    // 3. Dynamically allow local network IP addresses (useful for on-premise college deployments)
     const isLocal = /^https?:\/\/(localhost|127\.0\.0\.1|192\.168\.\d+\.\d+|10\.\d+\.\d+\.\d+|172\.(1[6-9]|2\d|3[0-1])\.\d+\.\d+)(:\d+)?$/.test(normalizedOrigin);
     if (isLocal) {
       return callback(null, true);
@@ -71,19 +71,16 @@ app.use(cors({
   credentials: true,
 }));
 
-// Body parsers
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
+app.use(express.json({ limit: '200kb' }));
+app.use(express.urlencoded({ extended: true, limit: '200kb' }));
 
-// HTTP logging via winston
 app.use(loggingMiddleware);
 
-// Active Accept-Language detection
 app.use(i18nMiddleware);
 
 // --- 2. SECURITY RATE LIMITING ---
 const apiLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
+  windowMs: 15 * 60 * 1000,
   max: config.rateLimitMax,
   message: {
     success: false,
@@ -93,7 +90,6 @@ const apiLimiter = rateLimit({
   legacyHeaders: false,
 });
 
-// Apply rate limiter globally to api endpoints
 app.use('/api/', apiLimiter);
 
 // --- 3. BUSINESS MODULE ROUTES ---
@@ -107,7 +103,6 @@ app.use(`/api/${config.apiVersion}/holidays`, holidaysRoutes);
 app.use(`/api/${config.apiVersion}/campuses`, campusesRoutes);
 app.use(`/api/${config.apiVersion}/dashboard`, dashboardRoutes);
 
-// Root Endpoint
 app.get('/', (req, res) => {
   res.status(200).json({
     name: 'Meal Coupon Management System (MCMS) API Server',
@@ -119,14 +114,12 @@ app.get('/', (req, res) => {
 
 // --- 4. EXCEPTION & ERROR HANDLERS ---
 
-// 404 Route Not Found Catch-All
 app.use((req, res, next) => {
   const error = new Error(`API Endpoint Not Found - [${req.method}] ${req.originalUrl}`);
   error.statusCode = 404;
   next(error);
 });
 
-// Centralized express error handler
 app.use(errorHandler);
 
 export default app;

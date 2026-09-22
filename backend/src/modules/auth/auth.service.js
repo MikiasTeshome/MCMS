@@ -3,20 +3,27 @@ import prisma from '../../config/db.js';
 import { signToken } from '../../utils/token.js';
 import auditService from '../audit/audit.service.js';
 
+// Same cost as user hashes so unknown emails take a similar amount of time.
+const DUMMY_PASSWORD_HASH = bcrypt.hashSync('mcms-timing-pad', 10);
+
 class AuthService {
   /**
    * authenticates user, signs JWT token, logs action
-   * @param {String} email 
-   * @param {String} password 
-   * @param {Object} [req] 
+   * @param {String} email
+   * @param {String} password
+   * @param {Object} [req]
    */
   async login(email, password, req) {
-    // 1. Fetch user by email
-    const user = await prisma.user.findUnique({
-      where: { email },
+    const normalizedEmail = String(email || '').trim().toLowerCase();
+
+    const user = await prisma.user.findFirst({
+      where: { email: { equals: normalizedEmail, mode: 'insensitive' } },
     });
 
-    if (!user) {
+    const passwordHash = user?.passwordHash || DUMMY_PASSWORD_HASH;
+    const isMatch = await bcrypt.compare(password, passwordHash);
+
+    if (!user || !isMatch) {
       throw new Error('Invalid credentials');
     }
 
@@ -24,13 +31,6 @@ class AuthService {
       throw new Error('Account inactive');
     }
 
-    // 2. Validate password
-    const isMatch = await bcrypt.compare(password, user.passwordHash);
-    if (!isMatch) {
-      throw new Error('Invalid credentials');
-    }
-
-    // 3. Issue web token
     const token = signToken({
       id: user.id,
       email: user.email,
@@ -55,7 +55,6 @@ class AuthService {
       userSafe.campus = campus;
     }
 
-    // 4. Log the audit event for compliance
     await auditService.log({
       action: 'USER_LOGIN',
       entityType: 'User',
@@ -73,7 +72,7 @@ class AuthService {
 
   /**
    * returns details of currently logged-in user
-   * @param {String} userId 
+   * @param {String} userId
    */
   async getProfile(userId) {
     const user = await prisma.user.findUnique({

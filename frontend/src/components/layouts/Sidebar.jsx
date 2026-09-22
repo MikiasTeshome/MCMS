@@ -1,5 +1,5 @@
 import React from 'react';
-import { NavLink } from 'react-router-dom';
+import { NavLink, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext.jsx';
 import { useTranslation } from 'react-i18next';
 import {
@@ -20,6 +20,7 @@ import {
 const Sidebar = ({ isOpen, setIsOpen, collapsed, onToggleCollapse }) => {
   const { user, logout } = useAuth();
   const { t } = useTranslation();
+  const navigate = useNavigate();
 
   const menuItems = [
     { path: '/dashboard', label: t('common.dashboard'), icon: LayoutDashboard, roles: ['ADMIN', 'HR'] },
@@ -33,6 +34,11 @@ const Sidebar = ({ isOpen, setIsOpen, collapsed, onToggleCollapse }) => {
   ];
 
   const activeMenu = menuItems.filter((item) => item.roles.includes(user?.role));
+
+  const handleLogout = () => {
+    logout();
+    navigate('/login', { replace: true });
+  };
 
   return (
     <aside
@@ -92,7 +98,7 @@ const Sidebar = ({ isOpen, setIsOpen, collapsed, onToggleCollapse }) => {
           <span className="sidebar-label">{t('common.collapse')}</span>
         </button>
         <button
-          onClick={logout}
+          onClick={handleLogout}
           className="nav-link w-full sidebar-footer-btn mt-1"
           aria-label={t('common.logout')}
         >

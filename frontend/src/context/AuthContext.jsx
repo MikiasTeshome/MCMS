@@ -1,24 +1,37 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useCallback, useContext, useEffect, useState } from 'react';
 import { authLogin, getProfile } from '../services/auth.service.js';
 
 const AuthContext = createContext(null);
 
+const TOKEN_KEY = 'mcms_token';
+const USER_KEY = 'mcms_user';
+
 const readStoredUser = () => {
   try {
-    const raw = localStorage.getItem('mcms_user');
+    const raw = localStorage.getItem(USER_KEY);
     return raw ? JSON.parse(raw) : null;
   } catch {
     return null;
   }
 };
 
+const clearSessionStorage = () => {
+  localStorage.removeItem(TOKEN_KEY);
+  localStorage.removeItem(USER_KEY);
+};
+
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(readStoredUser);
-  const [loading, setLoading] = useState(() => Boolean(localStorage.getItem('mcms_token')) && !readStoredUser());
+  const [loading, setLoading] = useState(() => Boolean(localStorage.getItem(TOKEN_KEY)) && !readStoredUser());
+
+  const logout = useCallback(() => {
+    setUser(null);
+    clearSessionStorage();
+  }, []);
 
   useEffect(() => {
     const initializeAuth = async () => {
-      const token = localStorage.getItem('mcms_token');
+      const token = localStorage.getItem(TOKEN_KEY);
       if (!token) {
         setUser(null);
         setLoading(false);
@@ -29,7 +42,9 @@ export const AuthProvider = ({ children }) => {
         const profileRes = await getProfile();
         if (profileRes.success) {
           setUser(profileRes.data);
-          localStorage.setItem('mcms_user', JSON.stringify(profileRes.data));
+          localStorage.setItem(USER_KEY, JSON.stringify(profileRes.data));
+        } else {
+          logout();
         }
       } catch (error) {
         console.error('Session restoration failed:', error.message);
@@ -39,6 +54,36 @@ export const AuthProvider = ({ children }) => {
     };
 
     initializeAuth();
+  }, [logout]);
+
+  useEffect(() => {
+    const syncFromStorage = () => {
+      const token = localStorage.getItem(TOKEN_KEY);
+      if (!token) {
+        setUser(null);
+        return;
+      }
+      setUser(readStoredUser());
+    };
+
+    const onPageShow = (event) => {
+      if (event.persisted) {
+        syncFromStorage();
+      }
+    };
+
+    const onUnauthenticated = () => {
+      setUser(null);
+    };
+
+    window.addEventListener('storage', syncFromStorage);
+    window.addEventListener('pageshow', onPageShow);
+    window.addEventListener('mcms:unauthenticated', onUnauthenticated);
+    return () => {
+      window.removeEventListener('storage', syncFromStorage);
+      window.removeEventListener('pageshow', onPageShow);
+      window.removeEventListener('mcms:unauthenticated', onUnauthenticated);
+    };
   }, []);
 
   const login = async (email, password) => {
@@ -47,21 +92,16 @@ export const AuthProvider = ({ children }) => {
       if (res.success) {
         const { user: loggedUser, token } = res.data;
         setUser(loggedUser);
-        localStorage.setItem('mcms_token', token);
-        localStorage.setItem('mcms_user', JSON.stringify(loggedUser));
+        localStorage.setItem(TOKEN_KEY, token);
+        localStorage.setItem(USER_KEY, JSON.stringify(loggedUser));
         return { success: true, user: loggedUser };
       }
       throw new Error('Login attempt failed');
     } catch (error) {
       setUser(null);
+      clearSessionStorage();
       throw new Error(error.response?.data?.message || error.message || 'Login attempt failed');
     }
-  };
-
-  const logout = () => {
-    setUser(null);
-    localStorage.removeItem('mcms_token');
-    localStorage.removeItem('mcms_user');
   };
 
   return (

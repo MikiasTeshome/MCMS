@@ -15,35 +15,30 @@ const api = axios.create({
   },
 });
 
-// Outbound request interceptor
 api.interceptors.request.use(
   (config) => {
-    // 1. Automatically fetch and attach JWT from localStorage
     const token = localStorage.getItem('mcms_token');
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
     }
 
-    // 2. Automatically fetch and attach active i18n locale
     const activeLanguage = localStorage.getItem('mcms_lang') || 'en';
     config.headers['Accept-Language'] = activeLanguage;
 
     return config;
   },
-  (error) => {
-    return Promise.reject(error);
-  }
+  (error) => Promise.reject(error)
 );
 
-// Response interceptor (logs out user if session becomes unauthenticated)
 api.interceptors.response.use(
   (response) => response,
   (error) => {
     if (error.response && error.response.status === 401) {
       localStorage.removeItem('mcms_token');
       localStorage.removeItem('mcms_user');
+      window.dispatchEvent(new Event('mcms:unauthenticated'));
       if (window.location.pathname !== '/login') {
-        window.location.href = '/login';
+        window.location.replace('/login');
       }
     }
     return Promise.reject(error);

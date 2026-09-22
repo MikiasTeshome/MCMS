@@ -1,6 +1,7 @@
 import React, { Suspense, lazy } from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
 import ProtectedRoute from './ProtectedRoute.jsx';
+import GuestRoute from './GuestRoute.jsx';
 import DashboardLayout from '../components/layouts/DashboardLayout.jsx';
 import { useAuth } from '../context/AuthContext.jsx';
 import { homePathForRole } from '../utils/roleHome.js';
@@ -48,9 +49,11 @@ const AppRoutes = () => {
       <Route
         path="/login"
         element={
-          <Suspense fallback={loginFallback}>
-            <Login />
-          </Suspense>
+          <GuestRoute>
+            <Suspense fallback={loginFallback}>
+              <Login />
+            </Suspense>
+          </GuestRoute>
         }
       />
 

@@ -12,6 +12,14 @@ export const login = async (req, res, next) => {
       return errorResponse(res, 400, 'Please provide email and password');
     }
 
+    if (typeof email !== 'string' || typeof password !== 'string') {
+      return errorResponse(res, 400, 'Please provide email and password');
+    }
+
+    if (password.length > 128 || email.length > 254) {
+      return errorResponse(res, 400, 'Please provide email and password');
+    }
+
     const result = await authService.login(email, password, req);
     return successResponse(res, 200, 'Authentication successful', result);
   } catch (error) {
