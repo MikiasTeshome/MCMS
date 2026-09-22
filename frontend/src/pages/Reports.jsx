@@ -61,14 +61,18 @@ const Reports = () => {
   const [letterCafeKey, setLetterCafeKey] = useState('');
   const [pdfError, setPdfError] = useState('');
 
+  const [reportError, setReportError] = useState('');
+
   const loadReport = async (params = {}, { silent = false } = {}) => {
     if (!silent) setLoading(true);
+    setReportError('');
     try {
       const res = await getCouponScanReport(params);
       setReport(res.data);
       return res.data;
     } catch (err) {
       console.error('Failed to load coupon scan report:', err);
+      setReportError(err.response?.data?.message || t('reports.loadFailed', { defaultValue: 'Could not load the report. Try again.' }));
       return null;
     } finally {
       if (!silent) setLoading(false);
@@ -378,7 +382,18 @@ const Reports = () => {
     setActivePreset('thisMonth');
   };
 
-  if (loading || !report) return <PageSkeleton cards={3} table={false} />;
+  if (loading && !report) return <PageSkeleton cards={3} table={false} />;
+
+  if (reportError && !report) {
+    return (
+      <div className="page-shell">
+        <PageHeader title={t('reports.title')} />
+        <p className="alert-error mt-4">{reportError}</p>
+      </div>
+    );
+  }
+
+  if (!report) return <PageSkeleton cards={3} table={false} />;
 
   const summaryItems = [
     { label: 'Date Range', value: selectedRangeLabel },

@@ -79,22 +79,28 @@ const CafeScanner = () => {
         quantity: Number(quantity) || 1,
         overrideReason:
           employee.claimedToday &&
-          (employee.couponsRedeemableNow ?? employee.availableCoupons ?? 0) <= 0
+          Math.max(0, (Number(employee.dailyCap) || 0) - (Number(employee.claimedThisWeek) || 0)) <= 0
             ? overrideReason
             : undefined,
       });
       if (res.success) {
+        const issuedCount = Number(res.data.issuedCount) || 0;
         const remainingCoupons = res.data.remainingCoupons ?? 0;
-        const remainingRedeemableNow =
-          res.data.remainingRedeemableNow ?? remainingCoupons;
+        const remainingRedeemableNow = Math.max(
+          0,
+          typeof res.data.remainingRedeemableNow === 'number'
+            ? res.data.remainingRedeemableNow
+            : (Number(employee.dailyCap) || 0) -
+              (Number(employee.claimedThisWeek) || 0) -
+              issuedCount
+        );
         setEmployee((prev) =>
           prev
             ? {
                 ...prev,
                 claimedToday: true,
                 availableCoupons: remainingCoupons,
-                claimedThisWeek:
-                  (Number(prev.claimedThisWeek) || 0) + (Number(res.data.issuedCount) || 0),
+                claimedThisWeek: (Number(prev.claimedThisWeek) || 0) + issuedCount,
                 couponsRedeemableNow: remainingRedeemableNow,
                 recordBlockReason:
                   remainingRedeemableNow > 0

@@ -192,8 +192,7 @@ class CouponsScanService {
   async resolveEmployeeId(scannedValue) {
     const raw = String(scannedValue || '').trim();
     if (!raw) {
-      throw new Error('Invalid QR code.');
-    }
+    throw new Error('Invalid QR code.');
 
     if (isUuid(raw)) {
       const user = await prisma.user.findUnique({
@@ -203,9 +202,11 @@ class CouponsScanService {
       if (user?.role === 'EMPLOYEE') {
         return user.id;
       }
-      const err = new Error('This QR is not a registered employee card.');
-      err.code = 'NOT_FOUND';
-      throw err;
+      if (user) {
+        const err = new Error('This QR is not a registered employee card.');
+        err.code = 'NOT_FOUND';
+        throw err;
+      }
     }
 
     const card = await prisma.qRCard.findFirst({
@@ -230,7 +231,9 @@ class CouponsScanService {
       }
     }
 
-    throw new Error('Invalid QR code.');
+    const err = new Error('This QR card is not valid.');
+    err.code = 'QR_INVALID';
+    throw err;
   }
 
   async getActiveQRCard(employeeId) {
@@ -794,15 +797,19 @@ class CouponsScanService {
     }
 
     // Leftover only: remaining earned weekdays this week, not spare coupon rows.
-    const qty = Number(quantity);
+    const qty = Math.max(0, Math.trunc(Number(quantity) || 0)) || 1;
     const remainingAllowance = Math.max(0, stats.dailyCap - stats.claimedThisWeek);
     const maxIssuable = cleanOverrideReason
       ? stats.availableCoupons
       : Math.min(remainingAllowance, stats.couponsRedeemableNow, stats.availableCoupons);
-    const issueAll = qty === 0 || qty >= maxIssuable;
-    const couponsToIssue = issueAll
-      ? stats.allocatedCoupons.slice(0, maxIssuable)
-      : stats.allocatedCoupons.slice(0, Math.min(qty, maxIssuable));
+    if (maxIssuable <= 0) {
+      const err = new Error(
+        `${employee.name} already used all meals allowed today.`
+      );
+      err.code = 'DUPLICATE_CLAIM';
+      throw err;
+    }
+    const couponsToIssue = stats.allocatedCoupons.slice(0, Math.min(qty, maxIssuable));
 
     const dateString = todayDateString();
 
