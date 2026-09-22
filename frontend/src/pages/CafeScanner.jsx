@@ -28,6 +28,7 @@ const CafeScanner = () => {
   });
 
   const issueSectionRef = useRef(null);
+  const issueLockRef = useRef(false);
 
   useEffect(() => {
     if (!employee || loading) return;
@@ -68,7 +69,8 @@ const CafeScanner = () => {
   };
 
   const handleIssue = async (quantity) => {
-    if (!employee?.employeeId) return;
+    if (!employee?.employeeId || issueLockRef.current) return;
+    issueLockRef.current = true;
 
     setSubmitting(true);
     setApiError('');
@@ -88,11 +90,14 @@ const CafeScanner = () => {
         const remainingCoupons = res.data.remainingCoupons ?? 0;
         const remainingRedeemableNow = Math.max(
           0,
-          typeof res.data.remainingRedeemableNow === 'number'
-            ? res.data.remainingRedeemableNow
-            : (Number(employee.dailyCap) || 0) -
-              (Number(employee.claimedThisWeek) || 0) -
-              issuedCount
+          Math.min(
+            remainingCoupons,
+            typeof res.data.remainingRedeemableNow === 'number'
+              ? res.data.remainingRedeemableNow
+              : (Number(employee.dailyCap) || 0) -
+                (Number(employee.claimedThisWeek) || 0) -
+                issuedCount
+          )
         );
         setEmployee((prev) =>
           prev
@@ -121,13 +126,17 @@ const CafeScanner = () => {
     } catch (err) {
       setApiError(cafeApiErrorMessage(err, t, 'cafe.issueFailed'));
     } finally {
+      issueLockRef.current = false;
       setSubmitting(false);
     }
   };
 
   const handleConfirmSuccess = () => {
     setShowSuccessModal(false);
-    const leftover = remainingEarnedMeals(employee);
+    const leftover = Math.min(
+      remainingEarnedMeals(employee),
+      Number(successData.remainingCoupons) || 0
+    );
     if (leftover <= 0) {
       handleRescan();
     }

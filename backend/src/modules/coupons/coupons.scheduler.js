@@ -82,13 +82,30 @@ export async function allocateDailyCoupons() {
     return { allocated: 0 };
   }
 
+  const todayKey = getAddisDayKey();
+  const [year, month, day] = todayKey.split('-').map(Number);
+  const todayStart = new Date(Date.UTC(year, month - 1, day, 0, 0, 0, 0) - ADDIS_OFFSET_MS);
+
   let allocated = 0;
+  let skippedExisting = 0;
   let failed = 0;
 
   // Allocate one coupon per employee inside individual transactions
   // so a single failure does not roll back everyone else's coupons.
   for (const emp of employees) {
     try {
+      const alreadyToday = await prisma.coupon.count({
+        where: {
+          employeeId: emp.id,
+          status: { in: ['ALLOCATED', 'CLAIMED'] },
+          createdAt: { gte: todayStart },
+        },
+      });
+      if (alreadyToday > 0) {
+        skippedExisting += 1;
+        continue;
+      }
+
       const code = `DAY-${Date.now()}-${Math.random().toString(36).substr(2, 6).toUpperCase()}`;
 
       await prisma.coupon.create({
@@ -117,16 +134,19 @@ export async function allocateDailyCoupons() {
     entityId: null,
     actorId: null,
     newState: {
-      date: new Date().toISOString().split('T')[0],
+      date: todayKey,
       employeeCount: employees.length,
       allocated,
+      skippedExisting,
       failed,
       configId: config.id,
     },
   });
 
-  logger.info(`[Scheduler] Daily allocation complete — ${allocated} coupons issued, ${failed} failed.`);
-  return { allocated, failed };
+  logger.info(
+    `[Scheduler] Daily allocation complete — ${allocated} coupons issued, ${skippedExisting} already had today's coupon, ${failed} failed.`
+  );
+  return { allocated, skippedExisting, failed };
 }
 
 /**

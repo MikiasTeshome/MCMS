@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '../context/AuthContext.jsx';
 import { useCalendar } from '../context/CalendarContext.jsx';
@@ -62,20 +62,25 @@ const Reports = () => {
   const [pdfError, setPdfError] = useState('');
 
   const [reportError, setReportError] = useState('');
+  const reportRequestRef = useRef(0);
 
   const loadReport = async (params = {}, { silent = false } = {}) => {
+    const requestId = reportRequestRef.current + 1;
+    reportRequestRef.current = requestId;
     if (!silent) setLoading(true);
     setReportError('');
     try {
       const res = await getCouponScanReport(params);
+      if (requestId !== reportRequestRef.current) return null;
       setReport(res.data);
       return res.data;
     } catch (err) {
+      if (requestId !== reportRequestRef.current) return null;
       console.error('Failed to load coupon scan report:', err);
       setReportError(err.response?.data?.message || t('reports.loadFailed', { defaultValue: 'Could not load the report. Try again.' }));
       return null;
     } finally {
-      if (!silent) setLoading(false);
+      if (!silent && requestId === reportRequestRef.current) setLoading(false);
     }
   };
 

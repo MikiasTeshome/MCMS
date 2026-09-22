@@ -233,25 +233,16 @@ class CouponsScanService {
     }
 
     const card = await prisma.qRCard.findFirst({
-      where: {
-        cardCode: raw,
-        status: 'ACTIVE',
-      },
-      select: { employeeId: true },
+      where: { cardCode: raw },
+      select: { employeeId: true, status: true },
     });
-    if (card) {
+    if (card?.status === 'ACTIVE') {
       return card.employeeId;
     }
-
-    if (isUuid(raw)) {
-      const inactiveCard = await prisma.qRCard.findFirst({
-        where: { cardCode: raw },
-      });
-      if (inactiveCard) {
-        const err = new Error('QR card is invalid.');
-        err.code = 'QR_INVALID';
-        throw err;
-      }
+    if (card) {
+      const err = new Error('This QR card is blocked or reported lost.');
+      err.code = 'QR_BLOCKED';
+      throw err;
     }
 
     const err = new Error('This QR card is not valid.');
@@ -820,28 +811,49 @@ class CouponsScanService {
     }
 
     // Leftover only: remaining earned weekdays this week, not spare coupon rows.
-    const qty = Math.max(0, Math.trunc(Number(quantity) || 0)) || 1;
-    const remainingAllowance = Math.max(0, stats.dailyCap - stats.claimedThisWeek);
-    const maxIssuable = cleanOverrideReason
-      ? stats.availableCoupons
-      : Math.min(remainingAllowance, stats.couponsRedeemableNow, stats.availableCoupons);
-    if (maxIssuable <= 0) {
-      const err = new Error(
-        `${employee.name} already used all meals allowed today.`
-      );
-      err.code = 'DUPLICATE_CLAIM';
-      throw err;
-    }
-    const couponsToIssue = stats.allocatedCoupons.slice(0, Math.min(qty, maxIssuable));
-
+    const qty = Math.min(5, Math.max(0, Math.trunc(Number(quantity) || 0)) || 1);
+    const weekStart = startOfWeek(new Date());
     const dateString = todayDateString();
 
-    // Atomic transaction: ALL coupon updates and claim records succeed together,
-    // or the entire operation rolls back and no coupon is marked CLAIMED.
-    // maxWait: how long Prisma waits to acquire a connection from the pool.
-    // timeout: maximum wall-clock time the transaction may run before auto-rollback.
+    // Lock the employee row so two cafe desks cannot both spend the leftover cap.
     const claims = await prisma.$transaction(
       async (tx) => {
+        await tx.$queryRaw`SELECT id FROM "User" WHERE id = ${employeeId} FOR UPDATE`;
+
+        const claimedThisWeek = hasCouponClaimModel()
+          ? await tx.couponClaim.count({
+              where: { employeeId, issuedAt: { gte: weekStart } },
+            })
+          : await tx.coupon.count({
+              where: {
+                employeeId,
+                status: 'CLAIMED',
+                claimedAt: { gte: weekStart },
+              },
+            });
+
+        const remainingAllowance = Math.max(0, stats.dailyCap - claimedThisWeek);
+        const allocated = await tx.coupon.findMany({
+          where: {
+            employeeId,
+            status: 'ALLOCATED',
+            expiresAt: { gte: new Date() },
+          },
+          orderBy: [{ expiresAt: 'asc' }, { createdAt: 'asc' }],
+        });
+
+        const maxIssuable = cleanOverrideReason
+          ? allocated.length
+          : Math.min(remainingAllowance, allocated.length);
+        if (maxIssuable <= 0) {
+          const err = new Error(
+            `${employee.name} already used all meals allowed today.`
+          );
+          err.code = 'DUPLICATE_CLAIM';
+          throw err;
+        }
+
+        const couponsToIssue = allocated.slice(0, Math.min(qty, maxIssuable));
         const created = [];
         for (let i = 0; i < couponsToIssue.length; i++) {
           const coupon = couponsToIssue[i];
@@ -941,10 +953,13 @@ class CouponsScanService {
         id: employee.id,
         name: employee.name,
       },
-      remainingCoupons: stats.availableCoupons - claims.length,
+      remainingCoupons: Math.max(0, stats.availableCoupons - claims.length),
       remainingRedeemableNow: Math.max(
         0,
-        stats.dailyCap - stats.claimedThisWeek - claims.length
+        Math.min(
+          stats.availableCoupons - claims.length,
+          stats.dailyCap - stats.claimedThisWeek - claims.length
+        )
       ),
     };
   }

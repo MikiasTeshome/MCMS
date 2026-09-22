@@ -2,6 +2,22 @@ import prisma from '../config/db.js';
 
 let holidayCache = { loadedAt: 0, dates: new Set() };
 const HOLIDAY_CACHE_TTL_MS = 5 * 60 * 1000;
+const ADDIS_OFFSET_MS = 3 * 60 * 60 * 1000;
+
+function addisDayKey(value) {
+  const date = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(date.getTime())) return '';
+  const shifted = new Date(date.getTime() + ADDIS_OFFSET_MS);
+  const year = shifted.getUTCFullYear();
+  const month = String(shifted.getUTCMonth() + 1).padStart(2, '0');
+  const day = String(shifted.getUTCDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
+function addisWeekday(value) {
+  const date = value instanceof Date ? value : new Date(value);
+  return new Date(date.getTime() + ADDIS_OFFSET_MS).getUTCDay();
+}
 
 async function getHolidaySet() {
   const now = Date.now();
@@ -14,9 +30,7 @@ async function getHolidaySet() {
   });
   holidayCache = {
     loadedAt: now,
-    dates: new Set(
-      holidays.map((holiday) => new Date(holiday.date).toISOString().slice(0, 10))
-    ),
+    dates: new Set(holidays.map((holiday) => addisDayKey(holiday.date)).filter(Boolean)),
   };
   return holidayCache.dates;
 }
@@ -24,30 +38,23 @@ async function getHolidaySet() {
 /**
  * Calculate a future Date object that is `workingDays` business days after `startDate`.
  * It excludes Saturday, Sunday, and any dates present in the `Holiday` table.
- *
- * @param {Date} startDate - The starting point (usually allocation date).
- * @param {number} workingDays - Number of working days after which the coupon expires.
- * @returns {Date} - Expiration date set to 23:59:59 of the calculated day.
  */
 export async function calculateExpiryDate(startDate, workingDays) {
   let remaining = workingDays;
   let current = new Date(startDate);
-  // Ensure we start counting from the next day
   current.setUTCHours(0, 0, 0, 0);
+  const holidaySet = await getHolidaySet();
   while (remaining > 0) {
-    // Move one day forward
     current.setUTCDate(current.getUTCDate() + 1);
-    const dayOfWeek = current.getUTCDay(); // 0=Sun,6=Sat
+    const dayOfWeek = addisWeekday(current);
     if (dayOfWeek === 0 || dayOfWeek === 6) {
-      continue; // skip weekends
+      continue;
     }
-    const holidaySet = await getHolidaySet();
-    if (holidaySet.has(current.toISOString().slice(0, 10))) {
-      continue; // skip official holidays
+    if (holidaySet.has(addisDayKey(current))) {
+      continue;
     }
-    remaining -= 1; // count as a working day
+    remaining -= 1;
   }
-  // Set expiry to end of day (23:59:59 UTC)
   current.setUTCHours(23, 59, 59, 999);
   return current;
 }

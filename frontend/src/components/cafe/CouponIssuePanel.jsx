@@ -104,7 +104,10 @@ const CouponIssuePanel = ({
         <button
           type="button"
           disabled={submitting || !canRecord}
-          onClick={() => onIssue(safeQty)}
+          onClick={() => {
+            if (submitting || !canRecord) return;
+            onIssue(safeQty);
+          }}
           className="flex-1 btn-primary py-3 disabled:opacity-40 disabled:cursor-not-allowed"
         >
           <Coffee className="w-5 h-5" />
