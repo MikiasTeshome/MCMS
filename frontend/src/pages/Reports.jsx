@@ -14,7 +14,7 @@ import {
   DATE_INPUT_FORMAT,
 } from '../utils/ethiopianDate.js';
 import CalendarDatePicker from '../components/ui/CalendarDatePicker.jsx';
-import { CalendarDays, Download, FileText, Printer, ArrowUpRight, ArrowDownRight } from 'lucide-react';
+import { CalendarDays, Download, FileText, Printer } from 'lucide-react';
 
 const PRESETS = [
   { key: 'today', label: 'Today' },
@@ -40,13 +40,6 @@ const escapeHtml = (value) =>
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;');
-
-const formatPct = (value) => {
-  if (value === null || value === undefined || Number.isNaN(Number(value))) return '—';
-  const n = Number(value);
-  const sign = n > 0 ? '+' : '';
-  return `${sign}${n.toFixed(2)}%`;
-};
 
 const Reports = () => {
   const { t } = useTranslation();
@@ -131,8 +124,6 @@ const Reports = () => {
   const selectedCount = report?.metrics?.selectedCount || 0;
   const selectedAmount = report?.metrics?.selectedAmount || 0;
   const rate = report?.metrics?.rate || 0;
-  const comparison = report?.comparison;
-
   const dailyRows = useMemo(
     () =>
       series.map((item) => ({
@@ -174,18 +165,6 @@ const Reports = () => {
   useEffect(() => {
     setTablePage((page) => Math.min(page, totalTablePages));
   }, [totalTablePages]);
-
-  const comparisonBadge = (value) => {
-    if (value === null || value === undefined) return <span className="text-app-muted">No comparison</span>;
-    const isPositive = value >= 0;
-    const Icon = isPositive ? ArrowUpRight : ArrowDownRight;
-    return (
-      <span className={`inline-flex items-center gap-1 rounded-full px-2 py-1 text-xs font-semibold ${isPositive ? 'text-emerald-300' : 'text-rose-300'}`}>
-        <Icon className="w-3.5 h-3.5" />
-        {isPositive ? '+' : ''}{value.toFixed(2)}%
-      </span>
-    );
-  };
 
   const exportExcel = async () => {
     const XLSX = await import('xlsx');
@@ -305,8 +284,6 @@ const Reports = () => {
     <div class="card"><div class="label">Coupons scanned</div><div class="value">${escapeHtml(selectedCount.toLocaleString())}</div></div>
     <div class="card"><div class="label">Total revenue</div><div class="value">${escapeHtml(selectedAmount.toLocaleString())} Birr</div></div>
     <div class="card"><div class="label">Standard rate</div><div class="value">${escapeHtml(rate.toLocaleString())} Birr</div></div>
-    <div class="card"><div class="label">Vs previous period</div><div class="value">${escapeHtml(formatPct(comparison?.selectedVsPreviousCount))}</div></div>
-    <div class="card"><div class="label">Revenue change</div><div class="value">${escapeHtml(formatPct(comparison?.selectedVsPreviousAmount))}</div></div>
   </div>
   ${cafeTable}
   ${employeeTable}
@@ -626,31 +603,15 @@ const Reports = () => {
         </div>
       )}
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
-        <div className="surface-card space-y-4">
-          <p className="section-label">Summary</p>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            {summaryItems.map((item) => (
-              <div key={item.label} className="rounded-card border border-app-border p-3" style={{ backgroundColor: 'var(--color-bg-secondary)' }}>
-                <div className="text-[11px] uppercase tracking-wider text-app-muted">{item.label}</div>
-                <div className="mt-1 text-base font-semibold text-app-primary break-words">{item.value}</div>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        <div className="surface-card space-y-3">
-          <p className="section-label">Comparison</p>
-          <div className="space-y-3 text-sm">
-            <div className="flex items-center justify-between gap-4">
-              <span className="text-app-muted">Vs previous period</span>
-              {comparison ? comparisonBadge(comparison.selectedVsPreviousCount) : <span className="text-app-muted">No comparison</span>}
+      <div className="surface-card space-y-4">
+        <p className="section-label">Summary</p>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          {summaryItems.map((item) => (
+            <div key={item.label} className="rounded-card border border-app-border p-3" style={{ backgroundColor: 'var(--color-bg-secondary)' }}>
+              <div className="text-[11px] uppercase tracking-wider text-app-muted">{item.label}</div>
+              <div className="mt-1 text-base font-semibold text-app-primary break-words">{item.value}</div>
             </div>
-            <div className="flex items-center justify-between gap-4">
-              <span className="text-app-muted">Revenue change</span>
-              {comparison ? comparisonBadge(comparison.selectedVsPreviousAmount) : <span className="text-app-muted">No comparison</span>}
-            </div>
-          </div>
+          ))}
         </div>
       </div>
 
