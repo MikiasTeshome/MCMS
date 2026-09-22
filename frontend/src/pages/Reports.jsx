@@ -11,7 +11,9 @@ import {
   formatCalendarShortDate,
   parseCalendarDateString,
   toIsoDay,
+  DATE_INPUT_FORMAT,
 } from '../utils/ethiopianDate.js';
+import CalendarDatePicker from '../components/ui/CalendarDatePicker.jsx';
 import { CalendarDays, Download, FileText, Printer, ArrowUpRight, ArrowDownRight } from 'lucide-react';
 
 const PRESETS = [
@@ -66,15 +68,17 @@ const Reports = () => {
   const [letterCafeKey, setLetterCafeKey] = useState('');
   const [pdfError, setPdfError] = useState('');
 
-  const loadReport = async (params = {}) => {
-    setLoading(true);
+  const loadReport = async (params = {}, { silent = false } = {}) => {
+    if (!silent) setLoading(true);
     try {
       const res = await getCouponScanReport(params);
       setReport(res.data);
+      return res.data;
     } catch (err) {
       console.error('Failed to load coupon scan report:', err);
+      return null;
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   };
 
@@ -324,15 +328,47 @@ const Reports = () => {
     win.document.close();
   };
 
+  const resolveEnteredRange = () => {
+    const start = parseCalendarDateString(calendarMode, customRange.startDate);
+    const end = parseCalendarDateString(calendarMode, customRange.endDate);
+    if (!start || !end) return null;
+    return start <= end ? { startDate: start, endDate: end } : { startDate: end, endDate: start };
+  };
+
   const handleDownloadPaymentLetter = async (row) => {
     const key = `${row?.campusId || 'none'}-${row?.vendorId || 'none'}`;
     setLetterBusyKey(key);
     setLetterError('');
     try {
+      let activeReport = report;
+      const entered = resolveEnteredRange();
+      if (entered) {
+        setActivePreset('custom');
+        activeReport = await loadReport(
+          {
+            startDate: toIsoDay(entered.startDate),
+            endDate: toIsoDay(entered.endDate),
+            calendarMode,
+          },
+          { silent: true }
+        );
+      }
+      if (!activeReport) {
+        throw new Error(t('reports.letterFailed'));
+      }
+      const cafeRow =
+        row ||
+        (activeReport.byCampus || []).find(
+          (item, index) => `${item.campusId || 'none'}-${item.vendorId || 'none'}-${index}` === letterCafeKey
+        ) ||
+        (activeReport.byCampus || [])[0] ||
+        null;
       await downloadPaymentOrderFromReport({
-        report,
-        row: row || (report?.byCampus || [])[0] || null,
+        report: activeReport,
+        row: cafeRow,
         calendarMode,
+        startDate: entered?.startDate || activeReport.selectedRange?.startDate,
+        endDate: entered?.endDate || activeReport.selectedRange?.endDate,
       });
     } catch (err) {
       console.error(err);
@@ -349,17 +385,13 @@ const Reports = () => {
   };
 
   const handleApplyCustomRange = () => {
-    const start = parseCalendarDateString(calendarMode, customRange.startDate);
-    const end = parseCalendarDateString(calendarMode, customRange.endDate);
-    if (!start || !end) return;
-
-    const startDate = start <= end ? start : end;
-    const endDate = start <= end ? end : start;
+    const entered = resolveEnteredRange();
+    if (!entered) return;
 
     setActivePreset('custom');
     loadReport({
-      startDate: toIsoDay(startDate),
-      endDate: toIsoDay(endDate),
+      startDate: toIsoDay(entered.startDate),
+      endDate: toIsoDay(entered.endDate),
       calendarMode,
     });
   };
@@ -440,39 +472,42 @@ const Reports = () => {
           ))}
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-3 items-end">
-          <div className="space-y-2">
-            <label className="text-xs font-bold text-app-secondary uppercase tracking-wider">Start Date</label>
-            <input
-              type="text"
-              inputMode="numeric"
-              placeholder="DD/MM/YYYY"
-              value={customRange.startDate}
-              onChange={(e) => setCustomRange((value) => ({ ...value, startDate: e.target.value }))}
-              className="glass-input"
-            />
-            <p className="text-xs text-app-muted">Enter the {CALENDARS[calendarMode].toLowerCase()} date in DD/MM/YYYY format.</p>
+        <div className="flex flex-col gap-3">
+          <div className="flex flex-col lg:flex-row lg:items-end gap-3">
+            <div className="flex-1 space-y-2 min-w-0">
+              <label className="text-xs font-bold text-app-secondary uppercase tracking-wider">Start Date</label>
+              <CalendarDatePicker
+                calendarMode={calendarMode}
+                value={customRange.startDate}
+                onChange={(nextValue) => setCustomRange((value) => ({ ...value, startDate: nextValue }))}
+                maxDate={parseCalendarDateString(calendarMode, customRange.endDate)}
+                placeholder={DATE_INPUT_FORMAT}
+                className="glass-input"
+              />
+            </div>
+            <div className="flex-1 space-y-2 min-w-0">
+              <label className="text-xs font-bold text-app-secondary uppercase tracking-wider">End Date</label>
+              <CalendarDatePicker
+                calendarMode={calendarMode}
+                value={customRange.endDate}
+                onChange={(nextValue) => setCustomRange((value) => ({ ...value, endDate: nextValue }))}
+                minDate={parseCalendarDateString(calendarMode, customRange.startDate)}
+                placeholder={DATE_INPUT_FORMAT}
+                className="glass-input"
+              />
+            </div>
+            <div className="flex gap-2 shrink-0">
+              <button type="button" className="btn-primary" onClick={handleApplyCustomRange}>
+                Apply
+              </button>
+              <button type="button" className="btn-secondary" onClick={handleResetRange}>
+                Reset
+              </button>
+            </div>
           </div>
-          <div className="space-y-2">
-            <label className="text-xs font-bold text-app-secondary uppercase tracking-wider">End Date</label>
-            <input
-              type="text"
-              inputMode="numeric"
-              placeholder="DD/MM/YYYY"
-              value={customRange.endDate}
-              onChange={(e) => setCustomRange((value) => ({ ...value, endDate: e.target.value }))}
-              className="glass-input"
-            />
-            <p className="text-xs text-app-muted">Stored and queried as Gregorian UTC behind the scenes.</p>
-          </div>
-          <div className="flex gap-2">
-            <button className="btn-primary w-full" onClick={handleApplyCustomRange}>
-              Apply
-            </button>
-            <button className="btn-secondary w-full" onClick={handleResetRange}>
-              Reset
-            </button>
-          </div>
+          <p className="text-xs text-app-muted">
+            Uses the {CALENDARS[calendarMode].toLowerCase()} ({DATE_INPUT_FORMAT}). Apply the range, then download the letter for those dates.
+          </p>
         </div>
       </div>
 

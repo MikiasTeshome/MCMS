@@ -15,9 +15,15 @@ export const formatPaymentLetterDate = (calendarMode, value) => {
   return `${pad(day)}/${pad(month)}/${String(year).slice(-2)}`;
 };
 
-export const downloadPaymentOrderFromReport = async ({ report, row, calendarMode }) => {
-  const start = report?.selectedRange?.startDate;
-  const end = report?.selectedRange?.endDate;
+export const downloadPaymentOrderFromReport = async ({
+  report,
+  row,
+  calendarMode,
+  startDate,
+  endDate,
+}) => {
+  const start = startDate || report?.selectedRange?.startDate;
+  const end = endDate || report?.selectedRange?.endDate;
   const days = report?.chartSeries?.length || 0;
   const count = row?.count ?? report?.metrics?.selectedCount ?? 0;
   const amount = row?.amount ?? report?.metrics?.selectedAmount ?? 0;
