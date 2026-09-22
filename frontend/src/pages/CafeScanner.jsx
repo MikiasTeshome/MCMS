@@ -89,6 +89,8 @@ const CafeScanner = () => {
                 ...prev,
                 claimedToday: true,
                 availableCoupons: remainingCoupons,
+                claimedThisWeek:
+                  (Number(prev.claimedThisWeek) || 0) + (Number(res.data.issuedCount) || 0),
                 couponsRedeemableNow: remainingRedeemableNow,
                 recordBlockReason:
                   remainingRedeemableNow > 0
@@ -115,8 +117,10 @@ const CafeScanner = () => {
 
   const handleConfirmSuccess = () => {
     setShowSuccessModal(false);
-    const leftover =
-      employee?.couponsRedeemableNow ?? employee?.availableCoupons ?? 0;
+    const leftover = Math.max(
+      0,
+      (Number(employee?.dailyCap) || 0) - (Number(employee?.claimedThisWeek) || 0)
+    );
     if (leftover <= 0) {
       handleRescan();
     }
@@ -130,7 +134,8 @@ const CafeScanner = () => {
   };
 
   const eligible =
-    employee && (employee.couponsRedeemableNow ?? employee.availableCoupons) > 0;
+    employee &&
+    Math.max(0, (Number(employee.dailyCap) || 0) - (Number(employee.claimedThisWeek) || 0)) > 0;
 
   return (
     <div className="space-y-8 max-w-6xl mx-auto">

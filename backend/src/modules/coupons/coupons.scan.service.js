@@ -389,7 +389,7 @@ class CouponsScanService {
           }
         : null;
 
-    const [allocated, expired, claimedTodayRow, lastClaim, weekAllocated] =
+    const [allocated, expired, claimedTodayRow, lastClaim, weekAllocated, claimedThisWeek] =
       await Promise.all([
         prisma.coupon.findMany({
           where: {
@@ -430,6 +430,17 @@ class CouponsScanService {
             createdAt: { gte: weekStart },
           },
         }),
+        hasCouponClaimModel()
+          ? prisma.couponClaim.count({
+              where: { employeeId, issuedAt: { gte: weekStart } },
+            })
+          : prisma.coupon.count({
+              where: {
+                employeeId,
+                status: 'CLAIMED',
+                claimedAt: { gte: weekStart },
+              },
+            }),
       ]);
 
     const availableCoupons = allocated.length;
@@ -440,10 +451,11 @@ class CouponsScanService {
         ? allocated[0].expiresAt.toISOString().split('T')[0]
         : null;
 
-    // Earned days so far this week (not Friday-only). Unused days sit in the
-    // wallet and can all be recorded in one visit today, up to dailyCap.
+    // Earned days so far this week (Mon=1 … Fri=5). Leftover = those earned
+    // days minus meals already recorded this week — never future weekdays.
     const dailyCap = await getEffectiveDailyCap();
-    const couponsRedeemableNow = Math.min(dailyCap, availableCoupons);
+    const remainingAllowance = Math.max(0, dailyCap - claimedThisWeek);
+    const couponsRedeemableNow = Math.min(remainingAllowance, availableCoupons);
 
     return {
       availableCoupons,
@@ -458,6 +470,8 @@ class CouponsScanService {
       couponValue,
       weekBalance: weekAllocated,
       dailyCap,
+      claimedThisWeek,
+      remainingAllowance,
       couponsRedeemableNow,
       allocatedCoupons: allocated,
     };
@@ -639,6 +653,7 @@ class CouponsScanService {
       expiryDate: stats.expiryDate,
       weekBalance: stats.weekBalance,
       dailyCap: stats.dailyCap,
+      claimedThisWeek: stats.claimedThisWeek,
       couponsRedeemableNow: stats.couponsRedeemableNow,
       addisDay,
       addisWeekday,
@@ -748,9 +763,12 @@ class CouponsScanService {
       throw err;
     }
 
-    // Enforce daily cap: quantity requested cannot exceed today's redeemable allowance.
+    // Leftover only: remaining earned weekdays this week, not spare coupon rows.
     const qty = Number(quantity);
-    const maxIssuable = cleanOverrideReason ? stats.availableCoupons : stats.couponsRedeemableNow;
+    const remainingAllowance = Math.max(0, stats.dailyCap - stats.claimedThisWeek);
+    const maxIssuable = cleanOverrideReason
+      ? stats.availableCoupons
+      : Math.min(remainingAllowance, stats.couponsRedeemableNow, stats.availableCoupons);
     const issueAll = qty === 0 || qty >= maxIssuable;
     const couponsToIssue = issueAll
       ? stats.allocatedCoupons.slice(0, maxIssuable)
@@ -859,9 +877,9 @@ class CouponsScanService {
         name: employee.name,
       },
       remainingCoupons: stats.availableCoupons - claims.length,
-      remainingRedeemableNow: Math.min(
-        stats.dailyCap,
-        Math.max(0, stats.availableCoupons - claims.length)
+      remainingRedeemableNow: Math.max(
+        0,
+        stats.dailyCap - stats.claimedThisWeek - claims.length
       ),
     };
   }

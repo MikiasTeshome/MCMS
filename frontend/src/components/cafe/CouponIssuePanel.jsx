@@ -3,6 +3,16 @@ import { useTranslation } from 'react-i18next';
 import { Coffee, RotateCcw, Minus, Plus } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext.jsx';
 
+/** Earned weekdays so far minus meals already taken this week. Never future days. */
+const remainingEarnedMeals = (employee) => {
+  const earned = Math.max(0, Number(employee?.dailyCap) || 0);
+  const used = Math.max(0, Number(employee?.claimedThisWeek) || 0);
+  const leftover = Math.max(0, earned - used);
+  const fromApi = Number(employee?.couponsRedeemableNow);
+  const capped = Number.isFinite(fromApi) ? Math.min(leftover, fromApi) : leftover;
+  return Math.max(0, capped);
+};
+
 const CouponIssuePanel = ({
   employee,
   submitting,
@@ -14,7 +24,8 @@ const CouponIssuePanel = ({
   const { t } = useTranslation();
   const { user } = useAuth();
   const isAdmin = user?.role === 'ADMIN';
-  const maxQty = employee?.couponsRedeemableNow ?? employee?.availableCoupons ?? 0;
+  const maxQty = remainingEarnedMeals(employee);
+  const leftoverDays = Math.max(0, maxQty - 1);
   const needsOverride = employee?.claimedToday && maxQty <= 0 && isAdmin;
   const [qty, setQty] = useState(1);
 
@@ -39,6 +50,7 @@ const CouponIssuePanel = ({
             <span className="text-app-muted font-medium">{t('cafe.unusedThisWeek')}</span>
             <span className="font-bold text-app-primary">{maxQty}</span>
           </div>
+          <p className="text-[11px] text-app-muted px-1">{t('cafe.plusRuleHint', { leftover: leftoverDays, max: maxQty })}</p>
 
           {maxQty > 1 && (
             <div className="flex items-center justify-between gap-3 px-4 py-3 rounded-xl border border-app-border">
@@ -57,7 +69,7 @@ const CouponIssuePanel = ({
                   type="button"
                   className="btn-secondary !min-h-0 !py-1 !px-2"
                   disabled={safeQty >= maxQty || submitting}
-                  onClick={() => setQty(safeQty + 1)}
+                  onClick={() => setQty(Math.min(maxQty, safeQty + 1))}
                 >
                   <Plus className="w-4 h-4" />
                 </button>
@@ -122,6 +134,7 @@ const CouponIssuePanel = ({
             {t('cafe.recordDebug', {
               unused: maxQty,
               cap: employee?.dailyCap ?? 0,
+              used: employee?.claimedThisWeek ?? 0,
               day: employee?.addisDay || '—',
             })}
           </p>

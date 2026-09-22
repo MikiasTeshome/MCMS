@@ -58,7 +58,14 @@ const EmployeeInfoCard = ({ employee, eligible }) => {
   const { t } = useTranslation();
   if (!employee) return null;
 
-  const redeemableNow = employee.couponsRedeemableNow ?? employee.availableCoupons;
+  const earned = Math.max(0, Number(employee.dailyCap) || 0);
+  const used = Math.max(0, Number(employee.claimedThisWeek) || 0);
+  const leftover = Math.max(0, earned - used);
+  const fromApi = Number(employee.couponsRedeemableNow);
+  const redeemableNow = Math.max(
+    0,
+    Number.isFinite(fromApi) ? Math.min(leftover, fromApi) : leftover
+  );
   const canIssue = eligible ?? redeemableNow > 0;
 
   return (
