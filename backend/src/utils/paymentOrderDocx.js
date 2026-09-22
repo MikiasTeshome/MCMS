@@ -97,7 +97,7 @@ export async function renderPaymentOrderDocx(vars) {
             [am('ቀን/Date: '), en(date)],
             { alignment: AlignmentType.RIGHT, after: 360 }
           ),
-          p([am('ለፋይናንስ ዳይሬክቶሬት', { bold: true })]),
+          p([am('ለዲን ጽ/ቤት', { bold: true })]),
           p([am('አዲስ አበባ')], { after: 280 }),
           p([
             am('ጉዳዩ፡- ', { bold: true, underline: true }),

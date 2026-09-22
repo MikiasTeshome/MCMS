@@ -138,7 +138,7 @@ export const buildPaymentOrderDocxBytes = (vars) => {
     paragraph(`የሰነድ ቁጥር/Document No: OF/DO/002`, { align: 'right', after: 40 }),
     paragraph('የማጣቀሻ ቁጥር/Ref no: ____________________', { align: 'right', after: 40 }),
     paragraph(`ቀን/Date: ${vars.date}`, { align: 'right', after: 360 }),
-    paragraph('ለፋይናንስ ዳይሬክቶሬት', { bold: true, after: 80 }),
+    paragraph('ለዲን ጽ/ቤት', { bold: true, after: 80 }),
     paragraph('አዲስ አበባ', { after: 280 }),
     paragraph('ጉዳዩ፡- የሰራተኞች የምሳ ትንኛ ኩፖን ክፍያ ይመለከታል።', { bold: true, after: 280 }),
     paragraph(
