@@ -75,7 +75,7 @@ const EmployeeInfoCard = ({ employee, eligible }) => {
             <AlertTriangle className="w-5 h-5" aria-hidden="true" />
           )}
           <span className="font-semibold text-sm uppercase tracking-wider">
-            {canIssue ? t('cafe.clearToRecord') : t('cafe.verifyBlocked')}
+            {canIssue ? t('cafe.clearToRecord') : t('cafe.cannotRecordYet')}
           </span>
         </div>
         <span className="badge">

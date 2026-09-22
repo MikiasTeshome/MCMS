@@ -100,7 +100,7 @@ const CouponIssuePanel = ({
           type="button"
           disabled={submitting || !canRecord}
           onClick={() => onIssue(safeQty)}
-          className="flex-1 btn-primary py-3"
+          className="flex-1 btn-primary py-3 disabled:opacity-40 disabled:cursor-not-allowed"
         >
           <Coffee className="w-5 h-5" />
           {submitting
@@ -109,13 +109,20 @@ const CouponIssuePanel = ({
         </button>
       </div>
 
-      {!canRecord && maxQty === 0 && (
-        <p className="text-xs text-app-muted text-center">{t('cafe.noMealsToday')}</p>
-      )}
-      {employee?.claimedToday && !isAdmin && (
-        <p className="text-xs text-app-secondary text-center">
-          {t('cafe.claimedContactAdmin')}
-        </p>
+      {!canRecord && (
+        <div className="alert alert-error text-sm text-center space-y-1">
+          {employee?.recordBlockReason === 'WEEKEND' && <p>{t('cafe.recordDisabledWeekend')}</p>}
+          {employee?.recordBlockReason === 'NO_BALANCE' && <p>{t('cafe.noMealsToday')}</p>}
+          {employee?.claimedToday && !isAdmin && <p>{t('cafe.claimedContactAdmin')}</p>}
+          {!employee?.recordBlockReason && maxQty === 0 && <p>{t('cafe.noMealsToday')}</p>}
+          <p className="text-xs opacity-80">
+            {t('cafe.recordDebug', {
+              unused: maxQty,
+              cap: employee?.dailyCap ?? 0,
+              day: employee?.addisDay || '—',
+            })}
+          </p>
+        </div>
       )}
     </div>
   );

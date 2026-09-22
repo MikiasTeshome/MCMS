@@ -18,7 +18,7 @@ const toCameraInput = (cameraId) => {
 /**
  * html5-qrcode camera viewfinder for cafe desk scanning.
  */
-const QRScanner = ({ onScan, scanPaused = false }) => {
+const QRScanner = ({ onScan, scanPaused = false, pausedLabel }) => {
   const { t } = useTranslation();
   const reactId = useId().replace(/:/g, '');
 
@@ -276,8 +276,12 @@ const QRScanner = ({ onScan, scanPaused = false }) => {
         )}
 
         {scanPaused && scannerState !== 'ERROR' && (
-          <div className="absolute inset-0 bg-app-surface-2/80 flex items-center justify-center">
-            <Loader2 className="w-8 h-8 spinner" />
+          <div className="absolute inset-0 bg-app-surface-2/90 flex flex-col items-center justify-center gap-2 px-4 text-center">
+            {pausedLabel ? (
+              <p className="text-sm font-semibold text-app-primary">{pausedLabel}</p>
+            ) : (
+              <Loader2 className="w-8 h-8 spinner" />
+            )}
           </div>
         )}
       </div>
