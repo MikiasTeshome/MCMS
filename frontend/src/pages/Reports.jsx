@@ -59,6 +59,8 @@ const Reports = () => {
   const [tableSort, setTableSort] = useState({ key: 'date', order: 'asc' });
   const [tablePage, setTablePage] = useState(1);
   const [tablePageSize, setTablePageSize] = useState(10);
+  const [employeePage, setEmployeePage] = useState(1);
+  const [employeePageSize, setEmployeePageSize] = useState(10);
   const [letterBusyKey, setLetterBusyKey] = useState('');
   const [letterError, setLetterError] = useState('');
   const [letterCafeKey, setLetterCafeKey] = useState('');
@@ -100,6 +102,7 @@ const Reports = () => {
 
   useEffect(() => {
     setTablePage(1);
+    setEmployeePage(1);
   }, [activePreset, tableSort.key, tableSort.order]);
 
   useEffect(() => {
@@ -125,7 +128,6 @@ const Reports = () => {
   const selectedAmount = report?.metrics?.selectedAmount || 0;
   const rate = report?.metrics?.rate || 0;
   const comparison = report?.comparison;
-  const summary = report?.summary || {};
 
   const dailyRows = useMemo(
     () =>
@@ -136,21 +138,17 @@ const Reports = () => {
     [series, calendarMode]
   );
 
-  const summaryHighestDay = useMemo(() => {
-    if (!summary.highestScanDay) return null;
-    return {
-      ...summary.highestScanDay,
-      label: formatCalendarShortDate(calendarMode, summary.highestScanDay.date) || summary.highestScanDay.label,
-    };
-  }, [summary.highestScanDay, calendarMode]);
+  const employees = report?.employees || [];
 
-  const summaryLowestDay = useMemo(() => {
-    if (!summary.lowestScanDay) return null;
-    return {
-      ...summary.lowestScanDay,
-      label: formatCalendarShortDate(calendarMode, summary.lowestScanDay.date) || summary.lowestScanDay.label,
-    };
-  }, [summary.lowestScanDay, calendarMode]);
+  const totalEmployeePages = Math.max(1, Math.ceil(employees.length / employeePageSize));
+  const pagedEmployees = useMemo(() => {
+    const start = (employeePage - 1) * employeePageSize;
+    return employees.slice(start, start + employeePageSize);
+  }, [employees, employeePage, employeePageSize]);
+
+  useEffect(() => {
+    setEmployeePage((page) => Math.min(page, totalEmployeePages));
+  }, [totalEmployeePages]);
 
   const sortedTable = useMemo(() => {
     const rows = [...dailyRows];
@@ -187,15 +185,32 @@ const Reports = () => {
 
   const exportExcel = async () => {
     const XLSX = await import('xlsx');
-    const rows = sortedTable.map((row) => ({
-      Date: row.label,
-      Coupons: row.count,
-      Revenue: row.amount,
-      Rate: rate,
-    }));
-    const ws = XLSX.utils.json_to_sheet(rows);
     const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, 'Coupon Scan Report');
+    XLSX.utils.book_append_sheet(
+      wb,
+      XLSX.utils.json_to_sheet(
+        employees.map((row) => ({
+          Name: row.name,
+          'Employee ID': row.employeeIdNumber,
+          Vouchers: row.count,
+          Amount: row.amount,
+          'Last scan': formatCalendarDate(calendarMode, row.lastIssuedAt) || row.lastIssuedAt,
+        }))
+      ),
+      'Employees'
+    );
+    XLSX.utils.book_append_sheet(
+      wb,
+      XLSX.utils.json_to_sheet(
+        sortedTable.map((row) => ({
+          Date: row.label,
+          Coupons: row.count,
+          Revenue: row.amount,
+          Rate: rate,
+        }))
+      ),
+      'Daily breakdown'
+    );
     XLSX.writeFile(wb, `coupon-scan-report-${toIsoDay(new Date())}.xlsx`);
   };
 
@@ -225,6 +240,26 @@ const Reports = () => {
       .join('')}
   </tbody>
 </table>`;
+
+    const employeeTable = employees.length
+      ? `<h2>Employees who used vouchers</h2>
+<table>
+  <thead><tr><th>Name</th><th>Employee ID</th><th>Vouchers</th><th>Amount (Birr)</th><th>Last scan</th></tr></thead>
+  <tbody>
+    ${employees
+      .map(
+        (row) => `<tr>
+      <td>${escapeHtml(row.name)}</td>
+      <td>${escapeHtml(row.employeeIdNumber)}</td>
+      <td>${escapeHtml(row.count.toLocaleString())}</td>
+      <td>${escapeHtml(Number(row.amount || 0).toLocaleString())}</td>
+      <td>${escapeHtml(formatCalendarDate(calendarMode, row.lastIssuedAt) || '')}</td>
+    </tr>`
+      )
+      .join('')}
+  </tbody>
+</table>`
+      : '';
 
     const dayTable = sortedTable
       .map(
@@ -266,14 +301,11 @@ const Reports = () => {
     <div class="card"><div class="label">Coupons scanned</div><div class="value">${escapeHtml(selectedCount.toLocaleString())}</div></div>
     <div class="card"><div class="label">Total revenue</div><div class="value">${escapeHtml(selectedAmount.toLocaleString())} Birr</div></div>
     <div class="card"><div class="label">Standard rate</div><div class="value">${escapeHtml(rate.toLocaleString())} Birr</div></div>
-    <div class="card"><div class="label">Average / day</div><div class="value">${escapeHtml(summary.averagePerDay?.toLocaleString?.() ?? summary.averagePerDay ?? 0)}</div></div>
-    <div class="card"><div class="label">Revenue / day</div><div class="value">${escapeHtml(summary.averageRevenuePerDay?.toLocaleString?.() ?? summary.averageRevenuePerDay ?? 0)} Birr</div></div>
-    <div class="card"><div class="label">Highest day</div><div class="value">${escapeHtml(summaryHighestDay?.label || '—')}</div></div>
-    <div class="card"><div class="label">Lowest day</div><div class="value">${escapeHtml(summaryLowestDay?.label || '—')}</div></div>
     <div class="card"><div class="label">Vs previous period</div><div class="value">${escapeHtml(formatPct(comparison?.selectedVsPreviousCount))}</div></div>
     <div class="card"><div class="label">Revenue change</div><div class="value">${escapeHtml(formatPct(comparison?.selectedVsPreviousAmount))}</div></div>
   </div>
   ${cafeTable}
+  ${employeeTable}
   <h2>Daily breakdown</h2>
   <table>
     <thead><tr><th>Period</th><th>Coupons scanned</th><th>Revenue (Birr)</th><th>Standard rate</th></tr></thead>
@@ -344,10 +376,6 @@ const Reports = () => {
     { label: 'Coupons Scanned', value: selectedCount.toLocaleString() },
     { label: 'Standard Rate', value: `${rate.toLocaleString()} ${t('common.birr')}` },
     { label: 'Total Revenue', value: `${selectedAmount.toLocaleString()} ${t('common.birr')}` },
-    { label: 'Average / Day', value: summary.averagePerDay?.toLocaleString?.() ?? summary.averagePerDay ?? 0 },
-    { label: 'Revenue / Day', value: `${summary.averageRevenuePerDay?.toLocaleString?.() ?? summary.averageRevenuePerDay ?? 0} ${t('common.birr')}` },
-    { label: 'Highest Day', value: summaryHighestDay?.label || '-' },
-    { label: 'Lowest Day', value: summaryLowestDay?.label || '-' },
   ];
 
   return (
@@ -587,18 +615,83 @@ const Reports = () => {
               <span className="text-app-muted">Revenue change</span>
               {comparison ? comparisonBadge(comparison.selectedVsPreviousAmount) : <span className="text-app-muted">No comparison</span>}
             </div>
-            <div className="pt-2 border-t border-app-border text-xs text-app-muted">
-              {summaryHighestDay?.label && (
-                <div>
-                  Highest day: <span className="text-app-primary">{summaryHighestDay.label}</span>
-                </div>
-              )}
-              {summaryLowestDay?.label && (
-                <div>
-                  Lowest day: <span className="text-app-primary">{summaryLowestDay.label}</span>
-                </div>
-              )}
-            </div>
+          </div>
+        </div>
+      </div>
+
+      <div className="surface-card space-y-4">
+        <div>
+          <p className="section-label mb-2">Employees</p>
+          <h3 className="text-xl font-semibold text-app-primary">Employees who used vouchers</h3>
+        </div>
+        <div className="table-wrap">
+          <div className="table-scroll">
+            <table className="table-modern">
+              <thead>
+                <tr>
+                  <th>Name</th>
+                  <th>Employee ID</th>
+                  <th>Vouchers</th>
+                  <th>Amount</th>
+                  <th>Last scan</th>
+                </tr>
+              </thead>
+              <tbody>
+                {pagedEmployees.length === 0 ? (
+                  <tr>
+                    <td colSpan={5} className="text-app-muted">No voucher use in this range.</td>
+                  </tr>
+                ) : (
+                  pagedEmployees.map((row) => (
+                    <tr key={row.id}>
+                      <td>{row.name}</td>
+                      <td>{row.employeeIdNumber}</td>
+                      <td>{row.count.toLocaleString()}</td>
+                      <td>{Number(row.amount || 0).toLocaleString()} {t('common.birr')}</td>
+                      <td>{formatCalendarDate(calendarMode, row.lastIssuedAt) || '—'}</td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+        <div className="flex flex-col gap-3 border-t border-app-border pt-4 sm:flex-row sm:items-center sm:justify-between no-print">
+          <div className="text-sm text-app-secondary">
+            Showing {employees.length === 0 ? 0 : (employeePage - 1) * employeePageSize + 1}-{Math.min(employeePage * employeePageSize, employees.length)} of {employees.length} employees
+          </div>
+          <div className="flex items-center gap-2">
+            <select
+              value={employeePageSize}
+              onChange={(e) => {
+                setEmployeePageSize(Number(e.target.value));
+                setEmployeePage(1);
+              }}
+              className="glass-input !w-auto"
+            >
+              {[10, 25, 50, 100].map((size) => (
+                <option key={size} value={size}>{size} / page</option>
+              ))}
+            </select>
+            <button
+              type="button"
+              className="btn-secondary"
+              disabled={employeePage <= 1}
+              onClick={() => setEmployeePage((page) => Math.max(page - 1, 1))}
+            >
+              Previous
+            </button>
+            <span className="text-sm text-app-secondary">
+              Page {employeePage} of {totalEmployeePages}
+            </span>
+            <button
+              type="button"
+              className="btn-secondary"
+              disabled={employeePage >= totalEmployeePages}
+              onClick={() => setEmployeePage((page) => Math.min(page + 1, totalEmployeePages))}
+            >
+              Next
+            </button>
           </div>
         </div>
       </div>

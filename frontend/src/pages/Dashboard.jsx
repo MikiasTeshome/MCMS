@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useAuth } from '../context/AuthContext.jsx';
 import { useTranslation } from 'react-i18next';
+import { useCalendar } from '../context/CalendarContext.jsx';
 import { getDashboardStats } from '../services/dashboard.service.js';
 import { getCouponScanReport } from '../services/couponScan.service.js';
 import { Utensils, ShieldAlert, CalendarDays, BarChart3, Wallet, Clock } from 'lucide-react';
@@ -9,6 +10,7 @@ import { PageHeader, PageSkeleton } from '../components/ui/Page.jsx';
 const Dashboard = () => {
   const { user } = useAuth();
   const { t } = useTranslation();
+  const { calendarMode } = useCalendar();
   const [stats, setStats] = useState(null);
   const [scanReport, setScanReport] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -20,7 +22,7 @@ const Dashboard = () => {
         setStats(statsRes.data);
         const canViewScanReport = ['ADMIN', 'HR', 'FINANCE'].includes(user?.role);
         if (canViewScanReport) {
-          const reportRes = await getCouponScanReport();
+          const reportRes = await getCouponScanReport({ calendarMode });
           setScanReport(reportRes.data);
         }
       } catch (err) {
@@ -30,7 +32,7 @@ const Dashboard = () => {
       }
     };
     fetchStats();
-  }, [user]);
+  }, [user, calendarMode]);
 
   if (loading || !stats) return <PageSkeleton />;
 
@@ -42,9 +44,9 @@ const Dashboard = () => {
   const activeCards = cards.filter((c) => c.roles.includes(user?.role));
   const scanReportCards = scanReport
     ? [
-        { title: t('dashboard.scansToday', { defaultValue: 'Scanned Today' }), period: t('dashboard.today', { defaultValue: 'today' }), icon: CalendarDays, ...scanReport.today },
-        { title: t('dashboard.scansThisWeek', { defaultValue: 'Scanned This Week' }), period: t('dashboard.thisWeek', { defaultValue: 'this week' }), icon: BarChart3, ...scanReport.week },
-        { title: t('dashboard.scansThisMonth', { defaultValue: 'Scanned This Month' }), period: t('dashboard.thisMonth', { defaultValue: 'this month' }), icon: Wallet, ...scanReport.month },
+        { title: t('dashboard.scansToday', { defaultValue: 'Scanned Today' }), period: t('dashboard.today', { defaultValue: 'today' }), icon: CalendarDays, count: scanReport.today?.count || 0, amount: scanReport.today?.amount || 0, rate: scanReport.today?.rate || scanReport.metrics?.rate || 40 },
+        { title: t('dashboard.scansThisWeek', { defaultValue: 'Scanned This Week' }), period: t('dashboard.thisWeek', { defaultValue: 'this week' }), icon: BarChart3, count: scanReport.week?.count || 0, amount: scanReport.week?.amount || 0, rate: scanReport.week?.rate || scanReport.metrics?.rate || 40 },
+        { title: t('dashboard.scansThisMonth', { defaultValue: 'Scanned This Month' }), period: t('dashboard.thisMonth', { defaultValue: 'this month' }), icon: Wallet, count: scanReport.month?.count || 0, amount: scanReport.month?.amount || 0, rate: scanReport.month?.rate || scanReport.metrics?.rate || 40 },
       ]
     : [];
 

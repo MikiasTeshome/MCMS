@@ -2,8 +2,11 @@ import prisma from '../../config/db.js';
 
 class DashboardService {
   async getStats(user) {
-    const todayStart = new Date();
-    todayStart.setHours(0, 0, 0, 0);
+    const ethiopiaOffsetMs = 3 * 60 * 60 * 1000;
+    const localNow = new Date(Date.now() + ethiopiaOffsetMs);
+    const todayStart = new Date(
+      Date.UTC(localNow.getUTCFullYear(), localNow.getUTCMonth(), localNow.getUTCDate()) - ethiopiaOffsetMs
+    );
 
     const [totalCoupons, claimedCoupons, expiredCoupons, activeEmployees, todayClaims, recentCoupons] =
       await Promise.all([

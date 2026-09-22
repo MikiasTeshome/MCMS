@@ -678,7 +678,14 @@ class CouponsService {
         ORDER BY 1 ASC
       `;
       return rows.map((row) => ({
-        day: formatDateKey(row.day),
+        day: (() => {
+          const value = row.day;
+          if (!value) return '';
+          if (typeof value === 'string') return String(value).slice(0, 10);
+          const date = new Date(value);
+          if (Number.isNaN(date.getTime())) return '';
+          return `${date.getUTCFullYear()}-${String(date.getUTCMonth() + 1).padStart(2, '0')}-${String(date.getUTCDate()).padStart(2, '0')}`;
+        })(),
         count: Number(row.count || 0),
         amount: Number(row.amount || 0),
       }));
@@ -703,9 +710,49 @@ class CouponsService {
       ORDER BY amount DESC
     `;
 
-    const [selectedRows, previousRows] = await Promise.all([
+    const ethiopiaDateKey = (value) => {
+      const local = getEthiopiaLocalDate(value);
+      if (!local) return '';
+      return `${local.getUTCFullYear()}-${String(local.getUTCMonth() + 1).padStart(2, '0')}-${String(local.getUTCDate()).padStart(2, '0')}`;
+    };
+
+    const dashTodayStart = startOfEthiopiaDayUtc(now);
+    const dashTodayEnd = endOfEthiopiaDayUtc(now);
+    const dashLocalNow = getEthiopiaLocalDate(now);
+    const dashDaysSinceMonday = (dashLocalNow.getUTCDay() + 6) % 7;
+    const dashWeekStart = shiftUtcDays(dashTodayStart, -dashDaysSinceMonday);
+    const dashParts = getCalendarParts(calendarMode, now);
+    const dashMonthStartDate = calendarPartsToGregorianDate(calendarMode, {
+      year: dashParts.year,
+      month: dashParts.month,
+      day: 1,
+    });
+    const dashMonthStart = startOfEthiopiaDayUtc(dashMonthStartDate || dashTodayStart);
+
+    const [selectedRows, previousRows, todayRows, weekRows, monthRows, employeeClaims] = await Promise.all([
       aggregateRange(startDate, endDate),
       rangeType === 'lifetime' ? Promise.resolve([]) : aggregateRange(previousStart, previousEnd),
+      aggregateRange(dashTodayStart, dashTodayEnd),
+      aggregateRange(dashWeekStart, dashTodayEnd),
+      aggregateRange(dashMonthStart, dashTodayEnd),
+      prisma.couponClaim.findMany({
+        where: {
+          issuedAt: { gte: startDate, lte: endDate },
+          ...(campusId ? { campusId } : {}),
+          ...(vendorId ? { vendorId } : {}),
+        },
+        select: {
+          issuedAt: true,
+          employee: {
+            select: {
+              id: true,
+              name: true,
+              employeeProfile: { select: { employeeIdNumber: true } },
+            },
+          },
+          coupon: { select: { value: true } },
+        },
+      }),
     ]);
     const selectedRowMap = new Map(selectedRows.map((row) => [row.day, row]));
 
@@ -713,15 +760,20 @@ class CouponsService {
     const selectedAmount = selectedRows.reduce((sum, row) => sum + row.amount, 0);
     const previousCount = previousRows.reduce((sum, row) => sum + row.count, 0);
     const previousAmount = previousRows.reduce((sum, row) => sum + row.amount, 0);
+    const sumPeriod = (rows) => ({
+      count: rows.reduce((sum, row) => sum + row.count, 0),
+      amount: rows.reduce((sum, row) => sum + row.amount, 0),
+      rate: STANDARD_COUPON_VALUE,
+    });
     const compare = (current, previous) => {
       if (!previous) return null;
       return Number((((current - previous) / previous) * 100).toFixed(2));
     };
 
     const chartSeries = [];
-    const dayCursor = new Date(startDate);
+    let dayCursor = new Date(startDate.getTime());
     while (dayCursor <= endDate) {
-      const key = formatDateKey(dayCursor);
+      const key = ethiopiaDateKey(dayCursor);
       const match = selectedRowMap.get(key);
       chartSeries.push({
         date: key,
@@ -729,8 +781,31 @@ class CouponsService {
         count: match?.count || 0,
         amount: match?.amount || 0,
       });
-      dayCursor.setUTCDate(dayCursor.getUTCDate() + 1);
+      dayCursor = shiftUtcDays(dayCursor, 1);
     }
+
+    const employeeMap = new Map();
+    for (const claim of employeeClaims) {
+      const id = claim.employee?.id;
+      if (!id) continue;
+      const current = employeeMap.get(id) || {
+        id,
+        name: claim.employee.name || 'N/A',
+        employeeIdNumber: claim.employee.employeeProfile?.employeeIdNumber || 'N/A',
+        count: 0,
+        amount: 0,
+        lastIssuedAt: claim.issuedAt,
+      };
+      current.count += 1;
+      current.amount += Number(claim.coupon?.value || 0);
+      if (new Date(claim.issuedAt) > new Date(current.lastIssuedAt)) {
+        current.lastIssuedAt = claim.issuedAt;
+      }
+      employeeMap.set(id, current);
+    }
+    const employees = [...employeeMap.values()].sort(
+      (a, b) => new Date(b.lastIssuedAt) - new Date(a.lastIssuedAt)
+    );
 
     return {
       standardCouponValue: STANDARD_COUPON_VALUE,
@@ -773,6 +848,10 @@ class CouponsService {
         count: Number(row.count || 0),
         amount: Number(row.amount || 0),
       })),
+      employees,
+      today: sumPeriod(todayRows),
+      week: sumPeriod(weekRows),
+      month: sumPeriod(monthRows),
     };
   }
 
