@@ -12,3 +12,11 @@ export const getProfile = async () => {
   const response = await api.get('/auth/me');
   return response.data;
 };
+
+export const changePassword = async ({ currentPassword, newPassword }) => {
+  const response = await api.post('/auth/change-password', {
+    currentPassword,
+    newPassword,
+  });
+  return response.data;
+};

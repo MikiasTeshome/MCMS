@@ -36,6 +36,7 @@
     "noData": "No records found",
     "retry": "Retry Connection",
     "collapse": "Collapse",
+    "changePassword": "Change password",
     "lightMode": "Light mode",
     "darkMode": "Dark mode"
   },
@@ -54,6 +55,19 @@
     "button": "Sign In Securely",
     "error": "Invalid email or password.",
     "inactive": "This account is inactive. Contact HR or an administrator."
+  },
+  "account": {
+    "title": "Change password",
+    "subtitle": "Use this after an admin gives you a temporary password, or whenever you want a new one. If you forget it, ask an administrator to reset it.",
+    "currentPassword": "Current password",
+    "newPassword": "New password",
+    "confirmPassword": "Confirm new password",
+    "submit": "Update password",
+    "success": "Password changed. Use the new password next time you sign in.",
+    "failed": "Could not change password.",
+    "passwordTooShort": "New password must be at least 8 characters.",
+    "passwordMismatch": "New password and confirmation do not match.",
+    "passwordSame": "New password must be different from the current password."
   },
   "dashboard": {
     "welcome": "Welcome back, {{name}}",
@@ -92,13 +106,20 @@
     "createAccount": "Create Account",
     "resetPassword": "Reset password",
     "resetTitle": "Set a new password",
-    "resetHelp": "Tell {{name}} ({{email}}) the new password in person. There is no email reset.",
+    "resetHelp": "Tell {{name}} ({{email}}) the new password in person. They can change it after they sign in. There is no email reset.",
     "newPassword": "New password",
     "resetSuccess": "Password updated for {{name}}. Give it to them in person.",
     "resetFailed": "Could not reset password",
     "campusUpdated": "Campus updated for {{name}}",
     "campusUpdateFailed": "Could not update campus",
-    "selectCampus": "Select campus"
+    "selectCampus": "Select campus",
+    "deactivate": "Deactivate",
+    "reactivate": "Reactivate",
+    "deactivateConfirm": "Deactivate {{name}}? They will not be able to sign in until you reactivate them. Past meal reports are not changed.",
+    "reactivateConfirm": "Reactivate {{name}} so they can sign in again?",
+    "deactivated": "{{name}} can no longer sign in.",
+    "reactivated": "{{name}} can sign in again.",
+    "statusFailed": "Could not update account status"
   },
   "employees": {
     "title": "HR Employee Directory",

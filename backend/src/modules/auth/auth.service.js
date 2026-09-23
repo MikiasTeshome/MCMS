@@ -99,6 +99,62 @@ class AuthService {
 
     return user;
   }
+
+  async changePassword(userId, currentPassword, newPassword, req) {
+    const current = String(currentPassword || '');
+    const next = String(newPassword || '').trim();
+
+    if (current.length > 128 || next.length > 128) {
+      const err = new Error('Invalid password');
+      err.code = 'INVALID_PASSWORD';
+      throw err;
+    }
+    if (next.length < 8) {
+      const err = new Error('New password must be at least 8 characters');
+      err.code = 'WEAK_PASSWORD';
+      throw err;
+    }
+    if (current === next) {
+      const err = new Error('New password must be different from the current password');
+      err.code = 'SAME_PASSWORD';
+      throw err;
+    }
+
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { id: true, role: true, isActive: true, passwordHash: true },
+    });
+
+    if (!user || !user.isActive || user.role === 'EMPLOYEE') {
+      const err = new Error('User session not found');
+      err.code = 'UNAUTHORIZED';
+      throw err;
+    }
+
+    const isMatch = await bcrypt.compare(current, user.passwordHash || DUMMY_PASSWORD_HASH);
+    if (!isMatch) {
+      const err = new Error('Current password is incorrect');
+      err.code = 'WRONG_PASSWORD';
+      throw err;
+    }
+
+    const passwordHash = await bcrypt.hash(next, 10);
+    await prisma.user.update({
+      where: { id: userId },
+      data: { passwordHash },
+    });
+
+    await auditService.log({
+      action: 'USER_PASSWORD_CHANGED',
+      entityType: 'User',
+      entityId: user.id,
+      actorId: user.id,
+      newState: { changedBy: 'self' },
+      req,
+    });
+
+    return { ok: true };
+  }
 }
 
 export default new AuthService();

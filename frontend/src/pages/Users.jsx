@@ -252,17 +252,18 @@ const Users = () => {
                 <th className="pb-3">{t('common.role')}</th>
                 <th className="pb-3">{t('cafes.campuses')}</th>
                 <th className="pb-3">{t('users.clearanceDate')}</th>
+                <th className="pb-3">{t('common.status')}</th>
                 <th className="pb-3 text-right">{t('common.actions')}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-app-border/60">
               {usersList.length === 0 ? (
                 <tr>
-                  <td colSpan="6" className="py-6 text-center text-app-muted">No accounts match selected parameters</td>
+                  <td colSpan="7" className="py-6 text-center text-app-muted">No accounts match selected parameters</td>
                 </tr>
               ) : (
                 usersList.map((usr) => (
-                  <tr key={usr.id} className="text-app-secondary hover:bg-app-surface-2/10">
+                  <tr key={usr.id} className={`text-app-secondary hover:bg-app-surface-2/10 ${usr.isActive === false ? 'opacity-60' : ''}`}>
                     <td className="py-3 font-semibold text-app-primary">{usr.name}</td>
                     <td className="py-3">{usr.email}</td>
                     <td className="py-3">
@@ -297,19 +298,55 @@ const Users = () => {
                       )}
                     </td>
                     <td className="py-3 text-app-secondary">{formatCalendarDate(calendarMode, usr.createdAt)}</td>
+                    <td className="py-3">
+                      <span className="text-xs font-medium">
+                        {usr.isActive === false ? t('common.inactive') : t('common.active')}
+                      </span>
+                    </td>
                     <td className="py-3 text-right">
-                      <button
-                        type="button"
-                        className="btn-secondary py-1.5 min-h-0 text-xs"
-                        onClick={() => {
-                          setResetTarget(usr);
-                          setResetPassword('');
-                          setActionError('');
-                        }}
-                      >
-                        <Key className="w-3.5 h-3.5" />
-                        {t('users.resetPassword')}
-                      </button>
+                      <div className="flex flex-wrap justify-end gap-2">
+                        <button
+                          type="button"
+                          className="btn-secondary py-1.5 min-h-0 text-xs"
+                          onClick={() => {
+                            setResetTarget(usr);
+                            setResetPassword('');
+                            setActionError('');
+                          }}
+                        >
+                          <Key className="w-3.5 h-3.5" />
+                          {t('users.resetPassword')}
+                        </button>
+                        <button
+                          type="button"
+                          className="btn-secondary py-1.5 min-h-0 text-xs"
+                          disabled={usr.id === user?.id}
+                          onClick={async () => {
+                            const nextActive = usr.isActive === false;
+                            const ok = window.confirm(
+                              nextActive
+                                ? t('users.reactivateConfirm', { name: usr.name })
+                                : t('users.deactivateConfirm', { name: usr.name })
+                            );
+                            if (!ok) return;
+                            setActionError('');
+                            setActionSuccess('');
+                            try {
+                              await updateUser(usr.id, { isActive: nextActive });
+                              setActionSuccess(
+                                nextActive
+                                  ? t('users.reactivated', { name: usr.name })
+                                  : t('users.deactivated', { name: usr.name })
+                              );
+                              fetchUsers(pageMeta.page, pageMeta.limit);
+                            } catch (err) {
+                              setActionError(err.response?.data?.message || t('users.statusFailed'));
+                            }
+                          }}
+                        >
+                          {usr.isActive === false ? t('users.reactivate') : t('users.deactivate')}
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ))

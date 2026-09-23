@@ -1,13 +1,15 @@
 import React, { useState, useRef, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext.jsx';
 import { useCalendar } from '../../context/CalendarContext.jsx';
 import { useI18n } from '../../i18n/I18nProvider.jsx';
 import { useTranslation } from 'react-i18next';
 import { useTheme } from '../../context/ThemeContext.jsx';
-import { Languages, User as UserIcon, Menu, Sun, Moon, ChevronDown, CalendarDays } from 'lucide-react';
+import { Languages, User as UserIcon, Menu, Sun, Moon, ChevronDown, CalendarDays, KeyRound } from 'lucide-react';
 
 const Header = ({ onMenuToggle }) => {
   const { user } = useAuth();
+  const navigate = useNavigate();
   const { t } = useTranslation();
   const { language, changeLanguage } = useI18n();
   const { calendarMode, setCalendarMode } = useCalendar();
@@ -92,6 +94,18 @@ const Header = ({ onMenuToggle }) => {
                 <p className="text-xs text-app-muted truncate">{user?.email}</p>
               </div>
               <span className="badge mx-3 my-2">{t(`roles.${user?.role}`, { defaultValue: user?.role })}</span>
+              <button
+                type="button"
+                role="menuitem"
+                className="nav-link w-full mt-1"
+                onClick={() => {
+                  setProfileOpen(false);
+                  navigate('/account/password');
+                }}
+              >
+                <KeyRound className="nav-link-icon" aria-hidden="true" />
+                <span>{t('common.changePassword')}</span>
+              </button>
             </div>
           )}
         </div>

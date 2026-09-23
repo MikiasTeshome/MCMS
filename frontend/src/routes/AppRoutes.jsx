@@ -23,6 +23,7 @@ const Employees = lazy(() => import('../pages/Employees.jsx'));
 const Cafes = lazy(() => import('../pages/Cafes.jsx'));
 const OffDays = lazy(() => import('../pages/OffDays.jsx'));
 const Reports = lazy(() => import('../pages/Reports.jsx'));
+const ChangePassword = lazy(() => import('../pages/ChangePassword.jsx'));
 
 const HomeRedirect = () => {
   const { user, isAuthenticated, loading } = useAuth();
@@ -81,6 +82,14 @@ const AppRoutes = () => {
           element={
             <RoleRoute allowedRoles={['ADMIN', 'HR', 'FINANCE', 'CAFE_STAFF']}>
               <Reports />
+            </RoleRoute>
+          }
+        />
+        <Route
+          path="account/password"
+          element={
+            <RoleRoute allowedRoles={['ADMIN', 'HR', 'FINANCE', 'CAFE_STAFF']}>
+              <ChangePassword />
             </RoleRoute>
           }
         />

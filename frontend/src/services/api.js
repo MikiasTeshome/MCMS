@@ -1,4 +1,5 @@
 import axios from 'axios';
+import { clearSharedSession, getSharedToken } from '../utils/authSession.js';
 
 function resolveApiBaseUrl() {
   // In dev, use the same host/protocol as the page so phones on the LAN hit the Vite proxy.
@@ -17,7 +18,7 @@ const api = axios.create({
 
 api.interceptors.request.use(
   (config) => {
-    const token = localStorage.getItem('mcms_token');
+    const token = getSharedToken();
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
     }
@@ -38,12 +39,11 @@ api.interceptors.response.use(
       const isLogin = url.includes('/auth/login');
       if (!isLogin) {
         const sent = String(error.config?.headers?.Authorization || '');
-        const current = localStorage.getItem('mcms_token');
+        const current = getSharedToken();
         if (current && sent && sent !== `Bearer ${current}`) {
           return Promise.reject(error);
         }
-        localStorage.removeItem('mcms_token');
-        localStorage.removeItem('mcms_user');
+        clearSharedSession();
         window.dispatchEvent(new Event('mcms:unauthenticated'));
         if (window.location.pathname !== '/login') {
           window.location.replace('/login');

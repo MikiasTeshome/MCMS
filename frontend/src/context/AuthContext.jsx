@@ -1,37 +1,46 @@
-import React, { createContext, useCallback, useContext, useEffect, useState } from 'react';
+import React, { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
 import { authLogin, getProfile } from '../services/auth.service.js';
+import { homePathForRole } from '../utils/roleHome.js';
+import {
+  clearSharedSession,
+  getSharedToken,
+  getSharedUser,
+  persistSharedSession,
+  subscribeSharedSession,
+  writeSharedSession,
+} from '../utils/authSession.js';
 
 const AuthContext = createContext(null);
 
-const TOKEN_KEY = 'mcms_token';
-const USER_KEY = 'mcms_user';
-
-const readStoredUser = () => {
-  try {
-    const raw = localStorage.getItem(USER_KEY);
-    return raw ? JSON.parse(raw) : null;
-  } catch {
-    return null;
+const applySharedSessionInThisTab = (nextUser) => {
+  if (!nextUser) {
+    if (window.location.pathname !== '/login') {
+      window.location.replace('/login');
+    }
+    return;
   }
-};
-
-const clearSessionStorage = () => {
-  localStorage.removeItem(TOKEN_KEY);
-  localStorage.removeItem(USER_KEY);
+  const home = homePathForRole(nextUser.role);
+  if (window.location.pathname !== home) {
+    window.location.replace(home);
+    return;
+  }
+  window.location.reload();
 };
 
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
-  const [loading, setLoading] = useState(() => Boolean(localStorage.getItem(TOKEN_KEY)));
+  const [loading, setLoading] = useState(() => Boolean(getSharedToken()));
+  const userIdRef = useRef(null);
 
   const logout = useCallback(() => {
+    userIdRef.current = null;
     setUser(null);
-    clearSessionStorage();
+    clearSharedSession();
   }, []);
 
   useEffect(() => {
     const initializeAuth = async () => {
-      const token = localStorage.getItem(TOKEN_KEY);
+      const token = getSharedToken();
       if (!token) {
         setUser(null);
         setLoading(false);
@@ -41,13 +50,14 @@ export const AuthProvider = ({ children }) => {
       try {
         const profileRes = await getProfile();
         if (profileRes.success) {
-          if (!localStorage.getItem(TOKEN_KEY)) return;
+          if (getSharedToken() !== token) return;
           if (profileRes.data?.role === 'EMPLOYEE') {
             logout();
             return;
           }
+          userIdRef.current = profileRes.data.id;
           setUser(profileRes.data);
-          localStorage.setItem(USER_KEY, JSON.stringify(profileRes.data));
+          persistSharedSession(token, profileRes.data);
         } else {
           logout();
         }
@@ -64,30 +74,41 @@ export const AuthProvider = ({ children }) => {
   }, [logout]);
 
   useEffect(() => {
-    const syncFromStorage = () => {
-      const token = localStorage.getItem(TOKEN_KEY);
-      if (!token) {
+    const onForeignSession = ({ token, user: nextUser }) => {
+      const nextId = nextUser?.id || null;
+      if (!token || !nextUser) {
+        userIdRef.current = null;
         setUser(null);
+        applySharedSessionInThisTab(null);
         return;
       }
-      setUser(readStoredUser());
+      if (nextId === userIdRef.current) {
+        setUser(nextUser);
+        return;
+      }
+      userIdRef.current = nextId;
+      applySharedSessionInThisTab(nextUser);
     };
 
+    const unsubscribe = subscribeSharedSession(onForeignSession);
+
     const onPageShow = (event) => {
-      if (event.persisted) {
-        syncFromStorage();
-      }
+      if (!event.persisted) return;
+      const stored = getSharedUser();
+      const storedId = stored?.id || null;
+      if (storedId === userIdRef.current) return;
+      onForeignSession({ token: getSharedToken(), user: stored });
     };
 
     const onUnauthenticated = () => {
+      userIdRef.current = null;
       setUser(null);
     };
 
-    window.addEventListener('storage', syncFromStorage);
     window.addEventListener('pageshow', onPageShow);
     window.addEventListener('mcms:unauthenticated', onUnauthenticated);
     return () => {
-      window.removeEventListener('storage', syncFromStorage);
+      unsubscribe();
       window.removeEventListener('pageshow', onPageShow);
       window.removeEventListener('mcms:unauthenticated', onUnauthenticated);
     };
@@ -98,15 +119,13 @@ export const AuthProvider = ({ children }) => {
       const res = await authLogin(email, password);
       if (res.success) {
         const { user: loggedUser, token } = res.data;
+        userIdRef.current = loggedUser.id;
+        writeSharedSession(token, loggedUser);
         setUser(loggedUser);
-        localStorage.setItem(TOKEN_KEY, token);
-        localStorage.setItem(USER_KEY, JSON.stringify(loggedUser));
         return { success: true, user: loggedUser };
       }
       throw new Error('Login attempt failed');
     } catch (error) {
-      setUser(null);
-      clearSessionStorage();
       const wrapped = new Error(
         error.response?.data?.message || error.message || 'Login attempt failed'
       );

@@ -36,6 +36,7 @@
     "noData": "መዝገብ አልተገኘም",
     "retry": "እንደገና ይሞክሩ",
     "collapse": "ሰብስብ",
+    "changePassword": "የይለፍ ቃል ቀይር",
     "lightMode": "ብርሃን ሁነታ",
     "darkMode": "ጨለማ ሁነታ"
   },
@@ -54,6 +55,19 @@
     "button": "በደህንነት ግባ",
     "error": "ኢሜይል ወይም የይለፍ ቃል ትክክል አይደለም።",
     "inactive": "ይህ መለያ እንቅስቃሴ-አልባ ነው። HR ወይም አስተዳዳሪን ያግኙ።"
+  },
+  "account": {
+    "title": "የይለፍ ቃል ቀይር",
+    "subtitle": "አስተዳዳሪ ጊዜያዊ የይለፍ ቃል ከሰጠዎ በኋላ ወይም በፈለጉ ጊዜ ይቀይሩ። ከረሱ አስተዳዳሪው እንደገና ያዘጋጅልዎታል።",
+    "currentPassword": "ያሁኑ የይለፍ ቃል",
+    "newPassword": "አዲስ የይለፍ ቃል",
+    "confirmPassword": "አዲሱን ያረጋግጡ",
+    "submit": "የይለፍ ቃል አዘምን",
+    "success": "የይለፍ ቃል ተቀይሯል። በሚቀጥለው ጊዜ አዲሱን ይጠቀሙ።",
+    "failed": "የይለፍ ቃል መቀየር አልተቻለም።",
+    "passwordTooShort": "አዲሱ የይለፍ ቃል ቢያንስ 8 ፊደላት መሆን አለበት።",
+    "passwordMismatch": "አዲሱ የይለፍ ቃል እና ማረጋገጫው አይዛመዱም።",
+    "passwordSame": "አዲሱ የይለፍ ቃል ከአሁኑ የተለየ መሆን አለበት።"
   },
   "dashboard": {
     "welcome": "እንኳን ደህና መጡ {{name}}",
@@ -92,13 +106,20 @@
     "createAccount": "መለያ ፍጠር",
     "resetPassword": "የይለፍ ቃል ቀይር",
     "resetTitle": "አዲስ የይለፍ ቃል ያስገቡ",
-    "resetHelp": "አዲሱን የይለፍ ቃል ለ {{name}} ({{email}}) በአካል ይንገሩ። በኢሜይል አይላክም።",
+    "resetHelp": "አዲሱን የይለፍ ቃል ለ {{name}} ({{email}}) በአካል ይንገሩ። ከገቡ በኋላ ራሳቸው መቀየር ይችላሉ። በኢሜይል አይላክም።",
     "newPassword": "አዲስ የይለፍ ቃል",
     "resetSuccess": "የ {{name}} የይለፍ ቃል ተቀይሯል። በአካል ይስጧቸው።",
     "resetFailed": "የይለፍ ቃል መቀየር አልተሳካም",
     "campusUpdated": "የ {{name}} ካምፓስ ተቀይሯል",
     "campusUpdateFailed": "ካምፓስ መቀየር አልተሳካም",
-    "selectCampus": "ካምፓስ ይምረጡ"
+    "selectCampus": "ካምፓስ ይምረጡ",
+    "deactivate": "አቁም",
+    "reactivate": "እንደገና አንቃ",
+    "deactivateConfirm": "{{name}}ን ማቆም ይፈልጋሉ? እስኪያነቁ ድረስ መግባት አይችሉም። ያለፉ የምግብ ሪፖርቶች አይቀየሩም።",
+    "reactivateConfirm": "{{name}} እንደገና መግባት ይችሉ?",
+    "deactivated": "{{name}} ከአሁን በኋላ መግባት አይችሉም።",
+    "reactivated": "{{name}} እንደገና መግባት ይችላሉ።",
+    "statusFailed": "የመለያ ሁኔታ መቀየር አልተሳካም"
   },
   "employees": {
     "title": "የሰራተኞች ማውጫ",

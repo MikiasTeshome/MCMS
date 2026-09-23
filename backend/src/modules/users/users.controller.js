@@ -68,6 +68,13 @@ export const updateUser = async (req, res, next) => {
     if (error.message === 'Cafe staff must be assigned to a campus') {
       return errorResponse(res, 400, error.message);
     }
+    if (
+      error.message === 'You cannot deactivate your own account' ||
+      error.message === 'Keep at least one active administrator' ||
+      error.message.includes('Employees do not log in')
+    ) {
+      return errorResponse(res, 400, error.message);
+    }
     next(error);
   }
 };

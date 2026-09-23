@@ -6,6 +6,7 @@ import {
   LayoutDashboard,
   Users as UsersIcon,
   ShieldAlert,
+  KeyRound,
   LogOut,
   QrCode,
   UserCheck,
@@ -96,6 +97,17 @@ const Sidebar = ({ isOpen, setIsOpen, collapsed, onToggleCollapse }) => {
             <PanelLeftClose className="nav-link-icon" />
           )}
           <span className="sidebar-label">{t('common.collapse')}</span>
+        </button>
+        <button
+          onClick={() => {
+            setIsOpen(false);
+            navigate('/account/password');
+          }}
+          className="nav-link w-full sidebar-footer-btn mt-1"
+          aria-label={t('common.changePassword')}
+        >
+          <KeyRound className="nav-link-icon" aria-hidden="true" />
+          <span className="sidebar-label">{t('common.changePassword')}</span>
         </button>
         <button
           onClick={handleLogout}

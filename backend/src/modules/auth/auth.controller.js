@@ -44,3 +44,27 @@ export const getMe = async (req, res, next) => {
     next(error);
   }
 };
+
+export const changePassword = async (req, res, next) => {
+  try {
+    const { currentPassword, newPassword } = req.body;
+    if (typeof currentPassword !== 'string' || typeof newPassword !== 'string') {
+      return errorResponse(res, 400, 'Enter your current password and a new password');
+    }
+
+    await authService.changePassword(req.user.id, currentPassword, newPassword, req);
+    return successResponse(res, 200, 'Password changed. Use the new password next time you sign in.');
+  } catch (error) {
+    const mapped = {
+      WRONG_PASSWORD: 400,
+      WEAK_PASSWORD: 400,
+      SAME_PASSWORD: 400,
+      INVALID_PASSWORD: 400,
+      UNAUTHORIZED: 401,
+    };
+    if (error.code && mapped[error.code]) {
+      return errorResponse(res, mapped[error.code], error.message, error.code);
+    }
+    next(error);
+  }
+};

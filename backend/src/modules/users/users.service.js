@@ -49,6 +49,7 @@ class UsersService {
         email: true,
         name: true,
         role: true,
+        isActive: true,
         campusId: true,
         campus: { select: { id: true, name: true, code: true } },
         createdAt: true,
@@ -108,8 +109,25 @@ class UsersService {
       throw new Error('User not found');
     }
 
+    if (existing.role === 'EMPLOYEE') {
+      throw new Error('Employees do not log in. Manage them on the Employees page.');
+    }
+
     const nextData = {};
     if (typeof data.isActive === 'boolean') {
+      if (data.isActive === false) {
+        if (userId === actorId) {
+          throw new Error('You cannot deactivate your own account');
+        }
+        if (existing.role === 'ADMIN') {
+          const otherActiveAdmins = await prisma.user.count({
+            where: { role: 'ADMIN', isActive: true, id: { not: userId } },
+          });
+          if (otherActiveAdmins === 0) {
+            throw new Error('Keep at least one active administrator');
+          }
+        }
+      }
       nextData.isActive = data.isActive;
     }
 
@@ -178,6 +196,7 @@ class UsersService {
           email: true,
           name: true,
           role: true,
+          isActive: true,
           campusId: true,
           campus: { select: { id: true, name: true, code: true } },
           createdAt: true,
