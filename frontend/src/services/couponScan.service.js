@@ -1,5 +1,10 @@
 import api from './api.js';
 
+export const getDeskStatus = async () => {
+  const response = await api.get('/coupons/desk');
+  return response.data;
+};
+
 export const scanEmployeeQr = async (employeeId) => {
   const response = await api.post('/coupons/scan', { employeeId });
   return response.data;

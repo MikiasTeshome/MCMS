@@ -90,7 +90,12 @@
     "protocolAdmin": "እንደ አስተዳዳሪ ሁሉም የዳታቤዝ ለውጦች ይመዘገባሉ።",
     "protocolManager": "ማኔጆሮች ለተጠቃሚዎች ኩፖን ማድረግ፣ የምግብ ዋጋ ማስተካከል እና እንቅስቃሴ ማጣራት ይችላሉ።",
     "protocolCafe": "ካፌ ቃኝ ይክፈቱ፣ የሰራተኛ QR ይቃኙ እና ምግብ ይመዝግቡ። ያልዋሉ የሳምንቱ ቀናት በአንድ ጉብኝት ሊመዘገቡ ይችላሉ።",
-    "protocolEmployee": "በካምፐስ ካፌ የQR ካርድዎን አሳዩ ኩፖንዎን ይውሰዱ።"
+    "protocolEmployee": "በካምፐስ ካፌ የQR ካርድዎን አሳዩ ኩፖንዎን ይውሰዱ።",
+    "byCampus": "በካምፓስ የተመዘገቡ",
+    "byCampusHelp": "የኮሌጁ ጠቅላላ አንድ ነው። እያንዳንዱ ረድፍ በዚያ ጠረጴዛ የተመዘገቡ ምግቦች ብቻ ነው። ሰራተኛ በሁለቱም ካምፓስ ሊበላ ይችላል።",
+    "campus": "ካምፓስ",
+    "todayMeals": "ዛሬ",
+    "weekMeals": "ይህ ሳምንት"
   },
   "users": {
     "title": "የተጠቃሚ ማውጫ እና መብቶች",
@@ -263,7 +268,10 @@
     "couponsIssued": "የተመዘገቡ ምግቦች",
     "remainingCoupons": "ቀሪ ያልዋሉ ቀናት",
     "autoResetting": "በ{{seconds}} ሰከንድ ውስጥ በራስ-ሰር ይዘጋል...",
-    "confirmReset": "ቀጣይ ቃኝ"
+    "confirmReset": "ቀጣይ ቃኝ",
+    "thisDesk": "ይህ ጠረጴዛ",
+    "todayAtDesk": "ዛሬ በዚህ ጠረጴዛ",
+    "vendorUnknown": "አቅራቢ አልተመደበም — HR በካፌዎች ስር እስኪመድብ ምግብ መመዝገብ አይቻልም።"
   },
   "audit": {
     "title": "የኦዲት እና የደህንነት መዝገብ",
@@ -359,7 +367,16 @@
     "vendorRenameFailed": "ኦፕሬተር መቀየር አልተሳካም",
     "vendorAddFailed": "ኦፕሬተር መጨመር አልተሳካም",
     "assigned": "ኦፕሬተር ተመድቧል። አዲስ ስካኖች ለዚህ ይቆጠራሉ።",
-    "assignFailed": "ኦፕሬተር መመደብ አልተሳካም"
+    "assignFailed": "ኦፕሬተር መመደብ አልተሳካም",
+    "vendorAdded": "አቅራቢ ታክሏል",
+    "ready": "ለቃኝ ዝግጁ",
+    "notReady": "ዝግጁ አይደለም",
+    "vendorOk": "አቅራቢ ተመድቧል",
+    "vendorMissing": "አቅራቢ ገና አልተመደበም",
+    "operators": "የካፌ መግቢያዎች",
+    "operatorsNone": "የካፌ መግቢያ የለም። ስሙ ሲታወቅ አስተዳዳሪ ለዚህ ካምፓስ መለያ ይፍጠር።",
+    "operatorsAskAdmin": "ስሞች ብቻ — የይለፍ ቃል አስተዳዳሪ ይፈጥራል።",
+    "inactiveLogin": "እንቅስቃሴ-አልባ"
   },
   "offDays": {
     "title": "እረፍት ቀናት",

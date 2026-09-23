@@ -154,13 +154,25 @@ const Cafes = () => {
             </button>
           </form>
           <div className="space-y-3">
-            {campuses.map((campus) => (
+            {campuses.map((campus) => {
+              const operators = campus.operators || [];
+              const ready = campus.readyToScan === true;
+              return (
               <div key={campus.id} className="rounded-xl border border-app-border p-4 space-y-3">
                 <input
+                  key={`${campus.id}-${campus.name}`}
                   defaultValue={campus.name}
                   className="glass-input text-sm font-semibold"
                   onBlur={(e) => handleRenameCampus(campus, e.target.value)}
                 />
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider border ${ready ? 'border-emerald-500/40 text-emerald-600' : 'border-amber-500/40 text-amber-700'}`}>
+                    {ready ? t('cafes.ready') : t('cafes.notReady')}
+                  </span>
+                  <span className="text-xs text-app-muted">
+                    {campus.currentVendor ? t('cafes.vendorOk') : t('cafes.vendorMissing')}
+                  </span>
+                </div>
                 <p className="text-xs text-app-muted">
                   {t('cafes.currentVendor')}: {campus.currentVendor?.name || t('cafes.none')}
                 </p>
@@ -179,8 +191,31 @@ const Cafes = () => {
                       </option>
                     ))}
                 </select>
+                <div className="pt-1 space-y-1">
+                  <p className="text-xs font-semibold text-app-secondary uppercase tracking-wider">
+                    {t('cafes.operators')}
+                  </p>
+                  {operators.length === 0 ? (
+                    <p className="text-xs text-app-muted">{t('cafes.operatorsNone')}</p>
+                  ) : (
+                    <>
+                      <ul className="text-sm text-app-primary space-y-1">
+                        {operators.map((staff) => (
+                          <li key={staff.id}>
+                            {staff.name}
+                            {staff.isActive === false ? (
+                              <span className="text-xs text-app-muted"> · {t('cafes.inactiveLogin')}</span>
+                            ) : null}
+                          </li>
+                        ))}
+                      </ul>
+                      <p className="text-xs text-app-muted">{t('cafes.operatorsAskAdmin')}</p>
+                    </>
+                  )}
+                </div>
               </div>
-            ))}
+              );
+            })}
           </div>
         </div>
 

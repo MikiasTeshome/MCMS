@@ -4,7 +4,7 @@ import { useTranslation } from 'react-i18next';
 import { useCalendar } from '../context/CalendarContext.jsx';
 import { getDashboardStats } from '../services/dashboard.service.js';
 import { getCouponScanReport } from '../services/couponScan.service.js';
-import { Utensils, ShieldAlert, CalendarDays, BarChart3, Wallet, Clock } from 'lucide-react';
+import { Utensils, ShieldAlert, CalendarDays, BarChart3, Wallet, Clock, MapPin } from 'lucide-react';
 import { PageHeader, PageSkeleton } from '../components/ui/Page.jsx';
 
 const Dashboard = () => {
@@ -116,6 +116,42 @@ const Dashboard = () => {
                 </div>
               );
             })}
+          </div>
+        </div>
+      )}
+      {Array.isArray(stats.claimsByCampus?.today) && stats.claimsByCampus.today.length > 0 && (
+        <div className="surface-card space-y-4">
+          <h3 className="section-title flex items-center gap-2">
+            <MapPin className="w-4 h-4 text-app-secondary" aria-hidden="true" />
+            {t('dashboard.byCampus')}
+          </h3>
+          <p className="text-sm text-app-muted">{t('dashboard.byCampusHelp')}</p>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="text-left text-xs font-bold text-app-secondary uppercase tracking-wider">
+                  <th className="pb-2">{t('dashboard.campus')}</th>
+                  <th className="pb-2">{t('dashboard.todayMeals')}</th>
+                  <th className="pb-2">{t('dashboard.weekMeals')}</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-app-border/60">
+                {stats.claimsByCampus.today.map((row) => {
+                  const week = stats.claimsByCampus.week?.find((item) => item.campusId === row.campusId);
+                  return (
+                    <tr key={row.campusId} className="text-app-secondary">
+                      <td className="py-2 font-semibold text-app-primary">{row.campusName}</td>
+                      <td className="py-2">
+                        {formatNumber(row.count)} · {formatBirr(row.amount)}
+                      </td>
+                      <td className="py-2">
+                        {formatNumber(week?.count || 0)} · {formatBirr(week?.amount || 0)}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
           </div>
         </div>
       )}

@@ -1,8 +1,18 @@
 import couponsScanService from './coupons.scan.service.js';
+import { getCafeDeskStatus } from '../../utils/cafeDesk.js';
 import { successResponse, errorResponse } from '../../utils/response.js';
 
 const cafeFail = (res, status, error) =>
   errorResponse(res, status, error.message || error, error.code || error);
+
+export const getDeskStatus = async (req, res, next) => {
+  try {
+    const data = await getCafeDeskStatus(req.user);
+    return successResponse(res, 200, 'Desk status', data);
+  } catch (error) {
+    next(error);
+  }
+};
 
 export const scanCoupon = async (req, res, next) => {
   try {

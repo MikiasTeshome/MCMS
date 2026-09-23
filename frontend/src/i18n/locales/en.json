@@ -90,7 +90,12 @@
     "protocolAdmin": "As an administrator, all database log alterations are recorded. Perform core data migrations using standard commands.",
     "protocolManager": "Managers can allocate digital coupons to beneficiaries, edit menu pricing models, and examine overall ticket activities.",
     "protocolCafe": "Open the Cafe Scanner, scan employee QR cards, and record meals. Unused days this week can be recorded together in one visit.",
-    "protocolEmployee": "Present your QR card at the campus canteen to claim your meal coupon."
+    "protocolEmployee": "Present your QR card at the campus canteen to claim your meal coupon.",
+    "byCampus": "Claims by campus",
+    "byCampusHelp": "College total is shared. Each row is only meals recorded at that desk. Employees may eat at either campus.",
+    "campus": "Campus",
+    "todayMeals": "Today",
+    "weekMeals": "This week"
   },
   "users": {
     "title": "User Directory & RBAC",
@@ -263,7 +268,10 @@
     "couponsIssued": "Meals recorded",
     "remainingCoupons": "Unused days left this week",
     "autoResetting": "Next scan in {{seconds}}s...",
-    "confirmReset": "Next Scan"
+    "confirmReset": "Next Scan",
+    "thisDesk": "This desk",
+    "todayAtDesk": "Today at this desk",
+    "vendorUnknown": "No vendor assigned — HR must assign one under Cafes before meals can be recorded."
   },
   "audit": {
     "title": "Compliance & Security Audit Trail",
@@ -359,7 +367,16 @@
     "vendorRenameFailed": "Could not rename vendor",
     "vendorAddFailed": "Could not add vendor",
     "assigned": "Vendor assigned. New scans will be billed to this operator.",
-    "assignFailed": "Could not assign vendor"
+    "assignFailed": "Could not assign vendor",
+    "vendorAdded": "Vendor added",
+    "ready": "Ready to scan",
+    "notReady": "Not ready",
+    "vendorOk": "Vendor assigned",
+    "vendorMissing": "No vendor assigned yet",
+    "operators": "Cafe logins",
+    "operatorsNone": "No cafe login yet. Ask Admin to create one for this campus when you know the operator’s name.",
+    "operatorsAskAdmin": "Names only — Admin creates the password.",
+    "inactiveLogin": "inactive"
   },
   "offDays": {
     "title": "Off days",

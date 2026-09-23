@@ -1,13 +1,13 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '../context/AuthContext.jsx';
-import { Coffee, CheckCircle } from 'lucide-react';
+import { Coffee, CheckCircle, MapPin } from 'lucide-react';
 import QRScanner from '../components/cafe/QRScanner.jsx';
 import EmployeeInfoCard from '../components/cafe/EmployeeInfoCard.jsx';
 import CouponIssuePanel from '../components/cafe/CouponIssuePanel.jsx';
 import ScanNotification from '../components/cafe/ScanNotification.jsx';
 import SuccessModal from '../components/cafe/SuccessModal.jsx';
-import { scanEmployeeQr, issueCoupons } from '../services/couponScan.service.js';
+import { scanEmployeeQr, issueCoupons, getDeskStatus } from '../services/couponScan.service.js';
 import { cafeApiErrorMessage, cafeBlockMessage } from '../utils/cafeScanError.js';
 import { remainingEarnedMeals } from '../utils/cafeRedeemable.js';
 
@@ -21,6 +21,7 @@ const CafeScanner = () => {
   const [overrideReason, setOverrideReason] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [showSuccessModal, setShowSuccessModal] = useState(false);
+  const [desk, setDesk] = useState(null);
   const [successData, setSuccessData] = useState({
     employeeName: '',
     issuedCount: 0,
@@ -29,6 +30,22 @@ const CafeScanner = () => {
 
   const issueSectionRef = useRef(null);
   const issueLockRef = useRef(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    const loadDesk = async () => {
+      try {
+        const res = await getDeskStatus();
+        if (!cancelled && res.success) setDesk(res.data);
+      } catch {
+        if (!cancelled) setDesk(null);
+      }
+    };
+    loadDesk();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   useEffect(() => {
     if (!employee || loading) return;
@@ -121,6 +138,14 @@ const CafeScanner = () => {
           issuedCount: res.data.issuedCount,
           remainingCoupons: remainingRedeemableNow,
         });
+        setDesk((prev) => {
+          if (!prev?.today) return prev;
+          const nextCount = (Number(prev.today.count) || 0) + issuedCount;
+          return {
+            ...prev,
+            today: { count: nextCount, amount: nextCount * 40 },
+          };
+        });
         setShowSuccessModal(true);
       }
     } catch (err) {
@@ -158,12 +183,23 @@ const CafeScanner = () => {
           {t('cafe.title')}
         </h1>
         <p className="text-app-secondary text-sm font-medium">{t('cafe.subtitle')}</p>
-        {user?.campus?.name ? (
-          <p className="text-sm text-app-secondary mt-2">
-            {user.campus.name}
-            {employee?.vendor?.name ? ` · ${employee.vendor.name}` : ''}
+        <div className="mt-3 rounded-xl border border-app-border px-4 py-3 space-y-1">
+          <p className="text-[10px] font-bold uppercase tracking-wider text-app-muted">{t('cafe.thisDesk')}</p>
+          <p className="text-sm font-semibold text-app-primary flex items-center gap-2">
+            <MapPin className="w-4 h-4 shrink-0" aria-hidden="true" />
+            {desk?.campus?.name || user?.campus?.name || (user?.role === 'CAFE_STAFF' ? t('cafe.campusMissing') : t('cafe.thisDesk'))}
+            {desk?.vendor?.name ? ` · ${desk.vendor.name}` : employee?.vendor?.name ? ` · ${employee.vendor.name}` : ''}
           </p>
-        ) : user?.role === 'CAFE_STAFF' ? (
+          {desk?.code === 'NO_VENDOR' || (desk && !desk.vendor && user?.role === 'CAFE_STAFF') ? (
+            <p className="text-xs text-amber-700">{t('cafe.vendorUnknown')}</p>
+          ) : null}
+          {desk?.today ? (
+            <p className="text-sm text-app-secondary">
+              {t('cafe.todayAtDesk')}: {Number(desk.today.count || 0).toLocaleString()} · {Number(desk.today.amount || 0).toLocaleString()} {t('common.birr')}
+            </p>
+          ) : null}
+        </div>
+        {user?.role === 'CAFE_STAFF' && !user?.campus?.name && !desk?.campus?.name ? (
           <p className="alert-error mt-3">
             {t('cafe.campusMissing')}
           </p>

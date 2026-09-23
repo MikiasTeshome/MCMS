@@ -24,19 +24,30 @@ class CampusesService {
           include: { vendor: true },
           take: 1,
         },
-        _count: { select: { staff: true } },
+        staff: {
+          where: { role: 'CAFE_STAFF' },
+          select: { id: true, name: true, isActive: true },
+          orderBy: { name: 'asc' },
+        },
       },
     });
 
-    return campuses.map((campus) => ({
-      id: campus.id,
-      name: campus.name,
-      code: campus.code,
-      isActive: campus.isActive,
-      currentVendor: campus.assignments[0]?.vendor || null,
-      staffCount: campus._count.staff,
-      createdAt: campus.createdAt,
-    }));
+    return campuses.map((campus) => {
+      const operators = campus.staff || [];
+      const hasVendor = Boolean(campus.assignments[0]?.vendor?.isActive !== false && campus.assignments[0]?.vendor);
+      const hasActiveOperator = operators.some((staff) => staff.isActive !== false);
+      return {
+        id: campus.id,
+        name: campus.name,
+        code: campus.code,
+        isActive: campus.isActive,
+        currentVendor: campus.assignments[0]?.vendor || null,
+        operators,
+        staffCount: operators.length,
+        readyToScan: hasVendor && hasActiveOperator,
+        createdAt: campus.createdAt,
+      };
+    });
   }
 
   async createCampus(data, actorId, req) {
