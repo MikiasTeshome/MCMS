@@ -76,6 +76,9 @@ export const deleteEmployee = async (req, res, next) => {
     if (error.message === 'Employee not found') {
       return errorResponse(res, 404, error.message);
     }
+    if (error.code === 'HAS_CLAIMS') {
+      return errorResponse(res, 400, error.message);
+    }
     next(error);
   }
 };

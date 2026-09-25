@@ -518,6 +518,15 @@ class EmployeesService {
       throw new Error('Employee not found');
     }
 
+    const mealCount = await prisma.couponClaim.count({ where: { employeeId: id } });
+    if (mealCount > 0) {
+      const err = new Error(
+        'This employee has recorded meals. Deleting them would remove those meals from payment reports. Deactivate the employee instead.'
+      );
+      err.code = 'HAS_CLAIMS';
+      throw err;
+    }
+
     await prisma.$transaction(async (tx) => {
       // Cascade delete: EmployeeProfile and QRCards will be cleared via DB constraints
       await tx.user.delete({

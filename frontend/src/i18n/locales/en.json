@@ -203,7 +203,7 @@
     "editSuccess": "{{name}} updated successfully!",
     "editFailed": "Failed to update employee",
     "deleteTooltip": "Delete employee",
-    "deleteConfirm": "Are you sure you want to permanently delete {{name}}? This cannot be undone.",
+    "deleteConfirm": "Permanently delete {{name}}? If they have ever recorded a meal, the system will refuse — that would erase payment history. Prefer Deactivate.",
     "deleteSuccess": "{{name}} has been deleted.",
     "deleteFailed": "Failed to delete employee"
   },
@@ -330,6 +330,7 @@
     "letterFailed": "Could not generate the payment letter.",
     "letterHelp": "This does not pay the cafe. Apply the dates first, then download from that cafe row. The letter uses the report on screen, not dates you typed but did not Apply.",
     "letterNeedScans": "No cafe scans in this date range. Choose last week, last month, or a custom range that has scans, then download the letter.",
+    "paymentMismatch": "Payment rows do not add up to the report total. Do not download a letter until this matches. Reload Reports.",
     "cafePayment": "Amount to claim (40 birr × scans)",
     "cafePaymentHelp": "Only scans at your campus. Finance pays this vendor for the selected dates.",
     "kitchen": "Campus",

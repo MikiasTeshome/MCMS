@@ -12,7 +12,7 @@ export const formatPaymentLetterDate = (calendarMode, value) => {
   }
   const { year, month, day } = getEthiopianParts(value);
   if (!year || !month || !day) return '';
-  return `${pad(day)}/${pad(month)}/${String(year).slice(-2)}`;
+  return `${pad(day)}/${pad(month)}/${year}`;
 };
 
 export const downloadPaymentOrderFromReport = async ({
@@ -29,6 +29,12 @@ export const downloadPaymentOrderFromReport = async ({
   const count = Number(row.count || 0);
   const amount = Number(row.amount || 0);
   const rate = report?.metrics?.rate ?? 40;
+  if (Math.abs(count * rate - amount) > 0.009) {
+    throw new Error(
+      'This cafe total is not 40 birr times the number of meals. Do not pay from this letter. Recheck Reports.'
+    );
+  }
+  const payable = count * rate;
   const cafeName =
     [row.vendorName, row.campusName].filter(Boolean).join(' — ') || '____________________';
   const vars = {
@@ -38,10 +44,16 @@ export const downloadPaymentOrderFromReport = async ({
     total_days: String(days),
     total_scans: formatGroupedInt(count),
     rate_per_coupon: formatMoney(rate),
-    total_amount: formatMoney(amount),
-    total_amount_words: birrToAmharicWords(amount),
+    total_amount: formatMoney(payable),
+    total_amount_words: birrToAmharicWords(payable),
     cafe_name: cafeName,
   };
   const bytes = buildPaymentOrderDocxBytes(vars);
-  await downloadDocx(bytes, 'payment-order.docx');
+  const slug = (value) =>
+    String(value || '')
+      .replace(/[^\p{L}\p{N}]+/gu, '-')
+      .replace(/^-|-$/g, '')
+      .slice(0, 40);
+  const filename = `payment-order-${slug(row.vendorName) || 'vendor'}-${slug(row.campusName) || 'campus'}-${String(vars.start_date).replace(/\//g, '-')}-${String(vars.end_date).replace(/\//g, '-')}.docx`;
+  await downloadDocx(bytes, filename);
 };

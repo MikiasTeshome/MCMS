@@ -677,19 +677,32 @@ class CouponsService {
 
     const rangeLabel = `${formatCalendarDate(calendarMode, startDate)} -> ${formatCalendarDate(calendarMode, endDate)}`;
 
-    const aggregateRange = async (from, to) => {
+    const claimSlice = (from, to) => {
       const campusClause = campusId ? Prisma.sql`AND cc."campusId" = ${campusId}` : Prisma.empty;
       const vendorClause = vendorId ? Prisma.sql`AND cc."vendorId" = ${vendorId}` : Prisma.empty;
-      const rows = await prisma.$queryRaw`
-        SELECT
-          DATE_TRUNC('day', (cc."issuedAt" AT TIME ZONE 'Africa/Addis_Ababa'))::date AS day,
-          COUNT(*)::int AS count,
-          COALESCE(SUM(c."value"), 0)::numeric AS amount
+      return Prisma.sql`
+        SELECT DISTINCT ON (cc."couponId")
+          cc."couponId",
+          cc."campusId",
+          cc."vendorId",
+          cc."issuedAt",
+          c."value" AS value
         FROM "CouponClaim" cc
         INNER JOIN "Coupon" c ON c."id" = cc."couponId"
         WHERE cc."issuedAt" >= ${from} AND cc."issuedAt" <= ${to}
         ${campusClause}
         ${vendorClause}
+        ORDER BY cc."couponId", cc."issuedAt" ASC
+      `;
+    };
+
+    const aggregateRange = async (from, to) => {
+      const rows = await prisma.$queryRaw`
+        SELECT
+          DATE_TRUNC('day', (claims."issuedAt" AT TIME ZONE 'Africa/Addis_Ababa'))::date AS day,
+          COUNT(*)::int AS count,
+          COALESCE(SUM(claims.value), 0)::numeric AS amount
+        FROM (${claimSlice(from, to)}) AS claims
         GROUP BY 1
         ORDER BY 1 ASC
       `;
@@ -709,19 +722,15 @@ class CouponsService {
 
     const breakdownRows = await prisma.$queryRaw`
       SELECT
-        cc."campusId" AS "campusId",
+        claims."campusId" AS "campusId",
         camp.name AS "campusName",
-        cc."vendorId" AS "vendorId",
+        claims."vendorId" AS "vendorId",
         vend.name AS "vendorName",
         COUNT(*)::int AS count,
-        COALESCE(SUM(c."value"), 0)::numeric AS amount
-      FROM "CouponClaim" cc
-      INNER JOIN "Coupon" c ON c."id" = cc."couponId"
-      LEFT JOIN "Campus" camp ON camp."id" = cc."campusId"
-      LEFT JOIN "Vendor" vend ON vend."id" = cc."vendorId"
-      WHERE cc."issuedAt" >= ${startDate} AND cc."issuedAt" <= ${endDate}
-      ${campusId ? Prisma.sql`AND cc."campusId" = ${campusId}` : Prisma.empty}
-      ${vendorId ? Prisma.sql`AND cc."vendorId" = ${vendorId}` : Prisma.empty}
+        COALESCE(SUM(claims.value), 0)::numeric AS amount
+      FROM (${claimSlice(startDate, endDate)}) AS claims
+      LEFT JOIN "Campus" camp ON camp."id" = claims."campusId"
+      LEFT JOIN "Vendor" vend ON vend."id" = claims."vendorId"
       GROUP BY 1, 2, 3, 4
       ORDER BY amount DESC
     `;
@@ -759,6 +768,7 @@ class CouponsService {
         select: {
           issuedAt: true,
           campusId: true,
+          couponId: true,
           campus: { select: { name: true } },
           employee: {
             select: {
@@ -796,7 +806,12 @@ class CouponsService {
     }
 
     const employeeMap = new Map();
+    const seenCouponIds = new Set();
     for (const claim of employeeClaims) {
+      if (claim.couponId) {
+        if (seenCouponIds.has(claim.couponId)) continue;
+        seenCouponIds.add(claim.couponId);
+      }
       const id = claim.employee?.id;
       if (!id) continue;
       const claimCampusId = claim.campusId || null;
@@ -871,7 +886,7 @@ class CouponsService {
     }
     const { year, month, day } = getEthiopianParts(value);
     if (!year || !month || !day) return '';
-    return `${pad(day)}/${pad(month)}/${String(year).slice(-2)}`;
+    return `${pad(day)}/${pad(month)}/${year}`;
   }
 
   /**
@@ -908,25 +923,38 @@ class CouponsService {
       throw err;
     }
 
+    const count = Number(row.count || 0);
+    const amount = Number(row.amount || 0);
+    const rate = STANDARD_COUPON_VALUE;
+    if (Math.abs(count * rate - amount) > 0.009) {
+      const err = new Error(
+        'This cafe total is not 40 birr times the number of meals. Do not pay from this letter. Recheck Reports.'
+      );
+      err.statusCode = 400;
+      throw err;
+    }
+
     const calendarMode = report.selectedRange.calendarMode;
+    const payable = count * rate;
     const vars = {
       date: this.formatPaymentLetterDate(calendarMode, new Date()),
       start_date: this.formatPaymentLetterDate(calendarMode, report.selectedRange.startDate),
       end_date: this.formatPaymentLetterDate(calendarMode, report.selectedRange.endDate),
       total_days: String(report.chartSeries?.length || 0),
-      total_scans: formatGroupedInt(row.count),
-      rate_per_coupon: formatMoney(report.metrics.rate),
-      total_amount: formatMoney(row.amount),
-      total_amount_words: birrToAmharicWords(row.amount),
-      cafe_name: row.vendorName,
+      total_scans: formatGroupedInt(count),
+      rate_per_coupon: formatMoney(rate),
+      total_amount: formatMoney(payable),
+      total_amount_words: birrToAmharicWords(payable),
+      cafe_name: [row.vendorName, row.campusName].filter(Boolean).join(' — ') || '____________________',
     };
 
     const buffer = await renderPaymentOrderDocx(vars);
-    const safeVendor = String(row.vendorName || 'cafe')
-      .replace(/[^\p{L}\p{N}]+/gu, '-')
-      .replace(/^-|-$/g, '')
-      .slice(0, 40);
-    const filename = `payment-order-${safeVendor || 'cafe'}-${vars.start_date.replace(/\//g, '-')}-${vars.end_date.replace(/\//g, '-')}.docx`;
+    const slug = (value) =>
+      String(value || '')
+        .replace(/[^\p{L}\p{N}]+/gu, '-')
+        .replace(/^-|-$/g, '')
+        .slice(0, 40);
+    const filename = `payment-order-${slug(row.vendorName) || 'vendor'}-${slug(row.campusName) || 'campus'}-${vars.start_date.replace(/\//g, '-')}-${vars.end_date.replace(/\//g, '-')}.docx`;
 
     return { buffer, filename, vars };
   }

@@ -176,6 +176,11 @@ const Reports = () => {
   );
 
   const employees = report?.employees || [];
+  const cafeRows = report?.byCampus || [];
+  const cafeTotalCount = cafeRows.reduce((sum, row) => sum + Number(row.count || 0), 0);
+  const cafeTotalAmount = cafeRows.reduce((sum, row) => sum + Number(row.amount || 0), 0);
+  const paymentMismatch =
+    Math.abs(cafeTotalCount - selectedCount) > 0 || Math.abs(cafeTotalAmount - selectedAmount) > 0.009;
 
   const totalEmployeePages = Math.max(1, Math.ceil(employees.length / employeePageSize));
   const pagedEmployees = useMemo(() => {
@@ -211,6 +216,28 @@ const Reports = () => {
   const exportExcel = async () => {
     const XLSX = await import('xlsx');
     const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(
+      wb,
+      XLSX.utils.json_to_sheet(
+        [
+          ...cafeRows.map((row) => ({
+            Campus: row.campusName,
+            Vendor: row.vendorName,
+            Vouchers: row.count,
+            Amount: row.amount,
+            '40 x vouchers': Number(row.count || 0) * (rate || 40),
+          })),
+          {
+            Campus: 'TOTAL',
+            Vendor: '',
+            Vouchers: cafeTotalCount,
+            Amount: cafeTotalAmount,
+            '40 x vouchers': cafeTotalCount * (rate || 40),
+          },
+        ]
+      ),
+      'Payment by cafe'
+    );
     XLSX.utils.book_append_sheet(
       wb,
       XLSX.utils.json_to_sheet(
@@ -467,7 +494,7 @@ const Reports = () => {
           }
         />
         <div className="flex flex-wrap gap-2">
-          {canWritePaymentLetter && (report?.byCampus || []).length === 1 && (
+          {canWritePaymentLetter && !paymentMismatch && (report?.byCampus || []).length === 1 && (
             <button
               type="button"
               onClick={() => handleDownloadPaymentLetter((report?.byCampus || [])[0])}
@@ -491,6 +518,14 @@ const Reports = () => {
         </div>
       </div>
       {pdfError && <p className="alert-error text-sm">{pdfError}</p>}
+      {paymentMismatch && (
+        <p className="alert-error">
+          {t('reports.paymentMismatch', {
+            defaultValue:
+              'Payment rows do not add up to the report total. Do not download a letter until this matches. Reload Reports.',
+          })}
+        </p>
+      )}
 
       <div className="surface-card flex flex-col gap-4 no-print">
         {canFilterCampus && campuses.length > 0 && (
@@ -672,17 +707,17 @@ const Reports = () => {
                     <td>{row.campusName}</td>
                     <td>{row.vendorName}</td>
                     <td>{row.count.toLocaleString()}</td>
-                    <td>{row.amount.toLocaleString()} {t('common.birr')}</td>
+                    <td>{Number(row.amount || 0).toLocaleString()} {t('common.birr')}</td>
                     {canWritePaymentLetter && (
                       <td className="no-print">
                         <button
                           type="button"
                           className="btn-secondary !min-h-0 !py-1.5 !px-3 text-xs"
-                          disabled={letterBusyKey === `${row.campusId || 'none'}-${row.vendorId || 'none'}`}
+                          disabled={paymentMismatch || letterBusyKey === cafeRowKey(row)}
                           onClick={() => handleDownloadPaymentLetter(row)}
                         >
                           <FileText className="w-3.5 h-3.5" />
-                          {letterBusyKey === `${row.campusId || 'none'}-${row.vendorId || 'none'}`
+                          {letterBusyKey === cafeRowKey(row)
                             ? t('reports.letterPreparing')
                             : t('reports.downloadWord')}
                         </button>
@@ -691,6 +726,14 @@ const Reports = () => {
                   </tr>
                 ))}
               </tbody>
+              <tfoot>
+                <tr>
+                  <td colSpan={2} className="font-semibold">{t('reports.total')}</td>
+                  <td className="font-semibold">{cafeTotalCount.toLocaleString()}</td>
+                  <td className="font-semibold">{cafeTotalAmount.toLocaleString()} {t('common.birr')}</td>
+                  {canWritePaymentLetter && <td className="no-print" />}
+                </tr>
+              </tfoot>
             </table>
           </div>
         </div>
