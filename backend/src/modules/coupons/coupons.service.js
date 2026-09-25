@@ -686,6 +686,7 @@ class CouponsService {
           cc."campusId",
           cc."vendorId",
           cc."issuedAt",
+          cc."employeeId",
           c."value" AS value
         FROM "CouponClaim" cc
         INNER JOIN "Coupon" c ON c."id" = cc."couponId"
@@ -708,12 +709,14 @@ class CouponsService {
       `;
       return rows.map((row) => ({
         day: (() => {
+          const local = getEthiopiaLocalDate(row.day);
+          if (local) {
+            return `${local.getUTCFullYear()}-${String(local.getUTCMonth() + 1).padStart(2, '0')}-${String(local.getUTCDate()).padStart(2, '0')}`;
+          }
           const value = row.day;
           if (!value) return '';
           if (typeof value === 'string') return String(value).slice(0, 10);
-          const date = new Date(value);
-          if (Number.isNaN(date.getTime())) return '';
-          return `${date.getUTCFullYear()}-${String(date.getUTCMonth() + 1).padStart(2, '0')}-${String(date.getUTCDate()).padStart(2, '0')}`;
+          return '';
         })(),
         count: Number(row.count || 0),
         amount: Number(row.amount || 0),
@@ -754,32 +757,26 @@ class CouponsService {
     });
     const dashMonthStart = startOfEthiopiaDayUtc(dashMonthStartDate || dashTodayStart);
 
-    const [selectedRows, todayRows, weekRows, monthRows, employeeClaims] = await Promise.all([
+    const [selectedRows, todayRows, weekRows, monthRows, namedClaims] = await Promise.all([
       aggregateRange(startDate, endDate),
       aggregateRange(dashTodayStart, dashTodayEnd),
       aggregateRange(dashWeekStart, dashTodayEnd),
       aggregateRange(dashMonthStart, dashTodayEnd),
-      prisma.couponClaim.findMany({
-        where: {
-          issuedAt: { gte: startDate, lte: endDate },
-          ...(campusId ? { campusId } : {}),
-          ...(vendorId ? { vendorId } : {}),
-        },
-        select: {
-          issuedAt: true,
-          campusId: true,
-          couponId: true,
-          campus: { select: { name: true } },
-          employee: {
-            select: {
-              id: true,
-              name: true,
-              employeeProfile: { select: { employeeIdNumber: true } },
-            },
-          },
-          coupon: { select: { value: true } },
-        },
-      }),
+      prisma.$queryRaw`
+        SELECT
+          claims."couponId" AS "couponId",
+          claims."campusId" AS "campusId",
+          claims."employeeId" AS "employeeId",
+          claims."issuedAt" AS "issuedAt",
+          claims.value AS value,
+          u.name AS name,
+          ep."employeeIdNumber" AS "employeeIdNumber",
+          camp.name AS "campusName"
+        FROM (${claimSlice(startDate, endDate)}) AS claims
+        LEFT JOIN "User" u ON u."id" = claims."employeeId"
+        LEFT JOIN "EmployeeProfile" ep ON ep."userId" = claims."employeeId"
+        LEFT JOIN "Campus" camp ON camp."id" = claims."campusId"
+      `,
     ]);
     const selectedRowMap = new Map(selectedRows.map((row) => [row.day, row]));
 
@@ -807,29 +804,39 @@ class CouponsService {
 
     const employeeMap = new Map();
     const seenCouponIds = new Set();
-    for (const claim of employeeClaims) {
+    for (const claim of namedClaims || []) {
       if (claim.couponId) {
         if (seenCouponIds.has(claim.couponId)) continue;
         seenCouponIds.add(claim.couponId);
       }
-      const id = claim.employee?.id;
+      const id = claim.employeeId || null;
       if (!id) continue;
       const claimCampusId = claim.campusId || null;
       const key = `${id}::${claimCampusId || 'none'}`;
+      const dayKey = ethiopiaDateKey(claim.issuedAt);
       const current = employeeMap.get(key) || {
         id,
         campusId: claimCampusId,
-        campusName: claim.campus?.name || 'Unassigned',
-        name: claim.employee.name || 'N/A',
-        employeeIdNumber: claim.employee.employeeProfile?.employeeIdNumber || 'N/A',
+        campusName: claim.campusName || 'Unassigned',
+        name: claim.name || 'Unknown employee',
+        employeeIdNumber: claim.employeeIdNumber || 'N/A',
         count: 0,
         amount: 0,
         lastIssuedAt: claim.issuedAt,
+        days: [],
+        byDay: {},
       };
       current.count += 1;
-      current.amount += Number(claim.coupon?.value || 0);
+      current.amount += Number(claim.value || 0);
       if (new Date(claim.issuedAt) > new Date(current.lastIssuedAt)) {
         current.lastIssuedAt = claim.issuedAt;
+      }
+      if (dayKey) {
+        if (!current.days.includes(dayKey)) current.days.push(dayKey);
+        const dayTotals = current.byDay[dayKey] || { count: 0, amount: 0 };
+        dayTotals.count += 1;
+        dayTotals.amount += Number(claim.value || 0);
+        current.byDay[dayKey] = dayTotals;
       }
       employeeMap.set(key, current);
     }

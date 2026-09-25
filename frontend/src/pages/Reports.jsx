@@ -58,7 +58,8 @@ const Reports = () => {
   const [tablePage, setTablePage] = useState(1);
   const [tablePageSize, setTablePageSize] = useState(10);
   const [employeePage, setEmployeePage] = useState(1);
-  const [employeePageSize, setEmployeePageSize] = useState(10);
+  const [employeePageSize, setEmployeePageSize] = useState(25);
+  const [employeeDayKey, setEmployeeDayKey] = useState('');
   const [letterBusyKey, setLetterBusyKey] = useState('');
   const [letterError, setLetterError] = useState('');
   const [letterCafeKey, setLetterCafeKey] = useState('');
@@ -139,6 +140,7 @@ const Reports = () => {
   useEffect(() => {
     setTablePage(1);
     setEmployeePage(1);
+    setEmployeeDayKey('');
   }, [activePreset, tableSort.key, tableSort.order, campusId]);
 
   useEffect(() => {
@@ -175,7 +177,17 @@ const Reports = () => {
     [series, calendarMode]
   );
 
-  const employees = report?.employees || [];
+  const employees = useMemo(() => {
+    const rows = report?.employees || [];
+    if (!employeeDayKey) return rows;
+    return rows
+      .filter((row) => row.byDay?.[employeeDayKey] || (row.days || []).includes(employeeDayKey))
+      .map((row) => {
+        const dayTotals = row.byDay?.[employeeDayKey];
+        if (!dayTotals) return row;
+        return { ...row, count: dayTotals.count, amount: dayTotals.amount };
+      });
+  }, [report, employeeDayKey]);
   const cafeRows = report?.byCampus || [];
   const cafeTotalCount = cafeRows.reduce((sum, row) => sum + Number(row.count || 0), 0);
   const cafeTotalAmount = cafeRows.reduce((sum, row) => sum + Number(row.amount || 0), 0);
@@ -755,6 +767,15 @@ const Reports = () => {
         <div>
           <p className="section-label mb-2">Employees</p>
           <h3 className="text-xl font-semibold text-app-primary">Employees who used vouchers</h3>
+          {employeeDayKey ? (
+            <p className="text-sm text-app-secondary mt-1">
+              Showing {formatCalendarShortDate(calendarMode, employeeDayKey) || employeeDayKey}. Click the day again in Daily breakdown to show the whole range.
+            </p>
+          ) : (
+            <p className="text-sm text-app-muted mt-1">
+              Click a day in Daily breakdown to list only that day's names.
+            </p>
+          )}
         </div>
         <div className="table-wrap">
           <div className="table-scroll">
@@ -866,7 +887,17 @@ const Reports = () => {
               </thead>
               <tbody>
                 {pagedTable.map((row) => (
-                  <tr key={row.date} className="hover:bg-app-surface-2/10">
+                  <tr
+                    key={row.date}
+                    className={`hover:bg-app-surface-2/10 ${row.count > 0 ? 'cursor-pointer' : ''} ${
+                      employeeDayKey && row.date === employeeDayKey ? 'bg-app-surface-2/40' : ''
+                    }`}
+                    onClick={() => {
+                      if (!row.count) return;
+                      setEmployeeDayKey((prev) => (prev === row.date ? '' : row.date));
+                      setEmployeePage(1);
+                    }}
+                  >
                     <td>{row.label}</td>
                     <td>{row.count.toLocaleString()}</td>
                     <td>{row.amount.toLocaleString()} {t('common.birr')}</td>
