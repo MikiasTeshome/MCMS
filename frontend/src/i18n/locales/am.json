@@ -124,7 +124,20 @@
     "reactivateConfirm": "{{name}} እንደገና መግባት ይችሉ?",
     "deactivated": "{{name}} ከአሁን በኋላ መግባት አይችሉም።",
     "reactivated": "{{name}} እንደገና መግባት ይችላሉ።",
-    "statusFailed": "የመለያ ሁኔታ መቀየር አልተሳካም"
+    "statusFailed": "የመለያ ሁኔታ መቀየር አልተሳካም",
+    "displayName": "የሚታይ ስም",
+    "displayNamePlaceholder": "ለምሳሌ ሚካኤል",
+    "displayNameHelp": "በራስጌ እና ዝርዝር ይታያል። ለመግቢያ አይጠቀምም።",
+    "loginEmail": "የመግቢያ ኢሜይል",
+    "loginEmailHelp": "በመግቢያ ገጹ የሚጻፈው ነው።",
+    "temporaryPassword": "ጊዜያዊ የይለፍ ቃል",
+    "editAccount": "አርትዕ",
+    "editTitle": "ስም ወይም የመግቢያ ኢሜይል ያርሙ",
+    "editHelp": "ለ {{name}} ({{email}}) የተሳሳተ ጽሑፍ ያርሙ። ሚና እና የይለፍ ቃል አይቀየሩም።",
+    "editEmailHelp": "ኢሜይሉን ከቀየሩ አዲሱን በአካል ይንገሩ — ለመግቢያ ይጠቀሙበታል። የይለፍ ቃል አይቀየርም።",
+    "editSuccess": "የ {{name}} መለያ ተስተካክሏል።",
+    "editSuccessEmail": "{{name}} ከአሁን በኋላ በ {{email}} ይገባሉ። በአካል ይንገሯቸው። የይለፍ ቃል አልተቀየረም።",
+    "editFailed": "መለያ ማስተካከል አልተሳካም"
   },
   "employees": {
     "title": "የሰራተኞች ማውጫ",

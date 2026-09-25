@@ -124,7 +124,20 @@
     "reactivateConfirm": "Reactivate {{name}} so they can sign in again?",
     "deactivated": "{{name}} can no longer sign in.",
     "reactivated": "{{name}} can sign in again.",
-    "statusFailed": "Could not update account status"
+    "statusFailed": "Could not update account status",
+    "displayName": "Display name",
+    "displayNamePlaceholder": "e.g. Michael",
+    "displayNameHelp": "Shown in the header and lists. Not used to sign in.",
+    "loginEmail": "Login email",
+    "loginEmailHelp": "This is the username they type on the login page.",
+    "temporaryPassword": "Temporary password",
+    "editAccount": "Edit",
+    "editTitle": "Correct name or login email",
+    "editHelp": "Fix a typing mistake for {{name}} ({{email}}). Role and password stay the same.",
+    "editEmailHelp": "If you change the email, tell them the new one — they use it to sign in. Password is unchanged.",
+    "editSuccess": "Account details updated for {{name}}.",
+    "editSuccessEmail": "{{name}} now signs in with {{email}}. Tell them in person. Password is unchanged.",
+    "editFailed": "Could not update account"
   },
   "employees": {
     "title": "HR Employee Directory",

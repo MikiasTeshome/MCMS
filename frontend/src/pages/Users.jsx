@@ -6,7 +6,7 @@ import { getUsers, provisionUser, resetUserPassword, updateUser } from '../servi
 import { getCampuses } from '../services/campus.service.js';
 import { PageHeader, PageSkeleton, getRoleBadgeClass } from '../components/ui/Page.jsx';
 import { ModalOverlay } from '../components/ui/Modal.jsx';
-import { Users as UsersIcon, Plus, CheckCircle, ShieldAlert, Key } from 'lucide-react';
+import { Users as UsersIcon, Plus, CheckCircle, ShieldAlert, Key, Pencil } from 'lucide-react';
 import { formatCalendarDate } from '../utils/ethiopianDate.js';
 
 const Users = () => {
@@ -31,6 +31,8 @@ const Users = () => {
   const [campuses, setCampuses] = useState([]);
   const [resetTarget, setResetTarget] = useState(null);
   const [resetPassword, setResetPassword] = useState('');
+  const [editTarget, setEditTarget] = useState(null);
+  const [editForm, setEditForm] = useState({ name: '', email: '' });
 
   const fetchUsers = async (page = pageMeta.page, limit = pageMeta.limit) => {
     try {
@@ -127,6 +129,34 @@ const Users = () => {
       setResetPassword('');
     } catch (err) {
       setActionError(err.response?.data?.message || t('users.resetFailed'));
+    } finally {
+      setProcessing(false);
+    }
+  };
+
+  const handleEditAccount = async (e) => {
+    e.preventDefault();
+    if (!editTarget?.id) return;
+    setActionError('');
+    setActionSuccess('');
+    setProcessing(true);
+    try {
+      const res = await updateUser(editTarget.id, {
+        name: editForm.name,
+        email: editForm.email,
+      });
+      const next = res.data || {};
+      const emailChanged =
+        String(next.email || '').toLowerCase() !== String(editTarget.email || '').toLowerCase();
+      setActionSuccess(
+        emailChanged
+          ? t('users.editSuccessEmail', { name: next.name, email: next.email })
+          : t('users.editSuccess', { name: next.name })
+      );
+      setEditTarget(null);
+      fetchUsers(pageMeta.page, pageMeta.limit);
+    } catch (err) {
+      setActionError(err.response?.data?.message || t('users.editFailed'));
     } finally {
       setProcessing(false);
     }
@@ -309,6 +339,18 @@ const Users = () => {
                           type="button"
                           className="btn-secondary py-1.5 min-h-0 text-xs"
                           onClick={() => {
+                            setEditTarget(usr);
+                            setEditForm({ name: usr.name || '', email: usr.email || '' });
+                            setActionError('');
+                          }}
+                        >
+                          <Pencil className="w-3.5 h-3.5" />
+                          {t('users.editAccount')}
+                        </button>
+                        <button
+                          type="button"
+                          className="btn-secondary py-1.5 min-h-0 text-xs"
+                          onClick={() => {
                             setResetTarget(usr);
                             setResetPassword('');
                             setActionError('');
@@ -365,46 +407,61 @@ const Users = () => {
               <span>Provision User Profile</span>
             </h3>
 
-            <form onSubmit={handleSubmit} className="space-y-4">
+            <form onSubmit={handleSubmit} className="space-y-4" autoComplete="off">
               
               {/* Name */}
               <div className="space-y-2">
                 <label className="text-xs font-bold text-app-secondary uppercase tracking-wider block">
-                  Full Account Name
+                  {t('users.displayName', { defaultValue: 'Display name' })}
                 </label>
                 <input
                   type="text"
+                  name="name"
                   required
+                  autoComplete="off"
+                  autoCorrect="off"
+                  spellCheck="false"
                   value={userForm.name}
                   onChange={(e) => setUserForm({ ...userForm, name: e.target.value })}
-                  placeholder="E.g., John Doe"
+                  placeholder={t('users.displayNamePlaceholder', { defaultValue: 'e.g. Michael' })}
                   className="glass-input"
                 />
+                <p className="text-xs text-app-muted">
+                  {t('users.displayNameHelp', { defaultValue: 'Shown in the header and lists. Not used to sign in.' })}
+                </p>
               </div>
 
               {/* Email */}
               <div className="space-y-2">
                 <label className="text-xs font-bold text-app-secondary uppercase tracking-wider block">
-                  Corporate Email Address
+                  {t('users.loginEmail', { defaultValue: 'Login email' })}
                 </label>
                 <input
                   type="email"
+                  name="email"
                   required
+                  autoComplete="off"
                   value={userForm.email}
                   onChange={(e) => setUserForm({ ...userForm, email: e.target.value })}
-                  placeholder="email@system.com"
+                  placeholder="name@tmptc.edu.et"
                   className="glass-input"
                 />
+                <p className="text-xs text-app-muted">
+                  {t('users.loginEmailHelp', { defaultValue: 'This is the username they type on the login page.' })}
+                </p>
               </div>
 
               {/* Password */}
               <div className="space-y-2">
                 <label className="text-xs font-bold text-app-secondary uppercase tracking-wider block">
-                  Security Passcode
+                  {t('users.temporaryPassword', { defaultValue: 'Temporary password' })}
                 </label>
                 <input
                   type="password"
+                  name="new-password"
                   required
+                  minLength={8}
+                  autoComplete="new-password"
                   value={userForm.password}
                   onChange={(e) => setUserForm({ ...userForm, password: e.target.value })}
                   placeholder="••••••••"
@@ -508,6 +565,57 @@ const Users = () => {
                 </button>
                 <button type="submit" className="flex-1 btn-primary" disabled={processing}>
                   {t('users.resetPassword')}
+                </button>
+              </div>
+            </form>
+          </div>
+        </ModalOverlay>
+      )}
+
+      {editTarget && (
+        <ModalOverlay onClose={() => !processing && setEditTarget(null)}>
+          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+            <h3 className="modal-title mb-2">{t('users.editTitle')}</h3>
+            <p className="text-sm text-app-secondary mb-4">
+              {t('users.editHelp', { name: editTarget.name, email: editTarget.email })}
+            </p>
+            {actionError && (
+              <p className="text-sm text-rose-400 mb-3">{actionError}</p>
+            )}
+            <form onSubmit={handleEditAccount} className="form-stack" autoComplete="off">
+              <div className="form-group">
+                <label className="input-label">{t('users.displayName')}</label>
+                <input
+                  required
+                  value={editForm.name}
+                  onChange={(e) => setEditForm({ ...editForm, name: e.target.value })}
+                  className="glass-input"
+                  autoComplete="off"
+                />
+              </div>
+              <div className="form-group">
+                <label className="input-label">{t('users.loginEmail')}</label>
+                <input
+                  type="email"
+                  required
+                  value={editForm.email}
+                  onChange={(e) => setEditForm({ ...editForm, email: e.target.value })}
+                  className="glass-input"
+                  autoComplete="off"
+                />
+                <p className="text-xs text-app-muted mt-1">{t('users.editEmailHelp')}</p>
+              </div>
+              <div className="flex gap-3 pt-2">
+                <button
+                  type="button"
+                  className="flex-1 btn-secondary"
+                  onClick={() => setEditTarget(null)}
+                  disabled={processing}
+                >
+                  {t('common.cancel')}
+                </button>
+                <button type="submit" className="flex-1 btn-primary" disabled={processing}>
+                  {t('common.save')}
                 </button>
               </div>
             </form>

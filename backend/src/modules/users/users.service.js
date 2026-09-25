@@ -38,9 +38,9 @@ class UsersService {
 
     const user = await prisma.user.create({
       data: {
-        email,
+        email: String(email || '').trim().toLowerCase(),
         passwordHash,
-        name,
+        name: String(name || '').trim(),
         role: role || 'HR',
         campusId: role === 'CAFE_STAFF' ? campusId : null,
       },
@@ -114,6 +114,32 @@ class UsersService {
     }
 
     const nextData = {};
+    if (data.name !== undefined) {
+      const nextName = String(data.name || '').trim();
+      if (!nextName) {
+        throw new Error('Name is required');
+      }
+      nextData.name = nextName;
+    }
+
+    if (data.email !== undefined) {
+      const nextEmail = String(data.email || '').trim().toLowerCase();
+      if (!nextEmail || !nextEmail.includes('@')) {
+        throw new Error('A valid login email is required');
+      }
+      const clash = await prisma.user.findFirst({
+        where: {
+          id: { not: userId },
+          email: { equals: nextEmail, mode: 'insensitive' },
+        },
+        select: { id: true },
+      });
+      if (clash) {
+        throw new Error('That login email is already used by another account');
+      }
+      nextData.email = nextEmail;
+    }
+
     if (typeof data.isActive === 'boolean') {
       if (data.isActive === false) {
         if (userId === actorId) {
@@ -138,27 +164,39 @@ class UsersService {
       nextData.campusId = data.campusId;
     }
 
-    const user = await prisma.user.update({
-      where: { id: userId },
-      data: nextData,
-      select: {
-        id: true,
-        email: true,
-        name: true,
-        role: true,
-        isActive: true,
-        campusId: true,
-        campus: { select: { id: true, name: true, code: true } },
-      },
-    });
+    if (Object.keys(nextData).length === 0) {
+      throw new Error('Nothing to update');
+    }
+
+    let user;
+    try {
+      user = await prisma.user.update({
+        where: { id: userId },
+        data: nextData,
+        select: {
+          id: true,
+          email: true,
+          name: true,
+          role: true,
+          isActive: true,
+          campusId: true,
+          campus: { select: { id: true, name: true, code: true } },
+        },
+      });
+    } catch (error) {
+      if (error.code === 'P2002') {
+        throw new Error('That login email is already used by another account');
+      }
+      throw error;
+    }
 
     await auditService.log({
       action: 'USER_UPDATE',
       entityType: 'User',
       entityId: user.id,
       actorId,
-      oldState: { campusId: existing.campusId, isActive: existing.isActive },
-      newState: { campusId: user.campusId, isActive: user.isActive },
+      oldState: { name: existing.name, email: existing.email, campusId: existing.campusId, isActive: existing.isActive },
+      newState: { name: user.name, email: user.email, campusId: user.campusId, isActive: user.isActive },
       req,
     });
 

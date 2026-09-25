@@ -69,6 +69,14 @@ export const updateUser = async (req, res, next) => {
       return errorResponse(res, 400, error.message);
     }
     if (
+      error.message === 'Name is required' ||
+      error.message === 'A valid login email is required' ||
+      error.message === 'That login email is already used by another account' ||
+      error.message === 'Nothing to update'
+    ) {
+      return errorResponse(res, 400, error.message);
+    }
+    if (
       error.message === 'You cannot deactivate your own account' ||
       error.message === 'Keep at least one active administrator' ||
       error.message.includes('Employees do not log in')
