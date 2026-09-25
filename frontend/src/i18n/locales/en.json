@@ -334,7 +334,11 @@
     "cafePaymentHelp": "Only scans at your campus. Finance pays this vendor for the selected dates.",
     "kitchen": "Campus",
     "vendor": "Vendor",
-    "vouchers": "Vouchers"
+    "vouchers": "Vouchers",
+    "allCampuses": "All campuses",
+    "campusFilter": "Campus",
+    "campusFilterHelp": "All campuses is the college total. Pick a campus to see only that desk. Cafe staff already see only their campus.",
+    "unassignedCampus": "Unassigned"
   },
   "datePicker": {
     "open": "Open calendar",

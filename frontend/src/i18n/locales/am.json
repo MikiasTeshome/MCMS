@@ -334,7 +334,11 @@
     "cafePaymentHelp": "በእርስዎ ካምፓስ ብቻ የተቃኙ። ፋይናንስ ይህን ኦፕሬተር ለተመረጡት ቀናት ይከፍላል።",
     "kitchen": "ካምፓስ",
     "vendor": "ኦፕሬተር",
-    "vouchers": "ቫውቸሮች"
+    "vouchers": "ቫውቸሮች",
+    "allCampuses": "ሁሉም ካምፓሶች",
+    "campusFilter": "ካምፓስ",
+    "campusFilterHelp": "ሁሉም ካምፓሶች የኮሌጁ ጠቅላላ ነው። አንድ ካምፓስ ይምረጡ ያንን ጠረጴዛ ብቻ ለማየት። የካፌ ሰራተኛ አስቀድሞ የራሱን ካምፓስ ብቻ ያያል።",
+    "unassignedCampus": "ያልተመደበ"
   },
   "datePicker": {
     "open": "ካሌንደር ክፈት",

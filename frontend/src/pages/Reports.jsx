@@ -4,6 +4,7 @@ import { useAuth } from '../context/AuthContext.jsx';
 import { useCalendar } from '../context/CalendarContext.jsx';
 import { PageHeader, PageSkeleton } from '../components/ui/Page.jsx';
 import { getCouponScanReport } from '../services/couponScan.service.js';
+import { getCampuses } from '../services/campus.service.js';
 import { downloadPaymentOrderFromReport } from '../utils/downloadPaymentOrder.js';
 import {
   formatCalendarDate,
@@ -41,6 +42,8 @@ const escapeHtml = (value) =>
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;');
 
+const cafeRowKey = (row) => `${row?.campusId || 'none'}-${row?.vendorId || 'none'}`;
+
 const Reports = () => {
   const { t } = useTranslation();
   const { user } = useAuth();
@@ -62,8 +65,17 @@ const Reports = () => {
   const [pdfError, setPdfError] = useState('');
 
   const [reportError, setReportError] = useState('');
+  const [campuses, setCampuses] = useState([]);
+  const [campusId, setCampusId] = useState('');
   const reportRequestRef = useRef(0);
   const lastCustomIsoRef = useRef(null);
+  const canFilterCampus = user?.role !== 'CAFE_STAFF';
+
+  const scopedParams = (params = {}) => {
+    const next = { ...params };
+    if (canFilterCampus && campusId) next.campusId = campusId;
+    return next;
+  };
 
   const loadReport = async (params = {}, { silent = false } = {}) => {
     const requestId = reportRequestRef.current + 1;
@@ -71,7 +83,7 @@ const Reports = () => {
     if (!silent) setLoading(true);
     setReportError('');
     try {
-      const res = await getCouponScanReport(params);
+      const res = await getCouponScanReport(scopedParams(params));
       if (requestId !== reportRequestRef.current) return null;
       setReport(res.data);
       return res.data;
@@ -90,16 +102,31 @@ const Reports = () => {
   };
 
   useEffect(() => {
+    if (!canFilterCampus) return undefined;
+    let cancelled = false;
+    getCampuses()
+      .then((res) => {
+        if (!cancelled) setCampuses(res.data || []);
+      })
+      .catch(() => {
+        if (!cancelled) setCampuses([]);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [canFilterCampus]);
+
+  useEffect(() => {
     if (!isPresetKey(activePreset)) return;
     lastCustomIsoRef.current = null;
     loadPresetReport(activePreset);
-  }, [activePreset, calendarMode]);
+  }, [activePreset, calendarMode, campusId]);
 
   useEffect(() => {
     if (isPresetKey(activePreset)) return;
     if (!lastCustomIsoRef.current) return;
     loadReport({ ...lastCustomIsoRef.current, calendarMode });
-  }, [calendarMode, activePreset]);
+  }, [calendarMode, activePreset, campusId]);
 
   useEffect(() => {
     if (!report?.selectedRange?.startDate || !report?.selectedRange?.endDate) return;
@@ -112,7 +139,7 @@ const Reports = () => {
   useEffect(() => {
     setTablePage(1);
     setEmployeePage(1);
-  }, [activePreset, tableSort.key, tableSort.order]);
+  }, [activePreset, tableSort.key, tableSort.order, campusId]);
 
   useEffect(() => {
     const rows = report?.byCampus || [];
@@ -120,7 +147,10 @@ const Reports = () => {
       setLetterCafeKey('');
       return;
     }
-    setLetterCafeKey(`${rows[0].campusId || 'none'}-${rows[0].vendorId || 'none'}-0`);
+    setLetterCafeKey((prev) => {
+      if (prev && rows.some((item) => cafeRowKey(item) === prev)) return prev;
+      return cafeRowKey(rows[0]);
+    });
   }, [report]);
 
   const selectedRangeLabel = useMemo(() => {
@@ -187,6 +217,7 @@ const Reports = () => {
         employees.map((row) => ({
           Name: row.name,
           'Employee ID': row.employeeIdNumber,
+          Campus: row.campusName || '',
           Vouchers: row.count,
           Amount: row.amount,
           'Last scan': formatCalendarDate(calendarMode, row.lastIssuedAt) || row.lastIssuedAt,
@@ -236,16 +267,24 @@ const Reports = () => {
   </tbody>
 </table>`;
 
+    const campusLabel =
+      user?.role === 'CAFE_STAFF'
+        ? user?.campus?.name
+        : campusId
+          ? campuses.find((item) => item.id === campusId)?.name
+          : t('reports.allCampuses');
+    const showCampusColumn = user?.role !== 'CAFE_STAFF';
     const employeeTable = employees.length
       ? `<h2>Employees who used vouchers</h2>
 <table>
-  <thead><tr><th>Name</th><th>Employee ID</th><th>Vouchers</th><th>Amount (Birr)</th><th>Last scan</th></tr></thead>
+  <thead><tr><th>Name</th><th>Employee ID</th>${showCampusColumn ? '<th>Campus</th>' : ''}<th>Vouchers</th><th>Amount (Birr)</th><th>Last scan</th></tr></thead>
   <tbody>
     ${employees
       .map(
         (row) => `<tr>
       <td>${escapeHtml(row.name)}</td>
       <td>${escapeHtml(row.employeeIdNumber)}</td>
+      ${showCampusColumn ? `<td>${escapeHtml(row.campusName || '')}</td>` : ''}
       <td>${escapeHtml(row.count.toLocaleString())}</td>
       <td>${escapeHtml(Number(row.amount || 0).toLocaleString())}</td>
       <td>${escapeHtml(formatCalendarDate(calendarMode, row.lastIssuedAt) || '')}</td>
@@ -290,7 +329,7 @@ const Reports = () => {
 </head>
 <body>
   <h1>${escapeHtml(title)}</h1>
-  <div class="meta">${escapeHtml(selectedRangeLabel)}${user?.campus?.name ? ` · ${escapeHtml(user.campus.name)}` : ''}</div>
+  <div class="meta">${escapeHtml(selectedRangeLabel)}${campusLabel ? ` · ${escapeHtml(campusLabel)}` : ''}</div>
   <h2>Summary</h2>
   <div class="grid">
     <div class="card"><div class="label">Coupons scanned</div><div class="value">${escapeHtml(selectedCount.toLocaleString())}</div></div>
@@ -350,10 +389,8 @@ const Reports = () => {
       }
       const cafeRow =
         row ||
-        (activeReport.byCampus || []).find(
-          (item, index) => `${item.campusId || 'none'}-${item.vendorId || 'none'}-${index}` === letterCafeKey
-        ) ||
-        (activeReport.byCampus || [])[0] ||
+        (activeReport.byCampus || []).find((item) => cafeRowKey(item) === letterCafeKey) ||
+        ((activeReport.byCampus || []).length === 1 ? (activeReport.byCampus || [])[0] : null) ||
         null;
       await downloadPaymentOrderFromReport({
         report: activeReport,
@@ -431,14 +468,21 @@ const Reports = () => {
             <span className="flex flex-wrap items-center gap-2">
               <CalendarDays className="w-4 h-4 text-app-secondary" />
               <span>{selectedRangeLabel}</span>
-              {user?.campus?.name && (
+              {user?.role === 'CAFE_STAFF' && user?.campus?.name && (
                 <span className="badge">{user.campus.name}</span>
+              )}
+              {canFilterCampus && (
+                <span className="badge">
+                  {campusId
+                    ? campuses.find((item) => item.id === campusId)?.name || t('reports.kitchen')
+                    : t('reports.allCampuses')}
+                </span>
               )}
             </span>
           }
         />
         <div className="flex flex-wrap gap-2">
-          {canWritePaymentLetter && (
+          {canWritePaymentLetter && (report?.byCampus || []).length === 1 && (
             <button
               type="button"
               onClick={() => handleDownloadPaymentLetter((report?.byCampus || [])[0])}
@@ -464,6 +508,39 @@ const Reports = () => {
       {pdfError && <p className="alert-error text-sm">{pdfError}</p>}
 
       <div className="surface-card flex flex-col gap-4 no-print">
+        {canFilterCampus && campuses.length > 0 && (
+          <div className="space-y-2">
+            <p className="text-xs font-bold text-app-secondary uppercase tracking-wider">
+              {t('reports.campusFilter')}
+            </p>
+            <div className="flex flex-wrap gap-2">
+              <button
+                type="button"
+                onClick={() => setCampusId('')}
+                className={`px-4 py-2 rounded-card border text-sm font-semibold transition-colors ${
+                  campusId === '' ? 'text-white border-transparent' : 'text-app-secondary border-app-border hover:text-app-primary'
+                }`}
+                style={campusId === '' ? { backgroundColor: 'var(--color-primary)' } : undefined}
+              >
+                {t('reports.allCampuses')}
+              </button>
+              {campuses.map((campus) => (
+                <button
+                  key={campus.id}
+                  type="button"
+                  onClick={() => setCampusId(campus.id)}
+                  className={`px-4 py-2 rounded-card border text-sm font-semibold transition-colors ${
+                    campusId === campus.id ? 'text-white border-transparent' : 'text-app-secondary border-app-border hover:text-app-primary'
+                  }`}
+                  style={campusId === campus.id ? { backgroundColor: 'var(--color-primary)' } : undefined}
+                >
+                  {campus.name}
+                </button>
+              ))}
+            </div>
+            <p className="text-xs text-app-muted">{t('reports.campusFilterHelp')}</p>
+          </div>
+        )}
         <div className="flex flex-wrap gap-2">
           {PRESETS.map((preset) => (
             <button
@@ -548,8 +625,8 @@ const Reports = () => {
                   value={letterCafeKey}
                   onChange={(e) => setLetterCafeKey(e.target.value)}
                 >
-                  {(report.byCampus || []).map((row, index) => {
-                    const key = `${row.campusId || 'none'}-${row.vendorId || 'none'}-${index}`;
+                  {(report.byCampus || []).map((row) => {
+                    const key = cafeRowKey(row);
                     return (
                       <option key={key} value={key}>
                         {row.vendorName} — {row.campusName} ({row.count.toLocaleString()})
@@ -565,8 +642,8 @@ const Reports = () => {
                 onClick={() => {
                   const rows = report.byCampus || [];
                   const row =
-                    rows.find((item, index) => `${item.campusId || 'none'}-${item.vendorId || 'none'}-${index}` === letterCafeKey) ||
-                    rows[0];
+                    rows.find((item) => cafeRowKey(item) === letterCafeKey) ||
+                    (rows.length === 1 ? rows[0] : null);
                   if (row) handleDownloadPaymentLetter(row);
                 }}
               >
@@ -658,6 +735,7 @@ const Reports = () => {
                 <tr>
                   <th>Name</th>
                   <th>Employee ID</th>
+                  {canFilterCampus && <th>{t('reports.kitchen')}</th>}
                   <th>Vouchers</th>
                   <th>Amount</th>
                   <th>Last scan</th>
@@ -666,13 +744,14 @@ const Reports = () => {
               <tbody>
                 {pagedEmployees.length === 0 ? (
                   <tr>
-                    <td colSpan={5} className="text-app-muted">No voucher use in this range.</td>
+                    <td colSpan={canFilterCampus ? 6 : 5} className="text-app-muted">No voucher use in this range.</td>
                   </tr>
                 ) : (
                   pagedEmployees.map((row) => (
-                    <tr key={row.id}>
+                    <tr key={`${row.id}-${row.campusId || 'none'}`}>
                       <td>{row.name}</td>
                       <td>{row.employeeIdNumber}</td>
+                      {canFilterCampus && <td>{row.campusName || t('reports.unassignedCampus')}</td>}
                       <td>{row.count.toLocaleString()}</td>
                       <td>{Number(row.amount || 0).toLocaleString()} {t('common.birr')}</td>
                       <td>{formatCalendarDate(calendarMode, row.lastIssuedAt) || '—'}</td>

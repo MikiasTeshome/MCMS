@@ -592,10 +592,13 @@ class CouponsService {
     const now = new Date();
     const rangeType = filters.range || 'thisMonth';
     const calendarMode = getCalendarMode(filters.calendarMode);
-    let campusId = filters.campusId || null;
+    let campusId =
+      typeof filters.campusId === 'string' && filters.campusId.trim() && filters.campusId !== 'all'
+        ? filters.campusId.trim()
+        : null;
     let vendorId = filters.vendorId || null;
     if (user?.role === 'CAFE_STAFF') {
-      campusId = user.campusId || campusId;
+      campusId = user.campusId || null;
     }
     let startDate = filters.startDate ? startOfEthiopiaDayUtc(parseCalendarDate(calendarMode, filters.startDate)) : null;
     let endDate = filters.endDate ? endOfEthiopiaDayUtc(parseCalendarDate(calendarMode, filters.endDate)) : null;
@@ -755,6 +758,8 @@ class CouponsService {
         },
         select: {
           issuedAt: true,
+          campusId: true,
+          campus: { select: { name: true } },
           employee: {
             select: {
               id: true,
@@ -794,8 +799,12 @@ class CouponsService {
     for (const claim of employeeClaims) {
       const id = claim.employee?.id;
       if (!id) continue;
-      const current = employeeMap.get(id) || {
+      const claimCampusId = claim.campusId || null;
+      const key = `${id}::${claimCampusId || 'none'}`;
+      const current = employeeMap.get(key) || {
         id,
+        campusId: claimCampusId,
+        campusName: claim.campus?.name || 'Unassigned',
         name: claim.employee.name || 'N/A',
         employeeIdNumber: claim.employee.employeeProfile?.employeeIdNumber || 'N/A',
         count: 0,
@@ -807,7 +816,7 @@ class CouponsService {
       if (new Date(claim.issuedAt) > new Date(current.lastIssuedAt)) {
         current.lastIssuedAt = claim.issuedAt;
       }
-      employeeMap.set(id, current);
+      employeeMap.set(key, current);
     }
     const employees = [...employeeMap.values()].sort(
       (a, b) => new Date(b.lastIssuedAt) - new Date(a.lastIssuedAt)
@@ -821,6 +830,7 @@ class CouponsService {
         label: rangeLabel,
         rangeType,
         calendarMode,
+        campusId,
       },
       chartSeries,
       summary: {
