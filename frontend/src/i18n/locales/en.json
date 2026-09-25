@@ -328,7 +328,7 @@
     "downloadWord": "Download Word letter",
     "letterPreparing": "Preparing…",
     "letterFailed": "Could not generate the payment letter.",
-    "letterHelp": "This does not pay the cafe. It fills an editable Word payment order for Finance from the dates and cafe you select.",
+    "letterHelp": "This does not pay the cafe. Apply the dates first, then download from that cafe row. The letter uses the report on screen, not dates you typed but did not Apply.",
     "letterNeedScans": "No cafe scans in this date range. Choose last week, last month, or a custom range that has scans, then download the letter.",
     "cafePayment": "Amount to claim (40 birr × scans)",
     "cafePaymentHelp": "Only scans at your campus. Finance pays this vendor for the selected dates.",

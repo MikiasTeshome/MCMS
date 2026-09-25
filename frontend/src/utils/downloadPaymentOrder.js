@@ -19,20 +19,18 @@ export const downloadPaymentOrderFromReport = async ({
   report,
   row,
   calendarMode,
-  startDate,
-  endDate,
 }) => {
-  const start = startDate || report?.selectedRange?.startDate;
-  const end = endDate || report?.selectedRange?.endDate;
-  const startMs = start ? new Date(start).getTime() : NaN;
-  const endMs = end ? new Date(end).getTime() : NaN;
-  const days =
-    Number.isFinite(startMs) && Number.isFinite(endMs)
-      ? Math.max(1, Math.round((endMs - startMs) / 86400000) + 1)
-      : report?.chartSeries?.length || 0;
-  const count = row?.count ?? report?.metrics?.selectedCount ?? 0;
-  const amount = row?.amount ?? report?.metrics?.selectedAmount ?? 0;
+  if (row?.count == null) {
+    throw new Error('Select the cafe this letter is paying.');
+  }
+  const start = report?.selectedRange?.startDate;
+  const end = report?.selectedRange?.endDate;
+  const days = report?.chartSeries?.length || 0;
+  const count = Number(row.count || 0);
+  const amount = Number(row.amount || 0);
   const rate = report?.metrics?.rate ?? 40;
+  const cafeName =
+    [row.vendorName, row.campusName].filter(Boolean).join(' — ') || '____________________';
   const vars = {
     date: formatPaymentLetterDate(calendarMode, new Date()),
     start_date: formatPaymentLetterDate(calendarMode, start),
@@ -42,7 +40,7 @@ export const downloadPaymentOrderFromReport = async ({
     rate_per_coupon: formatMoney(rate),
     total_amount: formatMoney(amount),
     total_amount_words: birrToAmharicWords(amount),
-    cafe_name: row?.vendorName || '____________________',
+    cafe_name: cafeName,
   };
   const bytes = buildPaymentOrderDocxBytes(vars);
   await downloadDocx(bytes, 'payment-order.docx');

@@ -364,40 +364,25 @@ const Reports = () => {
   };
 
   const handleDownloadPaymentLetter = async (row) => {
-    const key = `${row?.campusId || 'none'}-${row?.vendorId || 'none'}`;
+    const key = cafeRowKey(row);
     setLetterBusyKey(key);
     setLetterError('');
     try {
-      let activeReport = report;
-      const entered = resolveEnteredRange();
-      if (entered) {
-        setActivePreset('custom');
-        lastCustomIsoRef.current = {
-          startDate: toIsoDay(entered.startDate),
-          endDate: toIsoDay(entered.endDate),
-        };
-        activeReport = await loadReport(
-          {
-            ...lastCustomIsoRef.current,
-            calendarMode,
-          },
-          { silent: true }
-        );
-      }
-      if (!activeReport) {
+      if (!report) {
         throw new Error(t('reports.letterFailed'));
       }
       const cafeRow =
-        row ||
-        (activeReport.byCampus || []).find((item) => cafeRowKey(item) === letterCafeKey) ||
-        ((activeReport.byCampus || []).length === 1 ? (activeReport.byCampus || [])[0] : null) ||
+        (report.byCampus || []).find((item) => cafeRowKey(item) === cafeRowKey(row)) ||
+        (report.byCampus || []).find((item) => cafeRowKey(item) === letterCafeKey) ||
+        ((report.byCampus || []).length === 1 ? report.byCampus[0] : null) ||
         null;
+      if (!cafeRow) {
+        throw new Error(t('reports.letterNeedScans'));
+      }
       await downloadPaymentOrderFromReport({
-        report: activeReport,
+        report,
         row: cafeRow,
         calendarMode,
-        startDate: entered?.startDate || activeReport.selectedRange?.startDate,
-        endDate: entered?.endDate || activeReport.selectedRange?.endDate,
       });
     } catch (err) {
       console.error(err);

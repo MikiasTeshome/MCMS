@@ -116,7 +116,7 @@ async function findTodayHoliday(referenceDate = new Date()) {
   );
 }
 
-async function getEffectiveDailyCap(referenceDate = new Date()) {
+async function getEffectiveDailyCap(referenceDate = new Date(), employeeId = null) {
   const todayWeekday = getAddisWeekday(referenceDate);
   if (todayWeekday === 0 || todayWeekday === 6) return 0;
 
@@ -127,6 +127,23 @@ async function getEffectiveDailyCap(referenceDate = new Date()) {
   const todayKey = getAddisDayKey(referenceDate);
   if (!todayKey || holidayKeys.has(todayKey)) return 0;
 
+  let leaveStartKey = '';
+  let leaveReturnKey = '';
+  if (employeeId) {
+    const profile = await prisma.employeeProfile.findUnique({
+      where: { userId: employeeId },
+      select: { leaveStartDate: true, leaveReturnDate: true },
+    });
+    if (profile?.leaveStartDate && profile?.leaveReturnDate) {
+      leaveStartKey = getAddisDayKey(profile.leaveStartDate);
+      leaveReturnKey = getAddisDayKey(profile.leaveReturnDate);
+    }
+  }
+  const isLeaveDay = (key) =>
+    Boolean(leaveStartKey && leaveReturnKey && key >= leaveStartKey && key < leaveReturnKey);
+
+  if (isLeaveDay(todayKey)) return 0;
+
   const weekStart = startOfWeek(referenceDate);
   let earned = 0;
   for (let i = 0; i < 7; i += 1) {
@@ -136,6 +153,7 @@ async function getEffectiveDailyCap(referenceDate = new Date()) {
     const weekday = getAddisWeekday(day);
     if (weekday === 0 || weekday === 6) continue;
     if (holidayKeys.has(key)) continue;
+    if (isLeaveDay(key)) continue;
     earned += 1;
   }
   return earned;
@@ -317,7 +335,7 @@ class CouponsScanService {
    *   - If fewer coupons exist than the cap, allocate the difference.
    */
   async ensureWeeklyCoupons(employeeId, tx) {
-    const cap = await getEffectiveDailyCap();
+    const cap = await getEffectiveDailyCap(new Date(), employeeId);
     if (cap === 0) return; // weekend or public holiday — nothing to do
 
     if (!tx) {
@@ -467,7 +485,7 @@ class CouponsScanService {
 
     // Earned days so far this week (Mon=1 … Fri=5). Leftover = those earned
     // days minus meals already recorded this week — never future weekdays.
-    const dailyCap = await getEffectiveDailyCap();
+    const dailyCap = await getEffectiveDailyCap(new Date(), employeeId);
     const remainingAllowance = Math.max(0, dailyCap - claimedThisWeek);
     const couponsRedeemableNow = Math.min(remainingAllowance, availableCoupons);
 
