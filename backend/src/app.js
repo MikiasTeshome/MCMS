@@ -83,9 +83,13 @@ app.use(loggingMiddleware);
 app.use(i18nMiddleware);
 
 // --- 2. SECURITY RATE LIMITING ---
+const isCafeMealPath = (req) =>
+  /\/coupons\/(scan|issue)(\/|\?|$)/.test(req.originalUrl || '');
+
 const apiLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   max: config.rateLimitMax,
+  skip: isCafeMealPath,
   message: {
     success: false,
     message: 'Too many requests from this IP, please try again after 15 minutes',
