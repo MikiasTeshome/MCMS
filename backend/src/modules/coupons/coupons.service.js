@@ -200,7 +200,6 @@ const countEthiopiaWeekdays = (start, end) => {
   }
   return weekdays;
 };
-};
 
 const createGregorianMidday = (year, month, day) =>
   new Date(Date.UTC(year, month - 1, day, 12, 0, 0, 0));
