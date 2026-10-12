@@ -334,33 +334,18 @@ const Reports = () => {
 </table>`
       : '';
 
-    const dayTable = sortedTable
-      .map(
-        (row) => `<tr>
-      <td>${escapeHtml(row.label)}</td>
-      <td>${escapeHtml(row.count.toLocaleString())}</td>
-      <td>${escapeHtml(row.amount.toLocaleString())}</td>
-      <td>${escapeHtml(rate.toLocaleString())}</td>
-    </tr>`
-      )
-      .join('');
-
     const html = `<!DOCTYPE html>
 <html>
 <head>
 <meta charset="utf-8"/>
 <title>${escapeHtml(title)}</title>
 <style>
-  @page { size: A4; margin: 14mm; }
+  @page { size: A4; margin: 42mm 14mm 18mm 14mm; }
   * { box-sizing: border-box; }
   body { font-family: Inter, Segoe UI, Noto Sans Ethiopic, sans-serif; color: #111; margin: 0; }
   h1 { font-size: 20px; margin: 0 0 4px; }
   h2 { font-size: 14px; margin: 18px 0 8px; }
   .meta { color: #555; font-size: 12px; margin-bottom: 16px; }
-  .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
-  .card { border: 1px solid #d5dce6; border-radius: 8px; padding: 10px 12px; }
-  .label { font-size: 10px; text-transform: uppercase; letter-spacing: .04em; color: #667085; }
-  .value { font-size: 14px; font-weight: 700; margin-top: 4px; }
   table { width: 100%; border-collapse: collapse; font-size: 12px; }
   th, td { border: 1px solid #d5dce6; padding: 6px 8px; text-align: left; }
   th { background: #f4f7fb; }
@@ -369,19 +354,8 @@ const Reports = () => {
 <body>
   <h1>${escapeHtml(title)}</h1>
   <div class="meta">${escapeHtml(selectedRangeLabel)}${campusLabel ? ` · ${escapeHtml(campusLabel)}` : ''}</div>
-  <h2>Summary</h2>
-  <div class="grid">
-    <div class="card"><div class="label">Coupons scanned</div><div class="value">${escapeHtml(selectedCount.toLocaleString())}</div></div>
-    <div class="card"><div class="label">Total revenue</div><div class="value">${escapeHtml(selectedAmount.toLocaleString())} Birr</div></div>
-    <div class="card"><div class="label">Standard rate</div><div class="value">${escapeHtml(rate.toLocaleString())} Birr</div></div>
-  </div>
   ${cafeTable}
   ${employeeTable}
-  <h2>Daily breakdown</h2>
-  <table>
-    <thead><tr><th>Period</th><th>Coupons scanned</th><th>Revenue (Birr)</th><th>Standard rate</th></tr></thead>
-    <tbody>${dayTable || '<tr><td colspan="4">No scans in this range.</td></tr>'}</tbody>
-  </table>
   <script>window.onload = function () { setTimeout(function () { window.print(); }, 300); };<\/script>
 </body>
 </html>`;
