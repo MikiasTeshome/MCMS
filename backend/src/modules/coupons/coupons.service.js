@@ -179,6 +179,29 @@ const shiftUtcDays = (value, days) => {
   return shifted;
 };
 
+/** Monday–Friday in Africa/Addis_Ababa, inclusive. Weekends are not meal days. */
+const countEthiopiaWeekdays = (start, end) => {
+  const from = normalizeDate(start);
+  const to = normalizeDate(end);
+  if (!from || !to || from > to) return 0;
+  const endLocal = getEthiopiaLocalDate(to);
+  const endKey = `${endLocal.getUTCFullYear()}-${String(endLocal.getUTCMonth() + 1).padStart(2, '0')}-${String(endLocal.getUTCDate()).padStart(2, '0')}`;
+  let cursor = startOfEthiopiaDayUtc(from);
+  let weekdays = 0;
+  let guard = 0;
+  while (cursor && guard < 800) {
+    const local = getEthiopiaLocalDate(cursor);
+    const key = `${local.getUTCFullYear()}-${String(local.getUTCMonth() + 1).padStart(2, '0')}-${String(local.getUTCDate()).padStart(2, '0')}`;
+    if (key > endKey) break;
+    const weekday = local.getUTCDay();
+    if (weekday >= 1 && weekday <= 5) weekdays += 1;
+    cursor = shiftUtcDays(cursor, 1);
+    guard += 1;
+  }
+  return weekdays;
+};
+};
+
 const createGregorianMidday = (year, month, day) =>
   new Date(Date.UTC(year, month - 1, day, 12, 0, 0, 0));
 
@@ -947,12 +970,14 @@ class CouponsService {
       date: this.formatPaymentLetterDate(calendarMode, new Date()),
       start_date: this.formatPaymentLetterDate(calendarMode, report.selectedRange.startDate),
       end_date: this.formatPaymentLetterDate(calendarMode, report.selectedRange.endDate),
-      total_days: String(report.chartSeries?.length || 0),
+      total_days: String(
+        countEthiopiaWeekdays(report.selectedRange.startDate, report.selectedRange.endDate)
+      ),
       total_scans: formatGroupedInt(count),
       rate_per_coupon: formatMoney(rate),
       total_amount: formatMoney(payable),
       total_amount_words: birrToAmharicWords(payable),
-      cafe_name: [row.vendorName, row.campusName].filter(Boolean).join(' — ') || '____________________',
+      cafe_name: row.vendorName || '____________________',
     };
 
     const buffer = await renderPaymentOrderDocx(vars);
