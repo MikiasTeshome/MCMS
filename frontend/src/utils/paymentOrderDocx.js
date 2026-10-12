@@ -133,11 +133,6 @@ const paragraph = (text, { align = 'left', bold = false, size = 22, after = 200 
 
 export const buildPaymentOrderDocxBytes = (vars) => {
   const body = [
-    paragraph('ተፈሪ መኮንን ፖሊ ቴክኒክ ኮሌጅ', { align: 'center', bold: true, size: 32, after: 40 }),
-    paragraph('TAFARI MAKONNEN POLYTECHNIC COLLEGE', { align: 'center', bold: true, size: 20, after: 200 }),
-    paragraph(`የሰነድ ቁጥር/Document No: OF/DO/002`, { align: 'right', after: 40 }),
-    paragraph('የማጣቀሻ ቁጥር/Ref no: ____________________', { align: 'right', after: 40 }),
-    paragraph(`ቀን/Date: ${vars.date}`, { align: 'right', after: 360 }),
     paragraph('ለዲን ጽ/ቤት', { bold: true, after: 80 }),
     paragraph('አዲስ አበባ', { after: 280 }),
     paragraph('ጉዳዩ፡- የሰራተኞች የምሳ ትንኛ ኩፖን ክፍያ ይመለከታል።', { bold: true, after: 280 }),
@@ -145,14 +140,7 @@ export const buildPaymentOrderDocxBytes = (vars) => {
       `የተፈሪ መኮንን ፖሊ ቴክኒክ ኮሌጅ ሰራተኞች በስራ ላይ ሳሉ የሚያገኙት የጠዋት ቁርስ እና የምሳ አገልግሎት ለአሁኑ በ ${vars.rate_per_coupon} ብር መሠረት ከ${vars.start_date} ዓ.ም እስከ ${vars.end_date} ዓ.ም ባሉት ${vars.total_days} ቀናት ውስጥ ከተፈረመ ሰነድ የተጠቃለለው ፊርማ ብዛት ${vars.total_scans} ሲሆን ${vars.rate_per_coupon} × ${vars.total_scans} = ${vars.total_amount} (${vars.total_amount_words}) ስለሆነ ለ ${vars.cafe_name} ክፍያ እንዲፈጸም እንጠይቃለን።`,
       { align: 'both', after: 400 }
     ),
-    paragraph('ከሰላምታ ጋር', { after: 600 }),
-    paragraph('ፊርማ፡ ____________________', { after: 80 }),
-    paragraph('ስም፡ ____________________', { after: 80 }),
-    paragraph('ደረጃ፡ ____________________', { after: 400 }),
-    paragraph(
-      'This Word file is generated from MCMS scan totals for the selected period and cafe. HR may edit names, reference numbers, and wording before sending it to Finance.',
-      { size: 16, after: 0 }
-    ),
+    paragraph('ዘመን ተሻጋሪ', { after: 0 }),
   ].join('');
 
   const documentXml = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
