@@ -133,14 +133,22 @@ const paragraph = (text, { align = 'left', bold = false, size = 22, after = 200 
 
 export const buildPaymentOrderDocxBytes = (vars) => {
   const body = [
-    paragraph('ለዲን ጽ/ቤት', { bold: true, after: 80 }),
+    paragraph('ለዲን', { bold: true, after: 80 }),
     paragraph('አዲስ አበባ', { after: 280 }),
-    paragraph('ጉዳዩ፡- የሰራተኞች የምሳ ትንኛ ኩፖን ክፍያ ይመለከታል።', { bold: true, after: 280 }),
+    paragraph('ጉዳዩ፡- የካፍቴርያ ኩፖን ተጠቃሚ ሠራተኞችን ስለማሳወቅ፤', { bold: true, after: 280 }),
     paragraph(
-      `የተፈሪ መኮንን ፖሊ ቴክኒክ ኮሌጅ ሰራተኞች በስራ ላይ ሳሉ የሚያገኙት የጠዋት ቁርስ እና የምሳ አገልግሎት ለአሁኑ በ ${vars.rate_per_coupon} ብር መሠረት ከ${vars.start_date} ዓ.ም እስከ ${vars.end_date} ዓ.ም ባሉት ${vars.total_days} ቀናት ውስጥ ከተፈረመ ሰነድ የተጠቃለለው ፊርማ ብዛት ${vars.total_scans} ሲሆን ${vars.rate_per_coupon} × ${vars.total_scans} = ${vars.total_amount} (${vars.total_amount_words}) ስለሆነ ለ ${vars.cafe_name} ክፍያ እንዲፈጸም እንጠይቃለን።`,
+      `ከላይ በርዕሱ እንደተጠቀሰው የኮሌጁ ሠራተኞች በሥራ ቀናት ለሻይ ቡና የተፈቀደውን ${vars.rate_int} ብር /${vars.rate_words}/ ኩፖን በኮሌጁ ካፌ ሲጠቀሙ መቆየታቸው ይታወቃል፡፡`,
+      { align: 'both', after: 200 }
+    ),
+    paragraph(
+      `በዚሁ መሠረት በቀን ${vars.rate_int} ብር ከ${vars.start_date} ዓ.ም እስከ ${vars.end_date} ዓ.ም ባሉት ${vars.total_days} የስራ ቀናት የተጠቀሙት እስካን የተደረገው ኩፖን ብዛት ${vars.total_scans} /${vars.total_scans_words}/ ሲሆን ${vars.rate_int}X${vars.total_scans} =${vars.total_amount} (${vars.total_amount_words}) ሲስተሙ አስልቶ ባስቀመጠው መሰረት ለ ${vars.cafe_name} ክፍያ ለመፈፀም ይረዳ ዘንድ የተጠቃሚዎችን መረጃ     ገፅ ከዚህ ሸኚ ደብዳቤ ጋር አባሪ አያይዘን የላክን መሆኑን እንገልጻለን፡፡`,
       { align: 'both', after: 400 }
     ),
-    paragraph('ዘመን ተሻጋሪ', { after: 0 }),
+    paragraph('ዘመን ተሻጋሪ!', { after: 400 }),
+    paragraph('ግልባጭ', { after: 80 }),
+    paragraph('ለሰው ሀብት አስ/ዳይሬክተር', { after: 80 }),
+    paragraph(`ለ ${vars.cafe_name}`, { after: 80 }),
+    paragraph('አዲስ አበባ', { after: 0 }),
   ].join('');
 
   const documentXml = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>

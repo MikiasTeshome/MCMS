@@ -43,6 +43,12 @@ const integerToAmharic = (n) => {
   return parts.join(' ').replace(/\s+/g, ' ').trim();
 };
 
+export const intToAmharicWords = (value) => {
+  const n = Math.round(Number(value) || 0);
+  if (!Number.isFinite(n) || n < 0) return '';
+  return integerToAmharic(n);
+};
+
 export const birrToAmharicWords = (amount) => {
   const numeric = Number(amount);
   if (!Number.isFinite(numeric) || numeric < 0) return '';

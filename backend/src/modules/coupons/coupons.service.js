@@ -3,7 +3,7 @@ import { Prisma } from '@prisma/client';
 import crypto from 'crypto';
 import auditService from '../audit/audit.service.js';
 import { calculateExpiryDate } from '../../utils/expiry.js'; // helper to compute working days
-import { birrToAmharicWords, formatGroupedInt, formatMoney } from '../../utils/amharicAmountWords.js';
+import { birrToAmharicWords, formatGroupedInt, formatMoney, intToAmharicWords } from '../../utils/amharicAmountWords.js';
 import { renderPaymentOrderDocx } from '../../utils/paymentOrderDocx.js';
 
 const STANDARD_COUPON_VALUE = 40;
@@ -151,6 +151,31 @@ const formatEthiopianDate = (value) => {
   const { year, month, day } = getEthiopianParts(value);
   if (!year || !month || !day) return '';
   return `${String(month).padStart(2, '0')}/${String(day).padStart(2, '0')}/${year}`;
+};
+
+const ETHIOPIAN_MONTHS_AM = [
+  '',
+  'መስከረም',
+  'ጥቅምት',
+  'ህዳር',
+  'ታህሳስ',
+  'ጥር',
+  'የካቲት',
+  'መጋቢት',
+  'ሚያዝያ',
+  'ግንቦት',
+  'ሰኔ',
+  'ሐምሌ',
+  'ነሐሴ',
+  'ጳጉሜን',
+];
+
+const formatPaymentLetterLongDate = (value) => {
+  const { year, month, day } = getEthiopianParts(value);
+  if (!year || !month || !day) return '';
+  const monthName = ETHIOPIAN_MONTHS_AM[month];
+  if (!monthName) return '';
+  return `${monthName} ${day} ቀን ${year}`;
 };
 
 const formatEthiopianShortDate = (value) => {
@@ -965,15 +990,19 @@ class CouponsService {
 
     const calendarMode = report.selectedRange.calendarMode;
     const payable = count * rate;
+    const rateInt = Math.round(Number(rate) || 0);
+    const fileStart = this.formatPaymentLetterDate(calendarMode, report.selectedRange.startDate);
+    const fileEnd = this.formatPaymentLetterDate(calendarMode, report.selectedRange.endDate);
     const vars = {
-      date: this.formatPaymentLetterDate(calendarMode, new Date()),
-      start_date: this.formatPaymentLetterDate(calendarMode, report.selectedRange.startDate),
-      end_date: this.formatPaymentLetterDate(calendarMode, report.selectedRange.endDate),
+      start_date: formatPaymentLetterLongDate(report.selectedRange.startDate),
+      end_date: formatPaymentLetterLongDate(report.selectedRange.endDate),
       total_days: String(
         countEthiopiaWeekdays(report.selectedRange.startDate, report.selectedRange.endDate)
       ),
       total_scans: formatGroupedInt(count),
-      rate_per_coupon: formatMoney(rate),
+      total_scans_words: intToAmharicWords(count),
+      rate_int: String(rateInt),
+      rate_words: birrToAmharicWords(rateInt),
       total_amount: formatMoney(payable),
       total_amount_words: birrToAmharicWords(payable),
       cafe_name: row.vendorName || '____________________',
@@ -985,7 +1014,7 @@ class CouponsService {
         .replace(/[^\p{L}\p{N}]+/gu, '-')
         .replace(/^-|-$/g, '')
         .slice(0, 40);
-    const filename = `payment-order-${slug(row.vendorName) || 'vendor'}-${slug(row.campusName) || 'campus'}-${vars.start_date.replace(/\//g, '-')}-${vars.end_date.replace(/\//g, '-')}.docx`;
+    const filename = `payment-order-${slug(row.vendorName) || 'vendor'}-${slug(row.campusName) || 'campus'}-${String(fileStart).replace(/\//g, '-')}-${String(fileEnd).replace(/\//g, '-')}.docx`;
 
     return { buffer, filename, vars };
   }

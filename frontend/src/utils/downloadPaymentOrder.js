@@ -1,4 +1,4 @@
-import { birrToAmharicWords, formatGroupedInt, formatMoney } from '../utils/amharicAmountWords.js';
+import { birrToAmharicWords, formatGroupedInt, formatMoney, intToAmharicWords } from '../utils/amharicAmountWords.js';
 import { buildPaymentOrderDocxBytes, downloadDocx } from '../utils/paymentOrderDocx.js';
 import { getEthiopianParts, getGregorianParts } from '../utils/ethiopianDate.js';
 
@@ -45,6 +45,31 @@ export const formatPaymentLetterDate = (calendarMode, value) => {
   return `${pad(day)}/${pad(month)}/${year}`;
 };
 
+const ETHIOPIAN_MONTHS_AM = [
+  '',
+  'መስከረም',
+  'ጥቅምት',
+  'ህዳር',
+  'ታህሳስ',
+  'ጥር',
+  'የካቲት',
+  'መጋቢት',
+  'ሚያዝያ',
+  'ግንቦት',
+  'ሰኔ',
+  'ሐምሌ',
+  'ነሐሴ',
+  'ጳጉሜን',
+];
+
+export const formatPaymentLetterLongDate = (value) => {
+  const { year, month, day } = getEthiopianParts(value);
+  if (!year || !month || !day) return '';
+  const monthName = ETHIOPIAN_MONTHS_AM[month];
+  if (!monthName) return '';
+  return `${monthName} ${day} ቀን ${year}`;
+};
+
 export const downloadPaymentOrderFromReport = async ({
   report,
   row,
@@ -66,13 +91,17 @@ export const downloadPaymentOrderFromReport = async ({
   }
   const payable = count * rate;
   const cafeName = row.vendorName || '____________________';
+  const rateInt = Math.round(Number(rate) || 0);
+  const fileStart = formatPaymentLetterDate(calendarMode, start);
+  const fileEnd = formatPaymentLetterDate(calendarMode, end);
   const vars = {
-    date: formatPaymentLetterDate(calendarMode, new Date()),
-    start_date: formatPaymentLetterDate(calendarMode, start),
-    end_date: formatPaymentLetterDate(calendarMode, end),
+    start_date: formatPaymentLetterLongDate(start),
+    end_date: formatPaymentLetterLongDate(end),
     total_days: String(days),
     total_scans: formatGroupedInt(count),
-    rate_per_coupon: formatMoney(rate),
+    total_scans_words: intToAmharicWords(count),
+    rate_int: String(rateInt),
+    rate_words: birrToAmharicWords(rateInt),
     total_amount: formatMoney(payable),
     total_amount_words: birrToAmharicWords(payable),
     cafe_name: cafeName,
@@ -83,6 +112,6 @@ export const downloadPaymentOrderFromReport = async ({
       .replace(/[^\p{L}\p{N}]+/gu, '-')
       .replace(/^-|-$/g, '')
       .slice(0, 40);
-  const filename = `payment-order-${slug(row.vendorName) || 'vendor'}-${slug(row.campusName) || 'campus'}-${String(vars.start_date).replace(/\//g, '-')}-${String(vars.end_date).replace(/\//g, '-')}.docx`;
+  const filename = `payment-order-${slug(row.vendorName) || 'vendor'}-${slug(row.campusName) || 'campus'}-${String(fileStart).replace(/\//g, '-')}-${String(fileEnd).replace(/\//g, '-')}.docx`;
   await downloadDocx(bytes, filename);
 };

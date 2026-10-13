@@ -31,7 +31,9 @@ export async function renderPaymentOrderDocx(vars) {
     end_date,
     total_days,
     total_scans,
-    rate_per_coupon,
+    total_scans_words,
+    rate_int,
+    rate_words,
     total_amount,
     total_amount_words,
     cafe_name,
@@ -53,21 +55,33 @@ export async function renderPaymentOrderDocx(vars) {
           },
         },
         children: [
-          p([am('ለዲን ጽ/ቤት', { bold: true })]),
+          p([am('ለዲን', { bold: true })]),
           p([am('አዲስ አበባ')], { after: 280 }),
           p([
             am('ጉዳዩ፡- ', { bold: true, underline: true }),
-            am('የሰራተኞች የምሳ ትንኛ ኩፖን ክፍያ ይመለከታል።', { bold: true, underline: true }),
+            am('የካፍቴርያ ኩፖን ተጠቃሚ ሠራተኞችን ስለማሳወቅ፤', { bold: true, underline: true }),
           ], { after: 280 }),
           p(
             [
               am(
-                `የተፈሪ መኮንን ፖሊ ቴክኒክ ኮሌጅ ሰራተኞች በስራ ላይ ሳሉ የሚያገኙት የጠዋት ቁርስ እና የምሳ አገልግሎት ለአሁኑ በ ${rate_per_coupon} ብር መሠረት ከ${start_date} ዓ.ም እስከ ${end_date} ዓ.ም ባሉት ${total_days} ቀናት ውስጥ ከተፈረመ ሰነድ የተጠቃለለው ፊርማ ብዛት ${total_scans} ሲሆን ${rate_per_coupon} × ${total_scans} = ${total_amount} (${total_amount_words}) ስለሆነ ለ ${cafe_name} ክፍያ እንዲፈጸም እንጠይቃለን።`
+                `ከላይ በርዕሱ እንደተጠቀሰው የኮሌጁ ሠራተኞች በሥራ ቀናት ለሻይ ቡና የተፈቀደውን ${rate_int} ብር /${rate_words}/ ኩፖን በኮሌጁ ካፌ ሲጠቀሙ መቆየታቸው ይታወቃል፡፡`
+              ),
+            ],
+            { alignment: AlignmentType.BOTH, after: 200 }
+          ),
+          p(
+            [
+              am(
+                `በዚሁ መሠረት በቀን ${rate_int} ብር ከ${start_date} ዓ.ም እስከ ${end_date} ዓ.ም ባሉት ${total_days} የስራ ቀናት የተጠቀሙት እስካን የተደረገው ኩፖን ብዛት ${total_scans} /${total_scans_words}/ ሲሆን ${rate_int}X${total_scans} =${total_amount} (${total_amount_words}) ሲስተሙ አስልቶ ባስቀመጠው መሰረት ለ ${cafe_name} ክፍያ ለመፈፀም ይረዳ ዘንድ የተጠቃሚዎችን መረጃ     ገፅ ከዚህ ሸኚ ደብዳቤ ጋር አባሪ አያይዘን የላክን መሆኑን እንገልጻለን፡፡`
               ),
             ],
             { alignment: AlignmentType.BOTH, after: 400 }
           ),
-          p([am('ዘመን ተሻጋሪ')], { after: 0 }),
+          p([am('ዘመን ተሻጋሪ!')], { after: 400 }),
+          p([am('ግልባጭ')], { after: 80 }),
+          p([am('ለሰው ሀብት አስ/ዳይሬክተር')], { after: 80 }),
+          p([am(`ለ ${cafe_name}`)], { after: 80 }),
+          p([am('አዲስ አበባ')], { after: 0 }),
         ],
       },
     ],
